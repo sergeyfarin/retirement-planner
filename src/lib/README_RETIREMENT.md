@@ -34,7 +34,7 @@ src/lib/retirement/
   RetirementPlanner.svelte             ← UI: inputs, allocation blending, regime model construction, plotting
   index.ts                             ← Re-exports
 
-src/lib/statistics.ts                  ← RandomSource (seeded/unseeded RNG + Box-Muller cache), percentile, summarize
+src/lib/calculations.ts                ← RandomSource (seeded/unseeded RNG + Box-Muller cache), percentile, summarize
 ```
 
 ---
@@ -541,9 +541,9 @@ Focus: fix the issues that affect numerical correctness and make the engine test
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 1.1 | **Add seeded PRNG** — implemented with `mulberry32` + `RandomSource` spare cache, optional `seed` in `RetirementInput`. | S | `statistics.ts`, `retirementEngine.ts` |
+| 1.1 | **Add seeded PRNG** — implemented with `mulberry32` + `RandomSource` spare cache, optional `seed` in `RetirementInput`. | S | `calculations.ts`, `retirementEngine.ts` |
 | 1.2 | **Unit test scaffold** — add `retirementEngine.test.ts`. Seed-based tests for: `spendingAtAge`, `incomeAtAge`, `buildCashflowArrays`, `detectRegimes` (synthetic series), `drawShapedStandardScore` (moment check on 100k draws), `findRetirementBalanceTarget` (hand-crafted example), `runMonteCarloSimulation` (smoke: output shape + median > 0). | M | new `retirementEngine.test.ts` |
-| 1.3 | **Fix global mutable `spareNormal`** — implemented inside `RandomSource` instance (part of 1.1). | S | `statistics.ts` |
+| 1.3 | **Fix global mutable `spareNormal`** — implemented inside `RandomSource` instance (part of 1.1). | S | `calculations.ts` |
 | 1.4 | **Restructure drag model** — implemented as `annualFeePercent` + `taxOnGainsPercent`, with updated UI labels/defaults (0.5% / 15%). | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 1.5 | **Add cross-asset correlation** — implemented `equityBondCorrelation` (default −0.1), covariance blending, and historical sample-correlation defaults. | M | `RetirementPlanner.svelte`, `retirementEngine.ts` |
 

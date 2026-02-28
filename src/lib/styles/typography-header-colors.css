@@ -1,0 +1,88 @@
+/* ─── KPI values ──────────────────────────────────────────────────── */
+.results-kpi {
+  font-size: 1.15rem;
+  line-height: 1.1;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin: 0.15rem 0 0.08rem;
+  color: #1e293b;
+}
+
+.mono-value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Page header ─────────────────────────────────────────────────── */
+.page-header {
+  margin: 0 0 0.45rem;
+}
+
+.page-header h2 {
+  margin: 0;
+  margin-bottom: 0.1rem;
+  background: linear-gradient(135deg, #0f766e 0%, #0ea5a4 45%, #22c55e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-header .note { color: #94a3b8; }
+
+.currency-switch {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.currency-btn {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  background-color: #f1f5f9;
+  background-image: linear-gradient(rgba(226, 232, 240, 0.78), rgba(248, 250, 252, 0.78)), var(--flag-url);
+  background-blend-mode: normal;
+  background-size: cover;
+  background-position: center;
+  color: #475569;
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: none;
+  filter: grayscale(1) saturate(0.08) brightness(1.08);
+  transition: border-color 0.15s ease, background-color 0.15s ease, filter 0.15s ease;
+}
+
+.currency-btn span {
+  position: relative;
+  z-index: 1;
+}
+
+.currency-btn:hover {
+  border-color: #cbd5e1;
+  box-shadow: none;
+  filter: grayscale(1) saturate(0.1) brightness(1.03);
+}
+
+.currency-btn.active {
+  border-color: rgba(37, 99, 235, 0.65);
+  background-color: #2563eb;
+  background-image: linear-gradient(rgba(37, 99, 235, 0.72), rgba(59, 130, 246, 0.72)), var(--flag-url);
+  color: #f8fafc;
+  box-shadow: none;
+  filter: grayscale(0) saturate(1) brightness(1);
+}
+
+/* ─── Semantic colors ─────────────────────────────────────────────── */
+.amount-positive { color: #16a34a; font-weight: 700; }
+.amount-negative { color: #dc2626; font-weight: 700; }
