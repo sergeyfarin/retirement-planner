@@ -402,7 +402,7 @@
   const DEFAULT_FULL_MONTE_CARLO_SIMULATIONS = 3000;
   let stockBoundaryPercent = DEFAULT_STOCK_BOUNDARY_PERCENT;
   let bondBoundaryPercent = DEFAULT_BOND_BOUNDARY_PERCENT;
-  let investmentMetrics: InvestmentMetricInputs = {
+  let parametricMetrics: InvestmentMetricInputs = {
     stockMean: ASSUMPTION_REFERENCES.EUR.stockMetric.mean,
     stockStd: ASSUMPTION_REFERENCES.EUR.stockMetric.std,
     stockSkew: DEFAULT_SKEWNESS,
@@ -424,6 +424,19 @@
   $: selectedCurrency = CURRENCIES.find(c => c.code === selectedCurrencyCode) ?? CURRENCIES[0];
   $: selectedAssumptionReference = ASSUMPTION_REFERENCES[selectedCurrencyCode];
   $: selectedHistoricalRegion = historicalMarketData?.regions?.[selectedCurrencyCode] ?? null;
+
+  $: historicalMetrics = calcGetHistoricalInvestmentMetrics(historicalMarketData, selectedCurrencyCode);
+  $: activeMetrics = input.simulationMode === 'historical' && historicalMetrics ? historicalMetrics : parametricMetrics;
+
+  let parametricInflationMean = ASSUMPTION_REFERENCES.EUR.inflationMetric.mean;
+  let parametricInflationVariability = ASSUMPTION_REFERENCES.EUR.inflationMetric.std;
+  let parametricInflationSkewness = DEFAULT_SKEWNESS;
+  let parametricInflationKurtosis = DEFAULT_KURTOSIS;
+
+  $: activeInflationMean = input.simulationMode === 'historical' ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.mean : parametricInflationMean;
+  $: activeInflationVariability = input.simulationMode === 'historical' ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.std : parametricInflationVariability;
+  $: activeInflationSkewness = input.simulationMode === 'historical' ? DEFAULT_SKEWNESS : parametricInflationSkewness;
+  $: activeInflationKurtosis = input.simulationMode === 'historical' ? DEFAULT_KURTOSIS : parametricInflationKurtosis;
 
   function fmtNum(n: number, decimals = 0): string {
     if (n == null || isNaN(n)) return '0';
@@ -735,7 +748,7 @@
 
   function applyInvestmentAllocationMetrics() {
     const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
-    const blended = calcBlendPortfolioMetrics(investmentMetrics, allocation, input.equityBondCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
+    const blended = calcBlendPortfolioMetrics(activeMetrics, allocation, input.equityBondCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
     const historicalAnnualReturns = calcBuildPortfolioHistoricalReturns(historicalMarketData, selectedCurrencyCode, allocation);
     const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(historicalMarketData, selectedCurrencyCode, allocation);
     const effectiveMean = blended.mean;
@@ -751,6 +764,10 @@
       returnKurtosis: effectiveKurt,
       regimeModel,
       equityBondCorrelation: input.equityBondCorrelation,
+      inflationMean: activeInflationMean,
+      inflationVariability: activeInflationVariability,
+      inflationSkewness: activeInflationSkewness,
+      inflationKurtosis: activeInflationKurtosis,
       historicalAnnualReturns: historicalAnnualReturns.length >= 10 ? historicalAnnualReturns : undefined,
       historicalMonthlyReturns: historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined
     };
@@ -785,18 +802,12 @@
   $: bankAllocationPercent = clamp(100 - bondBoundaryPercent, 0, 100);
 
   $: currentAllocation = getAllocationSplit();
-  // $: stockReturnContribution = currentAllocation.stocks * investmentMetrics.stockMean;
-  // $: bondReturnContribution = currentAllocation.bonds * investmentMetrics.bondMean;
-  // $: bankReturnContribution = currentAllocation.bank * investmentMetrics.bankMean;
-  $: stockRiskComponent = currentAllocation.stocks * investmentMetrics.stockStd;
-  $: bondRiskComponent = currentAllocation.bonds * investmentMetrics.bondStd;
-  $: bankRiskComponent = currentAllocation.bank * investmentMetrics.bankStd;
+  $: stockRiskComponent = currentAllocation.stocks * activeMetrics.stockStd;
+  $: bondRiskComponent = currentAllocation.bonds * activeMetrics.bondStd;
+  $: bankRiskComponent = currentAllocation.bank * activeMetrics.bankStd;
   $: stockRiskContribution = input.returnVariability > 0 ? (stockRiskComponent ** 2) / input.returnVariability : 0;
   $: bondRiskContribution = input.returnVariability > 0 ? (bondRiskComponent ** 2) / input.returnVariability : 0;
   $: bankRiskContribution = input.returnVariability > 0 ? (bankRiskComponent ** 2) / input.returnVariability : 0;
-  // $: stockRiskShare = input.returnVariability > 0 ? stockRiskContribution / input.returnVariability : 0;
-  // $: bondRiskShare = input.returnVariability > 0 ? bondRiskContribution / input.returnVariability : 0;
-  // $: bankRiskShare = input.returnVariability > 0 ? bankRiskContribution / input.returnVariability : 0;
 
   // ─── Core inputs ─────────────────────────────────────────────────────────────
 
@@ -806,10 +817,10 @@
     retirementAge: 50,
     simulateUntilAge: 90,
     currentSavings: 120000,
-    meanReturn: blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
-    returnVariability: blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
-    returnSkewness: blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
-    returnKurtosis: blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+    meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+    returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+    returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+    returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
     equityBondCorrelation: DEFAULT_EQUITY_BOND_CORRELATION,
     inflationMean: ASSUMPTION_REFERENCES.EUR.inflationMetric.mean,
     inflationVariability: ASSUMPTION_REFERENCES.EUR.inflationMetric.std,
@@ -820,32 +831,31 @@
     safeWithdrawalRate: 0.04,
     simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
     regimeModel: buildRegimeModelFromPortfolio(
-      blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
-      blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
-      blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
-      blendPortfolioMetrics(investmentMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+      blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+      blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+      blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+      blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
       ASSUMPTION_REFERENCES.EUR.regimeTemplate
     ),
     historicalAnnualReturns: undefined
   };
 
   function onInvestmentMetricChange() {
-    investmentMetrics = {
-      ...investmentMetrics,
-      stockStd: Math.max(0, investmentMetrics.stockStd),
-      stockKurt: Math.max(1, investmentMetrics.stockKurt),
-      bondStd: Math.max(0, investmentMetrics.bondStd),
-      bondKurt: Math.max(1, investmentMetrics.bondKurt),
-      bankStd: Math.max(0, investmentMetrics.bankStd),
-      bankKurt: Math.max(1, investmentMetrics.bankKurt)
+    parametricMetrics = {
+      ...parametricMetrics,
+      stockStd: Math.max(0, parametricMetrics.stockStd),
+      stockKurt: Math.max(1, parametricMetrics.stockKurt),
+      bondStd: Math.max(0, parametricMetrics.bondStd),
+      bondKurt: Math.max(1, parametricMetrics.bondKurt),
+      bankStd: Math.max(0, parametricMetrics.bankStd),
+      bankKurt: Math.max(1, parametricMetrics.bankKurt)
     };
     applyInvestmentAllocationMetrics();
   }
 
   function applyReferenceDefaults(currencyCode: CurrencyCode) {
     const reference = ASSUMPTION_REFERENCES[currencyCode];
-    const historicalMetrics = calcGetHistoricalInvestmentMetrics(historicalMarketData, currencyCode);
-    investmentMetrics = historicalMetrics ?? {
+    parametricMetrics = {
       stockMean: reference.stockMetric.mean,
       stockStd: reference.stockMetric.std,
       stockSkew: DEFAULT_SKEWNESS,
@@ -859,10 +869,20 @@
       bankSkew: DEFAULT_SKEWNESS,
       bankKurt: DEFAULT_KURTOSIS
     };
+    parametricInflationMean = reference.inflationMetric.mean;
+    parametricInflationVariability = reference.inflationMetric.std;
+    parametricInflationSkewness = DEFAULT_SKEWNESS;
+    parametricInflationKurtosis = DEFAULT_KURTOSIS;
+
+    // Force re-evaluating active metrics, then calculate everything based on it.
+    // However, activeMetrics evaluates reactively, so we compute manually here just to push initial values.
+    const historicalMetricsLocal = calcGetHistoricalInvestmentMetrics(historicalMarketData, currencyCode);
+    const tempActiveMetrics = input.simulationMode === 'historical' && historicalMetricsLocal ? historicalMetricsLocal : parametricMetrics;
+
     const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
     const estimatedCorrelation = calcEstimateEquityBondCorrelation(historicalMarketData, currencyCode);
     const effectiveCorrelation = calcClamp(estimatedCorrelation ?? DEFAULT_EQUITY_BOND_CORRELATION, -1, 1);
-    const blended = calcBlendPortfolioMetrics(investmentMetrics, allocation, effectiveCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
+    const blended = calcBlendPortfolioMetrics(tempActiveMetrics, allocation, effectiveCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
     const historicalAnnualReturns = calcBuildPortfolioHistoricalReturns(historicalMarketData, currencyCode, allocation);
     const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(historicalMarketData, currencyCode, allocation);
     const dataMoments = calcSummarizeSeriesDistribution(historicalAnnualReturns);
@@ -879,10 +899,10 @@
       returnSkewness: effectiveSkew,
       returnKurtosis: effectiveKurt,
       equityBondCorrelation: effectiveCorrelation,
-      inflationMean: reference.inflationMetric.mean,
-      inflationVariability: reference.inflationMetric.std,
-      inflationSkewness: DEFAULT_SKEWNESS,
-      inflationKurtosis: DEFAULT_KURTOSIS,
+      inflationMean: activeInflationMean,
+      inflationVariability: activeInflationVariability,
+      inflationSkewness: activeInflationSkewness,
+      inflationKurtosis: activeInflationKurtosis,
       regimeModel,
       historicalAnnualReturns: historicalAnnualReturns.length >= 10 ? historicalAnnualReturns : undefined,
       historicalMonthlyReturns: historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined
@@ -896,8 +916,8 @@
   function resetStockMetricsToDefault() {
     const reference = selectedAssumptionReference.stockMetric;
     const historicalMetric = selectedHistoricalRegion?.assetMoments.equity;
-    investmentMetrics = {
-      ...investmentMetrics,
+    parametricMetrics = {
+      ...parametricMetrics,
       stockMean: reference.mean,
       stockStd: reference.std,
       stockSkew: historicalMetric?.skewness ?? DEFAULT_SKEWNESS,
@@ -909,8 +929,8 @@
   function resetBondMetricsToDefault() {
     const reference = selectedAssumptionReference.bondMetric;
     const historicalMetric = selectedHistoricalRegion?.assetMoments.bond;
-    investmentMetrics = {
-      ...investmentMetrics,
+    parametricMetrics = {
+      ...parametricMetrics,
       bondMean: reference.mean,
       bondStd: reference.std,
       bondSkew: historicalMetric?.skewness ?? DEFAULT_SKEWNESS,
@@ -922,8 +942,8 @@
   function resetBankMetricsToDefault() {
     const reference = selectedAssumptionReference.bankMetric;
     const historicalMetric = selectedHistoricalRegion?.assetMoments.cash;
-    investmentMetrics = {
-      ...investmentMetrics,
+    parametricMetrics = {
+      ...parametricMetrics,
       bankMean: reference.mean,
       bankStd: reference.std,
       bankSkew: historicalMetric?.skewness ?? DEFAULT_SKEWNESS,
@@ -934,12 +954,16 @@
 
   function resetInflationToDefault() {
     const reference = selectedAssumptionReference.inflationMetric;
+    parametricInflationMean = reference.mean;
+    parametricInflationVariability = reference.std;
+    parametricInflationSkewness = DEFAULT_SKEWNESS;
+    parametricInflationKurtosis = DEFAULT_KURTOSIS;
     input = {
       ...input,
-      inflationMean: reference.mean,
-      inflationVariability: reference.std,
-      inflationSkewness: DEFAULT_SKEWNESS,
-      inflationKurtosis: DEFAULT_KURTOSIS
+      inflationMean: activeInflationMean,
+      inflationVariability: activeInflationVariability,
+      inflationSkewness: activeInflationSkewness,
+      inflationKurtosis: activeInflationKurtosis
     };
   }
 
@@ -1189,12 +1213,12 @@
     input.safeWithdrawalRate,
     stockBoundaryPercent,
     bondBoundaryPercent,
-    investmentMetrics.stockMean,
-    investmentMetrics.stockStd,
-    investmentMetrics.bondMean,
-    investmentMetrics.bondStd,
-    investmentMetrics.bankMean,
-    investmentMetrics.bankStd,
+    activeMetrics.stockMean,
+    activeMetrics.stockStd,
+    activeMetrics.bondMean,
+    activeMetrics.bondStd,
+    activeMetrics.bankMean,
+    activeMetrics.bankStd,
     spendingPeriods.map((p) => `${p.fromAge}:${p.toAge}:${p.yearlyAmount}:${p.inflationAdjusted ? 1 : 0}`).join('|'),
     incomeSources.map((s) => `${s.fromAge}:${s.toAge}:${s.yearlyAmount}:${s.inflationAdjusted ? 1 : 0}`).join('|'),
     lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|')
@@ -1461,7 +1485,12 @@
     {stockAllocationPercent}
     {bondAllocationPercent}
     {bankAllocationPercent}
-    bind:investmentMetrics
+    bind:investmentMetrics={activeMetrics}
+    bind:parametricMetrics={parametricMetrics}
+    bind:parametricInflationMean
+    bind:parametricInflationVariability
+    bind:parametricInflationSkewness
+    bind:parametricInflationKurtosis
     {selectedHistoricalRegion}
     {historicalDataLoadError}
     bind:showHistoricalMethodologyInfo
