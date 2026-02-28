@@ -1,0 +1,72 @@
+name: Publish Dist
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build dist
+        run: npm run build
+
+      - name: Package dist artifact
+        run: |
+          ARCHIVE="retirement-dist.tar.gz"
+          tar -czf "$ARCHIVE" -C dist retirement
+          printf '{"commit":"%s","ref":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist-build-meta.json
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retirement-dist-bundle
+          path: |
+            retirement-dist.tar.gz
+            dist-build-meta.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: build-artifact
+
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: retirement-dist
+
+      - name: Set Release Tag
+        run: echo "RELEASE_TAG=$(date -u +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
+
+      - name: Publish stable release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dist-${{ env.RELEASE_TAG }}
+          name: dist-${{ env.RELEASE_TAG }}
+          files: |
+            retirement-dist.tar.gz
+            dist-build-meta.json
+          generate_release_notes: false
+          make_latest: false
+          overwrite_files: true
