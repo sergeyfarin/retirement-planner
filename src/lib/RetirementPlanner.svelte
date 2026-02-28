@@ -22,7 +22,6 @@
     getAllocationSplit as calcGetAllocationSplit,
     getHistoricalInvestmentMetrics as calcGetHistoricalInvestmentMetrics,
     normalCdf as calcNormalCdf,
-    percentile as calcPercentile,
     summarizeSeriesDistribution as calcSummarizeSeriesDistribution
   } from './calculations';
   import PlannerInputPanel from './components/PlannerInputPanel.svelte';
@@ -30,18 +29,6 @@
   import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
   import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
   import './retirement.css';
-
-  function percentile(sortedArray: number[], p: number): number {
-    if (sortedArray.length === 0) return 0;
-    if (p <= 0) return sortedArray[0];
-    if (p >= 1) return sortedArray[sortedArray.length - 1];
-    const index = p * (sortedArray.length - 1);
-    const lower = Math.floor(index);
-    const upper = Math.ceil(index);
-    const weight = index % 1;
-    if (lower === upper) return sortedArray[lower];
-    return sortedArray[lower] * (1 - weight) + sortedArray[upper] * weight;
-  }
 
   // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -393,16 +380,7 @@
 
   let Plotly: any;
   let plotReady = false;
-  let chartEl: HTMLDivElement | null = null;
   let realReturnCdfEl: HTMLDivElement | null = null;
-  let ruinSurfaceEl: HTMLDivElement | null = null;
-  let sequenceRiskEl: HTMLDivElement | null = null;
-  let relayoutHandlerAttached = false;
-  let applyingTickRelayout = false;
-  let defaultYAxisTickValues: number[] = [];
-  let defaultYAxisTickLabels: string[] = [];
-  let defaultYAxisRange: [number, number] = [0, 0];
-  let defaultXAxisRange: [number, number] = [0, 0];
 
   let simulation: SimulationResult | null = null;
   let stats: SummaryStats | null = null;
@@ -760,12 +738,10 @@
     const blended = calcBlendPortfolioMetrics(investmentMetrics, allocation, input.equityBondCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
     const historicalAnnualReturns = calcBuildPortfolioHistoricalReturns(historicalMarketData, selectedCurrencyCode, allocation);
     const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(historicalMarketData, selectedCurrencyCode, allocation);
-    const dataMoments = calcSummarizeSeriesDistribution(historicalAnnualReturns);
-    const useHistoricalMoments = historicalAnnualReturns.length >= 10;
-    const effectiveMean = useHistoricalMoments ? dataMoments.mean : blended.mean;
-    const effectiveStd = useHistoricalMoments ? dataMoments.std : blended.std;
-    const effectiveSkew = useHistoricalMoments ? dataMoments.skewness : blended.skewness;
-    const effectiveKurt = useHistoricalMoments ? dataMoments.kurtosis : blended.kurtosis;
+    const effectiveMean = blended.mean;
+    const effectiveStd = blended.std;
+    const effectiveSkew = blended.skewness;
+    const effectiveKurt = blended.kurtosis;
     const regimeModel = calcBuildRegimeModelFromPortfolio(effectiveMean, effectiveStd, effectiveSkew, effectiveKurt, selectedAssumptionReference.regimeTemplate);
     input = {
       ...input,
@@ -809,18 +785,18 @@
   $: bankAllocationPercent = clamp(100 - bondBoundaryPercent, 0, 100);
 
   $: currentAllocation = getAllocationSplit();
-  $: stockReturnContribution = currentAllocation.stocks * investmentMetrics.stockMean;
-  $: bondReturnContribution = currentAllocation.bonds * investmentMetrics.bondMean;
-  $: bankReturnContribution = currentAllocation.bank * investmentMetrics.bankMean;
+  // $: stockReturnContribution = currentAllocation.stocks * investmentMetrics.stockMean;
+  // $: bondReturnContribution = currentAllocation.bonds * investmentMetrics.bondMean;
+  // $: bankReturnContribution = currentAllocation.bank * investmentMetrics.bankMean;
   $: stockRiskComponent = currentAllocation.stocks * investmentMetrics.stockStd;
   $: bondRiskComponent = currentAllocation.bonds * investmentMetrics.bondStd;
   $: bankRiskComponent = currentAllocation.bank * investmentMetrics.bankStd;
   $: stockRiskContribution = input.returnVariability > 0 ? (stockRiskComponent ** 2) / input.returnVariability : 0;
   $: bondRiskContribution = input.returnVariability > 0 ? (bondRiskComponent ** 2) / input.returnVariability : 0;
   $: bankRiskContribution = input.returnVariability > 0 ? (bankRiskComponent ** 2) / input.returnVariability : 0;
-  $: stockRiskShare = input.returnVariability > 0 ? stockRiskContribution / input.returnVariability : 0;
-  $: bondRiskShare = input.returnVariability > 0 ? bondRiskContribution / input.returnVariability : 0;
-  $: bankRiskShare = input.returnVariability > 0 ? bankRiskContribution / input.returnVariability : 0;
+  // $: stockRiskShare = input.returnVariability > 0 ? stockRiskContribution / input.returnVariability : 0;
+  // $: bondRiskShare = input.returnVariability > 0 ? bondRiskContribution / input.returnVariability : 0;
+  // $: bankRiskShare = input.returnVariability > 0 ? bankRiskContribution / input.returnVariability : 0;
 
   // ─── Core inputs ─────────────────────────────────────────────────────────────
 
@@ -1226,16 +1202,17 @@
     schedulePreviewRecalculation();
   }
 
-  $: if (plotReady && realReturnCdfEl && realReturnPercentiles.length) {
+  $: if (plotReady && realReturnCdfEl) {
+    realReturnPercentiles;
+    realReturnCdfXTicks;
+    realReturn68Low;
+    realReturn68High;
+    realReturn95Low;
+    realReturn95High;
+    realReturnCdfMin;
+    realReturnCdfMax;
+    realReturnCdfSpan;
     drawRealReturnCdfChart();
-  }
-
-  $: if (plotReady && ruinSurfaceEl && stats?.ruinSurface) {
-    drawRuinSurfaceChart();
-  }
-
-  $: if (plotReady && sequenceRiskEl && stats?.sequenceRisk?.length) {
-    drawSequenceRiskChart();
   }
 
   function schedulePreviewRecalculation() {
@@ -1274,7 +1251,6 @@
     runStatusMessage = `${previewMonteCarlo.simCount} simulation quick preview. Run Monte Carlo for a 1,500+ simulation result.`;
 
     await tick();
-    if (plotReady && simulation) drawChart(simulation);
   }
 
 
@@ -1308,17 +1284,8 @@
       clearTimeout(previewRecalcTimer);
       previewRecalcTimer = null;
     }
-    if (Plotly && chartEl) {
-      Plotly.purge(chartEl);
-    }
     if (Plotly && realReturnCdfEl) {
       Plotly.purge(realReturnCdfEl);
-    }
-    if (Plotly && ruinSurfaceEl) {
-      Plotly.purge(ruinSurfaceEl);
-    }
-    if (Plotly && sequenceRiskEl) {
-      Plotly.purge(sequenceRiskEl);
     }
   });
 
@@ -1363,370 +1330,6 @@
     resultStage = 'final';
     runStatusMessage = `${monteCarlo.simCount} Monte Carlo simulations completed.`;
     await tick();
-    if (plotReady && simulation) drawChart(simulation);
-  }
-
-  // ─── Chart ────────────────────────────────────────────────────────────────────
-
-  const BAND_COLORS = [
-    'rgba(239,68,68,0.06)',
-    'rgba(59,130,246,0.06)',
-    'rgba(168,85,247,0.06)',
-    'rgba(234,179,8,0.06)',
-    'rgba(20,184,166,0.06)'
-  ];
-
-  function buildYAxisTicksForRange(minValue: number, maxValue: number, targetSteps = 8): { values: number[]; labels: string[] } {
-    if (!isFinite(minValue) || !isFinite(maxValue) || maxValue <= minValue) {
-      return { values: [0], labels: ['0'] };
-    }
-
-    const roughStep = (maxValue - minValue) / Math.max(1, targetSteps);
-    const magnitude = 10 ** Math.floor(Math.log10(roughStep));
-    const normalized = roughStep / magnitude;
-    const niceFactor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
-    const step = niceFactor * magnitude;
-    const minTick = Math.floor(minValue / step) * step;
-    const maxTick = Math.ceil(maxValue / step) * step;
-
-    const values: number[] = [];
-    for (let current = minTick; current <= maxTick + step * 0.25; current += step) {
-      const normalizedValue = Math.abs(current) < 1e-10 ? 0 : Number(current.toFixed(8));
-      values.push(normalizedValue);
-    }
-
-    return {
-      values,
-      labels: values.map(fmtCompactValue)
-    };
-  }
-
-  function buildYAxisTicks(maxValue: number): { values: number[]; labels: string[] } {
-    if (!isFinite(maxValue) || maxValue <= 0) {
-      return { values: [0], labels: ['0'] };
-    }
-
-    return buildYAxisTicksForRange(0, maxValue, 8);
-  }
-
-  function restoreDefaultAxes(targetEl: any = chartEl) {
-    if (!targetEl || !Plotly) return;
-    if (!Number.isFinite(defaultXAxisRange[0]) || !Number.isFinite(defaultXAxisRange[1])) return;
-    if (!Number.isFinite(defaultYAxisRange[0]) || !Number.isFinite(defaultYAxisRange[1])) return;
-
-    const restoredX0 = Number(defaultXAxisRange[0]);
-    const restoredX1 = Number(defaultXAxisRange[1]);
-    const restoredY0 = Number(defaultYAxisRange[0]);
-    const restoredY1 = Number(defaultYAxisRange[1]);
-
-    applyingTickRelayout = true;
-    Promise.resolve(
-      Plotly.relayout(targetEl, {
-        'xaxis.autorange': false,
-        'xaxis.range[0]': restoredX0,
-        'xaxis.range[1]': restoredX1,
-        'yaxis.autorange': false,
-        'yaxis.range[0]': restoredY0,
-        'yaxis.range[1]': restoredY1,
-        'yaxis.tickmode': 'array',
-        'yaxis.tickvals': [...defaultYAxisTickValues],
-        'yaxis.ticktext': [...defaultYAxisTickLabels]
-      })
-    ).finally(() => {
-      applyingTickRelayout = false;
-    });
-  }
-
-  function handleChartRelayout(eventData: Record<string, unknown>) {
-    if (!chartEl || !Plotly || applyingTickRelayout) return;
-
-    const resetRequested = eventData['xaxis.autorange'] === true || eventData['yaxis.autorange'] === true;
-    if (resetRequested) {
-      restoreDefaultAxes();
-      return;
-    }
-
-    const yRangeStart = Number(eventData['yaxis.range[0]']);
-    const yRangeEnd = Number(eventData['yaxis.range[1]']);
-    if (!Number.isFinite(yRangeStart) || !Number.isFinite(yRangeEnd)) return;
-
-    const minY = Math.min(yRangeStart, yRangeEnd);
-    const maxY = Math.max(yRangeStart, yRangeEnd);
-    if (maxY - minY <= 0) return;
-
-    const refinedTicks = buildYAxisTicksForRange(minY, maxY, 12);
-
-    applyingTickRelayout = true;
-    Promise.resolve(
-      Plotly.relayout(chartEl, {
-        'yaxis.tickmode': 'array',
-        'yaxis.tickvals': refinedTicks.values,
-        'yaxis.ticktext': refinedTicks.labels
-      })
-    ).finally(() => {
-      applyingTickRelayout = false;
-    });
-  }
-
-  function ensureRelayoutHandler() {
-    if (!chartEl || relayoutHandlerAttached) return;
-    (chartEl as any).on('plotly_relayout', handleChartRelayout);
-    (chartEl as any).on('plotly_doubleclick', () => {
-      restoreDefaultAxes();
-      return false;
-    });
-    relayoutHandlerAttached = true;
-  }
-
-  function computeClippedYAxisMax(result: SimulationResult): number {
-    const p90Series = result.percentiles.p90
-      .filter((value: number) => Number.isFinite(value))
-      .map((value: number) => Math.max(0, value));
-    const p75Series = result.percentiles.p75
-      .filter((value: number) => Number.isFinite(value))
-      .map((value: number) => Math.max(0, value));
-    const p50Series = result.percentiles.p50
-      .filter((value: number) => Number.isFinite(value))
-      .map((value: number) => Math.max(0, value));
-
-    const fiTargets = [stats?.fiTargetP95, stats?.fiTargetSWR, baselineFiTarget]
-      .filter((value): value is number => Number.isFinite(value))
-      .map((value) => Math.max(0, value));
-
-    const rawMax = Math.max(...p90Series, ...fiTargets, 0);
-    if (p90Series.length < 8 || rawMax <= 0) {
-      return rawMax;
-    }
-
-    const sortedP90 = [...p90Series].sort((a, b) => a - b);
-    const typicalUpper = calcPercentile(sortedP90, 0.7);
-    const centralUpper = Math.max(...p75Series, 0);
-
-    const clipCap = Math.max(typicalUpper * 1.1, centralUpper * 1.2, ...fiTargets, 0);
-    const shouldClip = rawMax > clipCap * 1.25;
-    const clippedMax = shouldClip ? clipCap : rawMax;
-
-    const medianPeak = Math.max(...p50Series, 0);
-    if (medianPeak <= 0) {
-      return clippedMax;
-    }
-
-    const maxForMedianOneThird = medianPeak * 3;
-    const cappedByMedian = Math.min(clippedMax, maxForMedianOneThird);
-    const minimumVisibleMax = Math.max(...fiTargets, medianPeak * 1.05, 0);
-
-    return Math.max(cappedByMedian, minimumVisibleMax);
-  }
-
-  function drawChart(result: SimulationResult) {
-    if (!Plotly || !chartEl) return;
-    if (!(Plotly as any).__aposLocale) {
-      Plotly.register({ moduleType: 'locale', name: 'apos', format: { decimal: '.', thousands: "'", grouping: [3], currency: ['', ''] } });
-      (Plotly as any).__aposLocale = true;
-    }
-    const { ages, percentiles: p } = result;
-    const sym = selectedCurrency.symbol;
-    const lastAge = ages[ages.length - 1];
-    const yMax = computeClippedYAxisMax(result);
-    const yTicks = buildYAxisTicks(yMax);
-    const fiTargetP95 = stats?.fiTargetP95 ?? baselineFiTarget;
-    const fiTargetSWR = stats?.fiTargetSWR ?? baselineFiTarget;
-    defaultXAxisRange = [ages[0], lastAge];
-    defaultYAxisTickValues = [...yTicks.values];
-    defaultYAxisTickLabels = [...yTicks.labels];
-    defaultYAxisRange = [0, yTicks.values[yTicks.values.length - 1]];
-    const initialXAxisRange: [number, number] = [defaultXAxisRange[0], defaultXAxisRange[1]];
-    const initialYAxisRange: [number, number] = [defaultYAxisRange[0], defaultYAxisRange[1]];
-
-    const traces = [
-      
-      {
-        x: ages, y: p.p50,
-        name: 'Median outcome',
-        line: { color: '#15803d', width: 2.5 },
-        type: 'scatter',
-        customdata: p.p50.map((v: number) => fmtHoverCompactCurrency(v)),
-        hovertemplate: 'Age %{x:.1f}<br>Portfolio %{customdata}<extra></extra>'
-      },
-      {
-        x: [...ages, ...ages.slice().reverse()],
-        y: [...p.p90, ...p.p10.slice().reverse()],
-        fill: 'toself', fillcolor: 'rgba(34,197,94,0.10)',
-        line: { width: 0 }, name: '80% of outcomes',
-        type: 'scatter', hoverinfo: 'skip'
-      },
-      {
-        x: [...ages, ...ages.slice().reverse()],
-        y: [...p.p75, ...p.p25.slice().reverse()],
-        fill: 'toself', fillcolor: 'rgba(34,197,94,0.22)',
-        line: { width: 0 }, name: '50% of outcomes',
-        type: 'scatter', hoverinfo: 'skip'
-      },
-      
-      {
-        x: ages, y: p.p75,
-        name: 'P75 boundary',
-        showlegend: false,
-        line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
-        type: 'scatter',
-        customdata: p.p75.map((v: number) => fmtHoverCompactCurrency(v)),
-        hovertemplate: 'Age %{x:.1f}<br>P75 %{customdata}<extra></extra>'
-      },
-      {
-        x: ages, y: p.p25,
-        name: 'P25 boundary',
-        showlegend: false,
-        line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
-        type: 'scatter',
-        customdata: p.p25.map((v: number) => fmtHoverCompactCurrency(v)),
-        hovertemplate: 'Age %{x:.1f}<br>P25 %{customdata}<extra></extra>'
-      },
-      {
-        x: ages, y: p.p10,
-        name: 'P10 boundary',
-        showlegend: false,
-        line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
-        type: 'scatter',
-        customdata: p.p10.map((v: number) => fmtHoverCompactCurrency(v)),
-        hovertemplate: 'Age %{x:.1f}<br>P10 %{customdata}<extra></extra>'
-      },
-      {
-        x: ages, y: p.p90,
-        name: 'P90 boundary',
-        showlegend: false,
-        line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
-        type: 'scatter',
-        customdata: p.p90.map((v: number) => fmtHoverCompactCurrency(v)),
-        hovertemplate: 'Age %{x:.1f}<br>P90 %{customdata}<extra></extra>'
-      },
-      {
-        x: [ages[0], lastAge],
-        y: [fiTargetP95, fiTargetP95],
-        name: 'FI target (95% success)',
-        type: 'scatter',
-        mode: 'lines',
-        line: { dash: 'dash', width: 1.5, color: '#ef4444' },
-        customdata: [fmtHoverCompactCurrency(fiTargetP95), fmtHoverCompactCurrency(fiTargetP95)],
-        hovertemplate: 'FI target (95%): %{customdata}<extra></extra>'
-      },
-      {
-        x: [ages[0], lastAge],
-        y: [fiTargetSWR, fiTargetSWR],
-        name: 'FI target (4% rule)',
-        type: 'scatter',
-        mode: 'lines',
-        line: { dash: 'dot', width: 1.5, color: '#f59e0b' },
-        customdata: [fmtHoverCompactCurrency(fiTargetSWR), fmtHoverCompactCurrency(fiTargetSWR)],
-        hovertemplate: 'FI target (4%): %{customdata}<extra></extra>'
-      }
-    ];
-
-    const shapes: any[] = [
-      {
-        type: 'line',
-        x0: input.retirementAge, x1: input.retirementAge, y0: 0, y1: 1, yref: 'paper',
-        line: { dash: 'dot', width: 1.5, color: '#6b7280' }
-      }
-    ];
-
-    // Spending period background bands
-    spendingPeriods.forEach((period, i) => {
-      shapes.push({
-        type: 'rect',
-        x0: Math.max(period.fromAge, ages[0]),
-        x1: Math.min(period.toAge, lastAge),
-        y0: 0, y1: 1, yref: 'paper',
-        fillcolor: BAND_COLORS[i % BAND_COLORS.length],
-        line: { width: 0 }, layer: 'below'
-      });
-    });
-
-    // Lump-sum event annotations
-    const annotations: any[] = lumpSumEvents
-      .filter(e => e.age >= ages[0] && e.age <= lastAge)
-      .map(e => ({
-        x: e.age, y: 0.97, yref: 'paper',
-        text: `${e.amount >= 0 ? '▲' : '▼'} ${e.label}`,
-        showarrow: true, arrowhead: 2, ax: 0, ay: -28,
-        font: { size: 10, color: e.amount >= 0 ? '#15803d' : '#dc2626', family: 'Inter, system-ui, sans-serif' },
-        bgcolor: 'rgba(255,255,255,0.85)', borderpad: 3
-      }));
-
-    // FI target year annotation
-    annotations.push({
-      x: input.retirementAge, y: 1, yref: 'paper',
-      text: 'FI target year', showarrow: false,
-      font: { size: 10, color: '#6b7280', family: 'Inter, system-ui, sans-serif' },
-      xanchor: 'left', yanchor: 'top'
-    });
-
-    const layout = {
-      title: { text: `Portfolio projection — inflation-adjusted (${sym})`, font: { size: 15, color: '#334155', family: 'Inter, system-ui, sans-serif' } },
-      xaxis: {
-        title: { text: 'Age', font: { size: 12, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        showgrid: false,
-        linecolor: '#e2e8f0',
-        tickfont: { family: "'JetBrains Mono', monospace", size: 11 },
-        autorange: false,
-        range: initialXAxisRange
-      },
-      yaxis: {
-        title: { text: `Portfolio value (${sym})`, font: { size: 12, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        showgrid: true,
-        gridwidth: 1,
-        gridcolor: '#e2e8f0',
-        linecolor: '#e2e8f0',
-        tickfont: { family: "'JetBrains Mono', monospace", size: 11 },
-        ticks: 'outside',
-        ticklen: 5,
-        tickwidth: 1,
-        tickcolor: '#cbd5e1',
-        tickmode: 'array',
-        tickvals: yTicks.values,
-        ticktext: yTicks.labels,
-        autorange: false,
-        range: initialYAxisRange
-      },
-      font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 11 },
-      hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 11 } },
-      showlegend: true,
-      legend: {
-        x: 0.99,
-        y: 0.99,
-        xanchor: 'right',
-        yanchor: 'top',
-        orientation: 'v',
-        bgcolor: 'rgba(255,255,255,0.68)',
-        bordercolor: 'rgba(148,163,184,0.0)',
-        borderwidth: 1,
-        font: { size: 10, color: '#334155', family: 'Inter, system-ui, sans-serif' }
-      },
-      plot_bgcolor: 'rgba(255,255,255,0.5)',
-      paper_bgcolor: 'transparent',
-      shapes, annotations,
-      margin: { t: 55, l: 70, r: 20, b: 50 }
-    };
-
-    const config = {
-      responsive: true,
-      locale: 'apos',
-      modeBarButtonsToRemove: ['resetScale2d', 'autoScale2d'],
-      modeBarButtonsToAdd: [
-        {
-          name: 'Reset axes',
-          title: 'Reset axes',
-          icon: (Plotly as any)?.Icons?.home ?? (Plotly as any)?.Icons?.autoscale,
-          click: (gd: any) => {
-            restoreDefaultAxes(gd);
-          }
-        }
-      ]
-    };
-
-    Promise.resolve(Plotly.react(chartEl, traces, layout, config))
-      .then(() => {
-        ensureRelayoutHandler();
-      });
   }
 
   function drawRealReturnCdfChart() {
@@ -1835,187 +1438,6 @@
     void Plotly.react(realReturnCdfEl, traces, layout, config);
   }
 
-  function drawRuinSurfaceChart() {
-    if (!Plotly || !ruinSurfaceEl || !stats?.ruinSurface) return;
-
-    const retirementAges = stats.ruinSurface.retirementAges;
-    const spendingMultipliers = stats.ruinSurface.spendingMultipliers;
-    const colorStretch = 14;
-    const warpSurvivalForColor = (probability: number): number => {
-      const bounded = Math.max(0, Math.min(1, probability));
-      return 1 - Math.log1p(colorStretch * (1 - bounded)) / Math.log1p(colorStretch);
-    };
-
-    const zValues = stats.ruinSurface.ruinProbabilities.map((row) => row.map((value) => Math.max(0, Math.min(1, 1 - value))));
-    const colorZValues = zValues.map((row) => row.map((value) => warpSurvivalForColor(value)));
-    const yLabels = spendingMultipliers.map((multiplier) => `${Math.round(multiplier * 100)}%`);
-    const cellText = zValues.map((row) => row.map((value) => `${Math.round(value * 100)}%`));
-    const baseColorStops: Array<[number, string]> = [
-      [0.0, '#7f1d1d'],
-      [0.08, '#991b1b'],
-      [0.16, '#b91c1c'],
-      [0.3, '#dc2626'],
-      [0.5, '#f87171'],
-      [0.65, '#f59e0b'],
-      [0.8, '#facc15'],
-      [0.9, '#d9f99d'],
-      [0.94, '#86efac'],
-      [0.97, '#22c55e'],
-      [0.99, '#16a34a'],
-      [1.0, '#15803d']
-    ];
-    const warpedColorStops = baseColorStops.map(([value, color]) => [warpSurvivalForColor(value), color] as const);
-    const legendTicks = [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
-
-    const trace = {
-      type: 'heatmap',
-      x: retirementAges,
-      y: spendingMultipliers,
-      z: colorZValues,
-      text: cellText,
-      texttemplate: '%{text}',
-      textfont: {
-        size: 10,
-        family: "'JetBrains Mono', monospace",
-        color: '#0f172a'
-      },
-      zmin: 0,
-      zmax: 1,
-      colorscale: warpedColorStops,
-      showscale: true,
-      colorbar: {
-        title: { text: 'Survival chance', side: 'right' },
-        tickmode: 'array',
-        tickvals: legendTicks.map((value) => warpSurvivalForColor(value)),
-        ticktext: legendTicks.map((value) => `${Math.round(value * 1000) / 10}%`),
-        tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-        titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#475569' },
-        thickness: 12,
-        len: 0.9,
-        y: 0.5,
-        yanchor: 'middle'
-      },
-      customdata: zValues,
-      hovertemplate: 'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata:.1%}<extra></extra>'
-    };
-
-    const layout = {
-      title: {
-        text: `Sensitivity to retirement age and spending<br />Portfolio surviving chance until age ${input.simulateUntilAge}`,
-        font: { size: 13, color: '#334155', family: 'Inter, system-ui, sans-serif' },
-        pad: { b: 12 }
-      },
-      margin: { t: 52, l: 60, r: 44, b: 44 },
-      paper_bgcolor: 'transparent',
-      plot_bgcolor: 'rgba(255,255,255,0.5)',
-      xaxis: {
-        title: { text: 'Retirement age', font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        tickmode: 'array',
-        tickvals: retirementAges,
-        ticktext: retirementAges.map((age) => `${age}`),
-        tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
-        showgrid: false,
-        fixedrange: true
-      },
-      yaxis: {
-        title: { text: 'Spending scale', font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        tickmode: 'array',
-        tickvals: spendingMultipliers,
-        ticktext: yLabels,
-        tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
-        autorange: 'reversed',
-        fixedrange: true
-      },
-      font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
-      hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
-    };
-
-    const config = {
-      responsive: true,
-      displayModeBar: false,
-      staticPlot: false
-    };
-
-    void Plotly.react(ruinSurfaceEl, [trace], layout, config);
-  }
-
-  function drawSequenceRiskChart() {
-    if (!Plotly || !sequenceRiskEl || !stats?.sequenceRisk?.length) return;
-
-    const buckets = stats.sequenceRisk.map((row) => row.bucketLabel.replace(' (worst early sequence)', ' (worst)').replace(' (best early sequence)', ' (best)'));
-    const ruinProbabilities = stats.sequenceRisk.map((row) => row.ruinProbability);
-    const endingMedians = stats.sequenceRisk.map((row) => row.endingMedian);
-
-    const traces = [
-      {
-        type: 'bar',
-        x: buckets,
-        y: ruinProbabilities,
-        name: 'Ruin probability',
-        marker: {
-          color: ruinProbabilities.map((value) => (value >= 0.35 ? '#dc2626' : value <= 0.15 ? '#16a34a' : '#f59e0b'))
-        },
-        yaxis: 'y',
-        hovertemplate: 'Bucket %{x}<br>Ruin %{y:.1%}<extra></extra>'
-      },
-      {
-        type: 'scatter',
-        mode: 'lines+markers',
-        x: buckets,
-        y: endingMedians,
-        name: 'Ending median',
-        yaxis: 'y2',
-        line: { color: '#2563eb', width: 2 },
-        marker: { size: 6, color: '#2563eb' },
-        customdata: endingMedians.map((value) => fmtHoverCompactCurrency(value)),
-        hovertemplate: 'Bucket %{x}<br>Ending median %{customdata}<extra></extra>'
-      }
-    ];
-
-    const layout = {
-      height: 220,
-      margin: { t: 12, l: 44, r: 50, b: 44 },
-      barmode: 'group',
-      showlegend: false,
-      paper_bgcolor: 'transparent',
-      plot_bgcolor: 'rgba(255,255,255,0.45)',
-      xaxis: {
-        tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-        showgrid: false,
-        tickangle: -15,
-        fixedrange: true
-      },
-      yaxis: {
-        title: { text: 'Ruin %', font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        tickformat: '.0%',
-        rangemode: 'tozero',
-        showgrid: true,
-        gridcolor: '#e2e8f0',
-        tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-        fixedrange: true
-      },
-      yaxis2: {
-        title: { text: `Ending median (${selectedCurrency.symbol})`, font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' } },
-        overlaying: 'y',
-        side: 'right',
-        showgrid: false,
-        tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-        tickvals: buildYAxisTicks(Math.max(...endingMedians, 0)).values,
-        ticktext: buildYAxisTicks(Math.max(...endingMedians, 0)).labels,
-        fixedrange: true
-      },
-      font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
-      hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
-    };
-
-    const config = {
-      responsive: true,
-      displayModeBar: false,
-      staticPlot: false
-    };
-
-    void Plotly.react(sequenceRiskEl, traces, layout, config);
-  }
 </script>
 
 <div class="page-header">
@@ -2116,8 +1538,28 @@
     />
 
     <div class="chart-row">
-      <PlannerTimelinePlot bind:chartEl />
-      <PlannerSecondaryPlot {stats} bind:ruinSurfaceEl />
+      <PlannerTimelinePlot
+        {Plotly}
+        {plotReady}
+        {simulation}
+        {stats}
+        retirementAge={input.retirementAge}
+        {baselineFiTarget}
+        {spendingPeriods}
+        {lumpSumEvents}
+        currencySymbol={selectedCurrency.symbol}
+        {fmtCompactValue}
+        {fmtHoverCompactCurrency}
+      />
+      <PlannerSecondaryPlot
+        {Plotly}
+        {plotReady}
+        {stats}
+        simulateUntilAge={input.simulateUntilAge}
+        currencySymbol={selectedCurrency.symbol}
+        {fmtCompactValue}
+        {fmtHoverCompactCurrency}
+      />
     </div>
   </section>
 </div>
