@@ -265,6 +265,14 @@
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankKurt, 2)} onchange={(e) => { investmentMetrics.bankKurt = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBankMetricsToDefault}>Reset</button></td>
           </tr>
+          <tr>
+            <td>Equity-bond <br />correlation</td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.equityBondCorrelation, 2)} onchange={(e) => { input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1); onInvestmentMetricChange(); }} /></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
 
           <tr class="portfolio-row portfolio-highlight-row" class:positive-return-row={input.meanReturn >= 0} class:negative-return-row={input.meanReturn < 0}>
             <td>Portfolio</td>
@@ -275,14 +283,7 @@
             <td></td>
           </tr>
 
-          <tr>
-            <td>Equity-bond correlation</td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.equityBondCorrelation, 2)} onchange={(e) => { input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1); onInvestmentMetricChange(); }} /></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-          </tr>
+
 
           <tr class="assumptions-separator"><td colspan="6"></td></tr>
 
@@ -296,7 +297,7 @@
           </tr>
 
           <tr>
-            <td>Annual fee (TER + platform)</td>
+            <td>Annual fees</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.annualFeePercent, 2)} onchange={(e) => { input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1); input = input; }} /></td>
             <td></td>
             <td></td>
