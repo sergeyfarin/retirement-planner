@@ -80,6 +80,7 @@ export type LumpSumEvent = {
 };
 
 export type RetirementInput = {
+  simulationMode?: 'historical' | 'parametric';
   currentAge: number;
   retirementAge: number;
   simulateUntilAge: number;
@@ -229,6 +230,28 @@ function clampMonthlyReturn(value: number): number {
 function annualToMonthlyReturn(annualReturn: number): number {
   const capped = clampAnnualReturn(annualReturn);
   return Math.pow(1 + capped, 1 / 12) - 1;
+}
+
+function summarizeMeanStd(values: number[]): { mean: number; std: number } {
+  if (values.length === 0) return { mean: 0, std: 0 };
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return { mean, std: Math.sqrt(Math.max(0, variance)) };
+}
+
+function applyMomentTargeting(
+  value: number,
+  sourceMean: number,
+  sourceStd: number,
+  targetMean: number,
+  targetStd: number
+): number {
+  const safeTargetStd = Math.max(0, targetStd);
+  if (!Number.isFinite(value) || !Number.isFinite(sourceMean) || !Number.isFinite(sourceStd) || sourceStd <= 1e-12) {
+    return targetMean;
+  }
+  const normalized = (value - sourceMean) / sourceStd;
+  return targetMean + normalized * safeTargetStd;
 }
 
 export function detectRegimes(annualReturns: number[]): Array<0 | 1> {
@@ -640,6 +663,12 @@ export function runMonteCarloSimulation(
   retireMonth: number
 ): { simulation: SimulationResult; stats: SummaryStats; simCount: number } {
   const rng = createRandomSource(input.seed);
+  const simulationMode = input.simulationMode ?? 'historical';
+  const useHistoricalBootstrap = simulationMode === 'historical';
+  const targetAnnualMean = input.meanReturn;
+  const targetAnnualStd = Math.max(0, input.returnVariability);
+  const targetMonthlyMean = targetAnnualMean / 12;
+  const targetMonthlyStd = targetAnnualStd / Math.sqrt(12);
   const { monthlyNetFlow, lumpSumByMonth } = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
   const stayGrowth = clampTransitionProbability(input.regimeModel.stayGrowth);
   const stayCrisis = clampTransitionProbability(input.regimeModel.stayCrisis);
@@ -649,19 +678,32 @@ export function runMonteCarloSimulation(
   const crisisStd = Math.max(0, input.regimeModel.crisisStd);
 
   const bootstrapHistory =
-    input.historicalAnnualReturns && input.historicalAnnualReturns.length >= 25
+    useHistoricalBootstrap && input.historicalAnnualReturns && input.historicalAnnualReturns.length >= 25
       ? input.historicalAnnualReturns
       : buildBootstrapHistory(input, rng, 120);
-  const monthlyHistory = (input.historicalMonthlyReturns ?? [])
+  const annualHistoryMoments = summarizeMeanStd(bootstrapHistory);
+  const effectiveAnnualHistory = useHistoricalBootstrap
+    ? bootstrapHistory
+      .map((value) => applyMomentTargeting(value, annualHistoryMoments.mean, annualHistoryMoments.std, targetAnnualMean, targetAnnualStd))
+      .map((value) => clampAnnualReturn(value))
+    : bootstrapHistory;
+
+  const monthlyHistory = (useHistoricalBootstrap ? (input.historicalMonthlyReturns ?? []) : [])
     .filter((value) => Number.isFinite(value))
     .map((value) => clampMonthlyReturn(value));
-  const useMonthlyCalibration = monthlyHistory.length >= 120;
+  const monthlyHistoryMoments = summarizeMeanStd(monthlyHistory);
+  const effectiveMonthlyHistory = useHistoricalBootstrap
+    ? monthlyHistory
+      .map((value) => applyMomentTargeting(value, monthlyHistoryMoments.mean, monthlyHistoryMoments.std, targetMonthlyMean, targetMonthlyStd))
+      .map((value) => clampMonthlyReturn(value))
+    : monthlyHistory;
+  const useMonthlyCalibration = effectiveMonthlyHistory.length >= 120;
 
-  const annualDetectedRegimes = detectRegimes(bootstrapHistory);
-  const annualRegimeBootstrapPool = bootstrapPoolByRegime(bootstrapHistory, annualDetectedRegimes);
-  const monthlyDetectedRegimes = useMonthlyCalibration ? detectRegimesMonthly(monthlyHistory) : [];
+  const annualDetectedRegimes = detectRegimes(effectiveAnnualHistory);
+  const annualRegimeBootstrapPool = bootstrapPoolByRegime(effectiveAnnualHistory, annualDetectedRegimes);
+  const monthlyDetectedRegimes = useMonthlyCalibration ? detectRegimesMonthly(effectiveMonthlyHistory) : [];
   const monthlyRegimeBootstrapPool = useMonthlyCalibration
-    ? bootstrapPoolByRegimeMonthly(monthlyHistory, monthlyDetectedRegimes)
+    ? bootstrapPoolByRegimeMonthly(effectiveMonthlyHistory, monthlyDetectedRegimes)
     : { growth: [] as number[], crisis: [] as number[] };
 
   const monthlyMarkov = useMonthlyCalibration
@@ -673,8 +715,8 @@ export function runMonteCarloSimulation(
 
   const returnMoments = summarizeReturnMoments(
     useMonthlyCalibration
-      ? monthlyReturnsToAnnualSeries(monthlyHistory)
-      : bootstrapHistory
+      ? monthlyReturnsToAnnualSeries(effectiveMonthlyHistory)
+      : effectiveAnnualHistory
   );
 
   const simCount = Math.max(400, Math.round(input.simulations));
@@ -731,13 +773,15 @@ export function runMonteCarloSimulation(
       const stressNoise = regimeState === 0 ? growthStd * 0.04 : crisisStd * 0.08;
       const monthlyAssetReturn = useMonthlyCalibration
         ? activeMonthlyAssetReturn
-        : activeMonthlyAssetReturn + drawMonthlyReturnShaped(
-          stressDrift,
-          stressNoise,
-          input.returnSkewness,
-          input.returnKurtosis,
-          rng
-        );
+        : useHistoricalBootstrap
+          ? activeMonthlyAssetReturn
+          : activeMonthlyAssetReturn + drawMonthlyReturnShaped(
+            stressDrift,
+            stressNoise,
+            input.returnSkewness,
+            input.returnKurtosis,
+            rng
+          );
       const monthlyAssetReturnAfterTax = monthlyAssetReturn > 0
         ? monthlyAssetReturn * (1 - taxOnGainsRate)
         : monthlyAssetReturn;

@@ -801,6 +801,7 @@
   // ─── Core inputs ─────────────────────────────────────────────────────────────
 
   let input: PlannerInput = {
+    simulationMode: 'historical',
     currentAge: 35,
     retirementAge: 50,
     simulateUntilAge: 90,
@@ -1157,6 +1158,7 @@
 
   $: previewTriggerKey = [
     selectedCurrencyCode,
+    input.simulationMode,
     input.currentAge,
     input.retirementAge,
     input.simulateUntilAge,
