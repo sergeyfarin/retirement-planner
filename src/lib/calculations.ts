@@ -29,7 +29,7 @@ export class RandomSource {
   private spareNormal: number | null = null;
 
   constructor(seed?: number) {
-    this.nextUniform = Number.isInteger(seed) ? createMulberry32(seed as number) : Math.random;
+    this.nextUniform = Number.isFinite(seed) ? createMulberry32(Math.round(seed as number)) : Math.random;
   }
 
   random(): number {

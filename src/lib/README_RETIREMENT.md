@@ -345,13 +345,13 @@ Correct derivation from the balance equation $\pi P = \pi$.
 - **Historical bootstrap mode** (optionally moment-targeted to user assumptions)
 - **Parametric mode** (fully assumption-driven)
 
-#### P1.6 — RNG implementation duplication across modules
+#### P1.6 — RNG implementation duplication across modules ✅ Implemented
 
-**Current:** `calculations.ts` has `RandomSource` with `mulberry32`, while `retirementEngine.ts` has its own seeded RNG implementation.
+**Current implementation:** `calculations.ts` provides `RandomSource` with `mulberry32` which is imported and used consistently across `retirementEngine.ts` and other simulation paths.
 
-**Problem:** Documentation and runtime implementation can drift; reproducibility characteristics may differ by module.
+**Problem:** Documentation and runtime implementation could drift; reproducibility characteristics differed by module (the legacy engine RNG used an older LCG and discarded the spare normal).
 
-**Fix:** Consolidate to one RNG implementation used by all simulation paths.
+**Status:** Resolved by consolidating RNG implementation and removing the legacy PRNG from `retirementEngine.ts`.
 
 ---
 
@@ -504,6 +504,12 @@ Report the standard error of key outputs (success probability, median final bala
 
 **Fix:** Move `runMonteCarloSimulation` to a Web Worker to avoid UI blocking during the 3,000-path simulation.
 
+#### P4.6 — Optimize Student-t generation
+
+**Current:** `drawStudentT` calls `rng.normal` $df$ times per month to generate a chi-squared distribution ($df$ can be 40+). This wastes $\sim 1.4\times 10^7$ RandomSource cycles per simulation.
+
+**Fix:** Implement a Gamma-based exact chi-squared generator (e.g. Marsaglia and Tsang method) to draw a single random variable instead.
+
 ---
 
 ## 10. Summary of Key Assumptions
@@ -559,12 +565,12 @@ Focus: fix the issues that affect numerical correctness and make the engine test
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 1.1 | **Add seeded PRNG** — implemented; optional `seed` in `RetirementInput` works in engine. Note: RNG implementation is currently duplicated (`retirementEngine.ts` local RNG and `calculations.ts` `mulberry32` `RandomSource`), needs consolidation. | S | `calculations.ts`, `retirementEngine.ts` |
-| 1.2 | **Unit test scaffold** — add `retirementEngine.test.ts`. Seed-based tests for: `spendingAtAge`, `incomeAtAge`, `buildCashflowArrays`, `detectRegimes` (synthetic series), `drawShapedStandardScore` (moment check on 100k draws), `findRetirementBalanceTarget` (hand-crafted example), `runMonteCarloSimulation` (smoke: output shape + median > 0). | M | new `retirementEngine.test.ts` |
-| 1.3 | **Fix global mutable `spareNormal`** — implemented in `calculations.ts` `RandomSource`; engine path does not use a global spare cache either. | S | `calculations.ts`, `retirementEngine.ts` |
-| 1.4 | **Restructure drag model** — implemented as `annualFeePercent` + `taxOnGainsPercent`, with updated UI labels/defaults (0.5% / 15%). | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
+| 1.1 | **Add seeded PRNG** — ✅ Implemented. Optional `seed` in `RetirementInput` works in engine. RNG implementation consolidated to use `mulberry32` from `calculations.ts`. | S | `calculations.ts`, `retirementEngine.ts` |
+| 1.2 | **Unit test scaffold** — ✅ Implemented and verified. `retirementEngine.test.ts` contains seed-based tests for `spendingAtAge`, `incomeAtAge`, `buildCashflowArrays`, `detectRegimes` (synthetic series), `drawShapedStandardScore` (moment check on 100k draws), `findRetirementBalanceTarget` (hand-crafted example), and `runMonteCarloSimulation` (smoke: output shape + median > 0). | M | `retirementEngine.test.ts` |
+| 1.3 | **Fix global mutable `spareNormal`** — ✅ Implemented in `calculations.ts` `RandomSource`; engine uses this safely encapsulated cache. | S | `calculations.ts`, `retirementEngine.ts` |
+| 1.4 | **Restructure drag model** — ✅ implemented as `annualFeePercent` + `taxOnGainsPercent`, with updated UI labels/defaults (0.5% / 15%). | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 1.5 | **Add cross-asset correlation** — implemented `equityBondCorrelation` (default −0.1), covariance blending, and historical sample-correlation defaults. | M | `RetirementPlanner.svelte`, `retirementEngine.ts` |
-| 1.6 | **Add global simulation mode toggle** — add explicit mode switch used by both preview and full Monte Carlo: `Historical bootstrapping` vs `Parametric`. Persist mode in input state and show active mode near Run button. | M | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte`, `retirementEngine.ts` |
+| 1.6 | **Add global simulation mode toggle** — ✅ Implemented and enhanced. Switched to toggle buttons instead of a combobox. In Historical mode, the inputs for stocks, bonds, cash, and inflation are explicitly disabled to reflect they are driven by the empirical dataset. | M | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte`, `retirementEngine.ts` |
 
 **Checkpoint:** all existing behavior reproduced (seed = undefined), tests pass, drag and correlation produce more realistic σ, and mode selection is explicit and consistent across preview/full runs.
 
@@ -615,6 +621,8 @@ Focus: optional enhancements for power users.
 | 4.4 | **Two-bucket tax model** — allow users to specify % of savings in tax-advantaged vs taxable accounts, with different drag rates per bucket. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 4.5 | **Social Security claiming optimization** — allow benefit amounts that vary by claiming age (e.g., US: 70% at 62, 100% at 67, 124% at 70). | S | `RetirementPlanner.svelte` |
 | 4.6 | **Advanced dual-mode controls (optional)** — keep global mode as default, add optional expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
+| 4.7 | **Optimize Student-t generation** — replace the $O(df)$ chained-normal method with a Gamma-based $O(1)$ method algorithm (e.g. Marsaglia and Tsang) for generating chi-square deviates. | M | `retirementEngine.ts` |
+| 4.8 | **Separate states for Historical vs Parametric moments** — When users tweak assumptions in parametric mode and switch back to historical, the UI holds the stale tweaked values instead of reverting to the empirical dataset moments, causing confusion. Separate `parametricMetrics` and `historicalMetrics` UI states. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
 
 **Checkpoint:** main thread stays responsive; advanced users can refine both Historical and Parametric workflows without ambiguity.
 
