@@ -1,3 +1,27 @@
-<h1>Welcome to your library project</h1>
-<p>Create your package using @sveltejs/package and preview/showcase your work with SvelteKit</p>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script lang="ts">
+  import RetirementPlanner from '$lib/RetirementPlanner.svelte';
+</script>
+
+<main class="retirement-page-shell">
+  <RetirementPlanner />
+</main>
+
+<style>
+  .retirement-page-shell {
+    width: 100%;
+    padding: 2rem 0.25rem;
+    box-sizing: border-box;
+  }
+
+  @media (min-width: 640px) {
+    .retirement-page-shell {
+      padding-inline: 0.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .retirement-page-shell {
+      padding-inline: 0.75rem;
+    }
+  }
+</style>
