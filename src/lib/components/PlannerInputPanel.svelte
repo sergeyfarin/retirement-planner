@@ -78,10 +78,7 @@
         Until year
         <input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
       </label>
-      <label>
-        Portfolio ({selectedCurrency.symbol})
-        <input type="text" inputmode="numeric" value={fmtNum(input.currentSavings)} onchange={(e) => { input.currentSavings = numFromEvent(e); input = input; }} />
-      </label>
+      
     </div>
 
     <div class="section-split">
@@ -175,14 +172,11 @@
         <button class="btn-add" onclick={addLumpSumEvent}>+ Add event</button>
       </div>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="assumptions-titlebar">
-      <h3>Assumptions</h3>
-      <button class="assumptions-reset-btn" type="button" onclick={resetAssumptionsToCurrencyDefaults}>Reset to currency defaults</button>
-    </div>
     <div class="allocation-control">
+    <label>
+        Portfolio ({selectedCurrency.symbol})
+        <input type="text" inputmode="numeric" value={fmtNum(input.currentSavings)} onchange={(e) => { input.currentSavings = numFromEvent(e); input = input; }} />
+      </label>
       <div class="allocation-head">
         <span>Investment split</span>
         <span class="mono-value">Stocks {stockAllocationPercent}% · Bonds {bondAllocationPercent}% · Bank {bankAllocationPercent}%</span>
@@ -196,6 +190,16 @@
         <input class="allocation-range" type="range" min="0" max="100" step="1" bind:value={stockBoundaryPercent} oninput={onStockBoundaryChange} aria-label="Stocks allocation boundary" />
         <input class="allocation-range allocation-range-top" type="range" min="0" max="100" step="1" bind:value={bondBoundaryPercent} oninput={onBondBoundaryChange} aria-label="Bonds allocation boundary" />
       </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="assumptions-titlebar">
+      <h3>Assumptions</h3>
+      <button class="assumptions-reset-btn" type="button" onclick={resetAssumptionsToCurrencyDefaults}>Reset to currency defaults</button>
+    </div>
+    
+    <div>
       <label>
         Simulation mode
         <select bind:value={input.simulationMode}>
