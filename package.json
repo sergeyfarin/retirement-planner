@@ -1,4 +1,4 @@
-{
+	{
 	"name": "retirement-planner",
 	"version": "0.0.1",
 	"scripts": {
@@ -12,7 +12,10 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test:unit": "vitest",
-		"test": "npm run test:unit -- --run"
+		"test": "npm run test:unit -- --run",
+    	"data:retirement:import": "node scripts/import-retirement-market-data.mjs",
+    	"data:retirement:preprocess": "node scripts/preprocess-retirement-market-data.mjs",
+    	"data:retirement:refresh": "npm run data:retirement:import && npm run data:retirement:preprocess"
 	},
 	"files": [
 		"dist",
@@ -61,5 +64,8 @@
 	},
 	"keywords": [
 		"svelte"
-	]
+	],
+	"dependencies": {
+		"plotly.js-dist-min": "^3.4.0"
+	}
 }
