@@ -35,6 +35,7 @@ export type LumpSumEvent = {
 
 export type RetirementInput = {
   simulationMode?: 'historical' | 'parametric';
+  historicalMomentTargeting?: boolean;
   currentAge: number;
   retirementAge: number;
   simulateUntilAge: number;
@@ -48,6 +49,8 @@ export type RetirementInput = {
   inflationVariability: number;
   inflationSkewness: number;
   inflationKurtosis: number;
+  inflationCrisisSpread?: number;
+  blockLength?: number;
   annualFeePercent: number;
   taxOnGainsPercent: number;
   annualDrag?: number;
@@ -140,19 +143,25 @@ function transitionRegimeState(currentState: 0 | 1, stayGrowth: number, stayCris
   return rng.random() < stayCrisis ? 1 : 0;
 }
 
-export function drawShapedStandardScore(skewness: number, kurtosis: number, rng: RandomSource): number {
-  const base = rng.normal(0, 1);
-  const boundedSkew = Math.max(-2.5, Math.min(2.5, skewness));
+export function drawCornishFisherScore(skewness: number, kurtosis: number, rng: RandomSource): number {
+  const z = rng.normal(0, 1);
   const excessKurtosis = Math.max(0, Math.min(8, kurtosis - 3));
-  const skewTerm = boundedSkew * 0.22 * (Math.abs(base) - Math.sqrt(2 / Math.PI));
-  const kurtTerm = excessKurtosis * 0.08 * (base * base - 1);
-  return base + skewTerm + kurtTerm;
+  const boundedSkew = Math.max(-1.5, Math.min(1.5, skewness));
+
+  const z2 = z * z;
+  const z3 = z2 * z;
+
+  const skewTerm = (boundedSkew / 6) * (z2 - 1);
+  const kurtTerm = (excessKurtosis / 24) * (z3 - 3 * z);
+  const skewSqTerm = -(boundedSkew * boundedSkew / 36) * (2 * z3 - 5 * z);
+
+  return z + skewTerm + kurtTerm + skewSqTerm;
 }
 
 function drawMonthlyReturnShaped(annualMean: number, annualStd: number, skewness: number, kurtosis: number, rng: RandomSource): number {
   const monthlyMean = annualMean / 12;
   const monthlyStd = annualStd / Math.sqrt(12);
-  return monthlyMean + monthlyStd * drawShapedStandardScore(skewness, kurtosis, rng);
+  return monthlyMean + monthlyStd * drawCornishFisherScore(skewness, kurtosis, rng);
 }
 
 function drawStudentT(df: number, rng: RandomSource): number {
@@ -277,20 +286,22 @@ function bootstrapPoolByRegime(annualReturns: number[], labels: Array<0 | 1>): {
   return { growth: fallbackGrowth, crisis: fallbackCrisis };
 }
 
-function bootstrapPoolByRegimeMonthly(monthlyReturns: number[], labels: Array<0 | 1>): { growth: number[]; crisis: number[] } {
+function bootstrapIndicesByRegimeMonthly(monthlyReturns: number[], labels: Array<0 | 1>): { growth: number[]; crisis: number[] } {
   const growth: number[] = [];
   const crisis: number[] = [];
 
   for (let index = 0; index < monthlyReturns.length; index++) {
     if (labels[index] === 1) {
-      crisis.push(monthlyReturns[index]);
+      crisis.push(index);
     } else {
-      growth.push(monthlyReturns[index]);
+      growth.push(index);
     }
   }
 
-  const fallbackGrowth = growth.length > 0 ? growth : [...monthlyReturns];
-  const fallbackCrisis = crisis.length > 0 ? crisis : [...monthlyReturns].sort((a, b) => a - b).slice(0, Math.max(12, Math.floor(monthlyReturns.length * 0.3)));
+  const fallbackGrowth = growth.length > 0 ? growth : Array.from({ length: monthlyReturns.length }, (_, i) => i);
+  const fallbackCrisis = crisis.length > 0
+    ? crisis
+    : [...Array(monthlyReturns.length).keys()].sort((a, b) => monthlyReturns[a] - monthlyReturns[b]).slice(0, Math.max(12, Math.floor(monthlyReturns.length * 0.3)));
   return { growth: fallbackGrowth, crisis: fallbackCrisis };
 }
 
@@ -637,9 +648,9 @@ export function runMonteCarloSimulation(
       : buildBootstrapHistory(input, rng, 120);
   const annualHistoryMoments = summarizeMeanStd(bootstrapHistory);
   const effectiveAnnualHistory = useHistoricalBootstrap
-    ? bootstrapHistory
-      .map((value) => applyMomentTargeting(value, annualHistoryMoments.mean, annualHistoryMoments.std, targetAnnualMean, targetAnnualStd))
-      .map((value) => clampAnnualReturn(value))
+    ? (input.historicalMomentTargeting
+      ? bootstrapHistory.map((value) => applyMomentTargeting(value, annualHistoryMoments.mean, annualHistoryMoments.std, targetAnnualMean, targetAnnualStd))
+      : bootstrapHistory).map((value) => clampAnnualReturn(value))
     : bootstrapHistory;
 
   const monthlyHistory = (useHistoricalBootstrap ? (input.historicalMonthlyReturns ?? []) : [])
@@ -647,17 +658,17 @@ export function runMonteCarloSimulation(
     .map((value) => clampMonthlyReturn(value));
   const monthlyHistoryMoments = summarizeMeanStd(monthlyHistory);
   const effectiveMonthlyHistory = useHistoricalBootstrap
-    ? monthlyHistory
-      .map((value) => applyMomentTargeting(value, monthlyHistoryMoments.mean, monthlyHistoryMoments.std, targetMonthlyMean, targetMonthlyStd))
-      .map((value) => clampMonthlyReturn(value))
+    ? (input.historicalMomentTargeting
+      ? monthlyHistory.map((value) => applyMomentTargeting(value, monthlyHistoryMoments.mean, monthlyHistoryMoments.std, targetMonthlyMean, targetMonthlyStd))
+      : monthlyHistory).map((value) => clampMonthlyReturn(value))
     : monthlyHistory;
   const useMonthlyCalibration = effectiveMonthlyHistory.length >= 120;
 
   const annualDetectedRegimes = detectRegimes(effectiveAnnualHistory);
   const annualRegimeBootstrapPool = bootstrapPoolByRegime(effectiveAnnualHistory, annualDetectedRegimes);
   const monthlyDetectedRegimes = useMonthlyCalibration ? detectRegimesMonthly(effectiveMonthlyHistory) : [];
-  const monthlyRegimeBootstrapPool = useMonthlyCalibration
-    ? bootstrapPoolByRegimeMonthly(effectiveMonthlyHistory, monthlyDetectedRegimes)
+  const monthlyRegimeBootstrapIndices = useMonthlyCalibration
+    ? bootstrapIndicesByRegimeMonthly(effectiveMonthlyHistory, monthlyDetectedRegimes)
     : { growth: [] as number[], crisis: [] as number[] };
 
   const monthlyMarkov = useMonthlyCalibration
@@ -686,6 +697,9 @@ export function runMonteCarloSimulation(
 
   const spendingAtRetirement = spendingAtAge(input.retirementAge, spendingPeriods);
 
+  const inflationCrisisSpread = input.inflationCrisisSpread ?? 0.015;
+  const blockLength = input.blockLength ?? 6;
+
   for (let sim = 0; sim < simCount; sim++) {
     let balance = input.currentSavings;
     let depleted = false;
@@ -696,31 +710,52 @@ export function runMonteCarloSimulation(
     const monthlyFeeFactor = Math.max(0, 1 - annualFeeRate / 12);
     let regimeState: 0 | 1 = initialRegimeState(monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
     const annualRealReturns: number[] = [];
-    let activeMonthlyAssetReturn = useMonthlyCalibration
-      ? (regimeState === 0
-        ? monthlyRegimeBootstrapPool.growth[Math.floor(rng.random() * monthlyRegimeBootstrapPool.growth.length)]
-        : monthlyRegimeBootstrapPool.crisis[Math.floor(rng.random() * monthlyRegimeBootstrapPool.crisis.length)])
-      : annualToMonthlyReturn(
+
+    let blockRemaining = 0;
+    let currentHistoryIndex = 0;
+    let activeMonthlyAssetReturn = 0;
+
+    // Fallback parametric start
+    if (!useMonthlyCalibration) {
+      activeMonthlyAssetReturn = annualToMonthlyReturn(
         regimeState === 0
           ? annualRegimeBootstrapPool.growth[Math.floor(rng.random() * annualRegimeBootstrapPool.growth.length)]
           : annualRegimeBootstrapPool.crisis[Math.floor(rng.random() * annualRegimeBootstrapPool.crisis.length)]
       );
+    }
+
     let annualAssetReturn = 0;
     let annualInflation = 0;
 
     for (let m = 0; m < months; m++) {
+      let regimeChanged = false;
+
       if (m > 0) {
-        regimeState = transitionRegimeState(regimeState, monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
-        if (useMonthlyCalibration) {
-          const regimePool = regimeState === 0 ? monthlyRegimeBootstrapPool.growth : monthlyRegimeBootstrapPool.crisis;
-          activeMonthlyAssetReturn = regimePool[Math.floor(rng.random() * regimePool.length)];
-        } else if (m % 12 === 0) {
-          const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
-          const sampledAnnualReturn = regimePool[Math.floor(rng.random() * regimePool.length)];
-          activeMonthlyAssetReturn = annualToMonthlyReturn(sampledAnnualReturn);
-          annualAssetReturn = 0;
-          annualInflation = 0;
+        const nextRegimeState = transitionRegimeState(regimeState, monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
+        if (nextRegimeState !== regimeState) {
+          regimeChanged = true;
+          regimeState = nextRegimeState;
         }
+      } else {
+        regimeChanged = true;
+      }
+
+      if (useMonthlyCalibration) {
+        if (blockRemaining <= 0 || regimeChanged) {
+          const indexPool = regimeState === 0 ? monthlyRegimeBootstrapIndices.growth : monthlyRegimeBootstrapIndices.crisis;
+          currentHistoryIndex = indexPool[Math.floor(rng.random() * indexPool.length)];
+          blockRemaining = blockLength;
+        } else {
+          currentHistoryIndex = (currentHistoryIndex + 1) % effectiveMonthlyHistory.length;
+        }
+        activeMonthlyAssetReturn = effectiveMonthlyHistory[currentHistoryIndex];
+        blockRemaining--;
+      } else if (m > 0 && m % 12 === 0) {
+        const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
+        const sampledAnnualReturn = regimePool[Math.floor(rng.random() * regimePool.length)];
+        activeMonthlyAssetReturn = annualToMonthlyReturn(sampledAnnualReturn);
+        annualAssetReturn = 0;
+        annualInflation = 0;
       }
 
       const stressDrift = regimeState === 0 ? 0 : (crisisMean - growthMean) * 0.1;
@@ -741,8 +776,10 @@ export function runMonteCarloSimulation(
         : monthlyAssetReturn;
       const monthlyPortfolioGrowthFactor = (1 + monthlyAssetReturnAfterTax) * monthlyFeeFactor;
       const monthlyPortfolioReturnAfterCosts = monthlyPortfolioGrowthFactor - 1;
+
+      const effectiveInflationMean = input.inflationMean + (regimeState === 1 ? inflationCrisisSpread : 0);
       const monthlyInflation = drawMonthlyReturnShaped(
-        input.inflationMean,
+        effectiveInflationMean,
         input.inflationVariability,
         input.inflationSkewness,
         input.inflationKurtosis,

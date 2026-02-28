@@ -3,7 +3,7 @@ import { createRandomSource } from './calculations';
 import {
   buildCashflowArrays,
   detectRegimes,
-  drawShapedStandardScore,
+  drawCornishFisherScore,
   findRetirementBalanceTarget,
   incomeAtAge,
   runMonteCarloSimulation,
@@ -109,16 +109,30 @@ describe('retirementEngine stochastic helpers', () => {
     expect(labels[7]).toBe(1);
   });
 
-  it('produces shaped-score moments in expected direction', () => {
-    const rng = createRandomSource(12345);
-    const draws = Array.from({ length: 100_000 }, () => drawShapedStandardScore(1.0, 6.0, rng));
-    const moments = sampleMoments(draws);
+  describe('drawCornishFisherScore', () => {
+    it('should generate arrays with approximate target moments', () => {
+      const rng = createRandomSource(10101);
+      const skewness = -1.2;
+      const kurtosis = 6;
+      const samples = 100000;
+      const results: number[] = new Array(samples);
+      for (let i = 0; i < samples; i++) {
+        results[i] = drawCornishFisherScore(skewness, kurtosis, rng);
+      }
 
-    expect(Math.abs(moments.mean)).toBeLessThan(0.15);
-    expect(moments.std).toBeGreaterThan(0.8);
-    expect(moments.std).toBeLessThan(1.6);
-    expect(moments.skewness).toBeGreaterThan(0.1);
-    expect(moments.kurtosis).toBeGreaterThan(3.3);
+      const moments = sampleMoments(results);
+
+      // Cornish Fisher provides an approximation, so exact moments won't be perfectly identical 
+      // but should be in the proper direction and magnitude
+      expect(moments.mean).toBeCloseTo(0, 1);
+      expect(moments.std).toBeCloseTo(1, 1);
+
+      // Skewness should be distinctly negative
+      expect(moments.skewness).toBeLessThan(-0.5);
+
+      // Kurtosis should be distinctly fat-tailed (> 3)
+      expect(moments.kurtosis).toBeGreaterThan(4);
+    });
   });
 
   it('finds P95 retirement balance target from handcrafted outcomes', () => {

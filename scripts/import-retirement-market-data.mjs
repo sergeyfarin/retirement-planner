@@ -137,8 +137,11 @@ function monthlyBondReturnsFromYield(yieldMap, durationYears = BOND_DURATION_YEA
     if (!Number.isFinite(previousYield) || !Number.isFinite(currentYield)) continue;
 
     const carry = previousYield / 1200;
-    const priceEffect = -durationYears * ((currentYield - previousYield) / 100);
-    const monthlyReturn = Math.max(-0.25, Math.min(0.25, carry + priceEffect));
+    const deltaY = (currentYield - previousYield) / 100;
+    const durationEffect = -durationYears * deltaY;
+    const convexityEffect = 0.5 * durationYears * (durationYears + 1) * (deltaY * deltaY);
+
+    const monthlyReturn = Math.max(-0.25, Math.min(0.25, carry + durationEffect + convexityEffect));
     out.set(months[index], monthlyReturn);
   }
   return out;

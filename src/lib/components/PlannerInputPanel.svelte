@@ -227,6 +227,14 @@
           <span>Parametric</span>
         </button>
       </div>
+      {#if input.simulationMode === 'historical'}
+        <div class="mt-3 text-sm opacity-90">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" bind:checked={input.historicalMomentTargeting} />
+            <span>Override historical moments (Targeting)</span>
+          </label>
+        </div>
+      {/if}
     </div>
       {#if selectedHistoricalRegion}
       <p class="note mono-value">
@@ -273,33 +281,33 @@
         <tbody>
           <tr>
             <td>Stocks</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockMean)} onchange={(e) => { parametricMetrics.stockMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockStd)} onchange={(e) => { parametricMetrics.stockStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockSkew, 2)} onchange={(e) => { parametricMetrics.stockSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockKurt, 2)} onchange={(e) => { parametricMetrics.stockKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetStockMetricsToDefault} disabled={input.simulationMode === 'historical'}>Reset</button></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockMean)} onchange={(e) => { parametricMetrics.stockMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockStd)} onchange={(e) => { parametricMetrics.stockStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockSkew, 2)} onchange={(e) => { parametricMetrics.stockSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockKurt, 2)} onchange={(e) => { parametricMetrics.stockKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetStockMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
           </tr>
 
           <tr>
             <td>Bonds</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondMean)} onchange={(e) => { parametricMetrics.bondMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondStd)} onchange={(e) => { parametricMetrics.bondStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondSkew, 2)} onchange={(e) => { parametricMetrics.bondSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondKurt, 2)} onchange={(e) => { parametricMetrics.bondKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBondMetricsToDefault} disabled={input.simulationMode === 'historical'}>Reset</button></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondMean)} onchange={(e) => { parametricMetrics.bondMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondStd)} onchange={(e) => { parametricMetrics.bondStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondSkew, 2)} onchange={(e) => { parametricMetrics.bondSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondKurt, 2)} onchange={(e) => { parametricMetrics.bondKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBondMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
           </tr>
 
           <tr>
             <td>Cash</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankMean)} onchange={(e) => { parametricMetrics.bankMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankStd)} onchange={(e) => { parametricMetrics.bankStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankSkew, 2)} onchange={(e) => { parametricMetrics.bankSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankKurt, 2)} onchange={(e) => { parametricMetrics.bankKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBankMetricsToDefault} disabled={input.simulationMode === 'historical'}>Reset</button></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankMean)} onchange={(e) => { parametricMetrics.bankMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankStd)} onchange={(e) => { parametricMetrics.bankStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankSkew, 2)} onchange={(e) => { parametricMetrics.bankSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankKurt, 2)} onchange={(e) => { parametricMetrics.bankKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBankMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
           </tr>
           <tr>
             <td>Equity-bond <br />correlation</td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.equityBondCorrelation, 2)} onchange={(e) => { input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical'} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.equityBondCorrelation, 2)} onchange={(e) => { input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td></td>
             <td></td>
             <td></td>
@@ -321,11 +329,11 @@
 
           <tr>
             <td>Inflation</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { parametricInflationMean = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { parametricInflationVariability = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { parametricInflationSkewness = numFromEvent(e); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { parametricInflationKurtosis = Math.max(1, numFromEvent(e)); }} disabled={input.simulationMode === 'historical'} /></td>
-            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetInflationToDefault} disabled={input.simulationMode === 'historical'}>Reset</button></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { parametricInflationMean = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { parametricInflationVariability = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { parametricInflationSkewness = numFromEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { parametricInflationKurtosis = Math.max(1, numFromEvent(e)); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetInflationToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
           </tr>
 
           <tr>
