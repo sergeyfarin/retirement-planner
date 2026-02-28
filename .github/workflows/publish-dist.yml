@@ -32,16 +32,27 @@ jobs:
 
       - name: Package dist artifact
         run: |
-          ARCHIVE="retirement-dist-latest.tar.gz"
-          tar -czf "$ARCHIVE" -C dist retirement
+          ARCHIVE="retirement-dist.tar.gz"
+
+          if [ -d "build" ]; then
+            tar -czf "$ARCHIVE" -C build .
+          elif [ -d "dist/retirement" ]; then
+            tar -czf "$ARCHIVE" -C dist retirement
+          elif [ -d "dist" ]; then
+            tar -czf "$ARCHIVE" -C dist .
+          else
+            echo "No build output directory found (checked: build, dist/retirement, dist)."
+            exit 1
+          fi
+
           printf '{"commit":"%s","ref":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist-build-meta.json
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: retirement-dist-bundle
+          name: retirement-dist
           path: |
-            retirement-dist-latest.tar.gz
+            retirement-dist.tar.gz
             dist-build-meta.json
           if-no-files-found: error
           retention-days: 14
