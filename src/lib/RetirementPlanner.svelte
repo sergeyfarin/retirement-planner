@@ -12,6 +12,23 @@
     type SpendingPeriod,
     type SummaryStats
   } from './retirementEngine';
+  import {
+    blendPortfolioMetrics as calcBlendPortfolioMetrics,
+    buildPortfolioHistoricalMonthlyReturns as calcBuildPortfolioHistoricalMonthlyReturns,
+    buildPortfolioHistoricalReturns as calcBuildPortfolioHistoricalReturns,
+    buildRegimeModelFromPortfolio as calcBuildRegimeModelFromPortfolio,
+    clamp as calcClamp,
+    estimateEquityBondCorrelation as calcEstimateEquityBondCorrelation,
+    getAllocationSplit as calcGetAllocationSplit,
+    getHistoricalInvestmentMetrics as calcGetHistoricalInvestmentMetrics,
+    normalCdf as calcNormalCdf,
+    percentile as calcPercentile,
+    summarizeSeriesDistribution as calcSummarizeSeriesDistribution
+  } from './calculations';
+  import PlannerInputPanel from './components/PlannerInputPanel.svelte';
+  import PlannerOutputCards from './components/PlannerOutputCards.svelte';
+  import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
+  import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
   import './retirement.css';
 
   function percentile(sortedArray: number[], p: number): number {
@@ -739,17 +756,17 @@
   }
 
   function applyInvestmentAllocationMetrics() {
-    const allocation = getAllocationSplit();
-    const blended = blendPortfolioMetrics(investmentMetrics, allocation, input.equityBondCorrelation);
-    const historicalAnnualReturns = buildPortfolioHistoricalReturns(selectedCurrencyCode, allocation);
-    const historicalMonthlyReturns = buildPortfolioHistoricalMonthlyReturns(selectedCurrencyCode, allocation);
-    const dataMoments = summarizeSeriesDistribution(historicalAnnualReturns);
+    const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
+    const blended = calcBlendPortfolioMetrics(investmentMetrics, allocation, input.equityBondCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
+    const historicalAnnualReturns = calcBuildPortfolioHistoricalReturns(historicalMarketData, selectedCurrencyCode, allocation);
+    const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(historicalMarketData, selectedCurrencyCode, allocation);
+    const dataMoments = calcSummarizeSeriesDistribution(historicalAnnualReturns);
     const useHistoricalMoments = historicalAnnualReturns.length >= 10;
     const effectiveMean = useHistoricalMoments ? dataMoments.mean : blended.mean;
     const effectiveStd = useHistoricalMoments ? dataMoments.std : blended.std;
     const effectiveSkew = useHistoricalMoments ? dataMoments.skewness : blended.skewness;
     const effectiveKurt = useHistoricalMoments ? dataMoments.kurtosis : blended.kurtosis;
-    const regimeModel = buildRegimeModelFromPortfolio(effectiveMean, effectiveStd, effectiveSkew, effectiveKurt, selectedAssumptionReference.regimeTemplate);
+    const regimeModel = calcBuildRegimeModelFromPortfolio(effectiveMean, effectiveStd, effectiveSkew, effectiveKurt, selectedAssumptionReference.regimeTemplate);
     input = {
       ...input,
       meanReturn: effectiveMean,
@@ -850,7 +867,7 @@
 
   function applyReferenceDefaults(currencyCode: CurrencyCode) {
     const reference = ASSUMPTION_REFERENCES[currencyCode];
-    const historicalMetrics = getHistoricalInvestmentMetrics(currencyCode);
+    const historicalMetrics = calcGetHistoricalInvestmentMetrics(historicalMarketData, currencyCode);
     investmentMetrics = historicalMetrics ?? {
       stockMean: reference.stockMetric.mean,
       stockStd: reference.stockMetric.std,
@@ -865,13 +882,13 @@
       bankSkew: DEFAULT_SKEWNESS,
       bankKurt: DEFAULT_KURTOSIS
     };
-    const allocation = getAllocationSplit();
-    const estimatedCorrelation = estimateEquityBondCorrelation(currencyCode);
-    const effectiveCorrelation = clamp(estimatedCorrelation ?? DEFAULT_EQUITY_BOND_CORRELATION, -1, 1);
-    const blended = blendPortfolioMetrics(investmentMetrics, allocation, effectiveCorrelation);
-    const historicalAnnualReturns = buildPortfolioHistoricalReturns(currencyCode, allocation);
-    const historicalMonthlyReturns = buildPortfolioHistoricalMonthlyReturns(currencyCode, allocation);
-    const dataMoments = summarizeSeriesDistribution(historicalAnnualReturns);
+    const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
+    const estimatedCorrelation = calcEstimateEquityBondCorrelation(historicalMarketData, currencyCode);
+    const effectiveCorrelation = calcClamp(estimatedCorrelation ?? DEFAULT_EQUITY_BOND_CORRELATION, -1, 1);
+    const blended = calcBlendPortfolioMetrics(investmentMetrics, allocation, effectiveCorrelation, DEFAULT_SKEWNESS, DEFAULT_KURTOSIS);
+    const historicalAnnualReturns = calcBuildPortfolioHistoricalReturns(historicalMarketData, currencyCode, allocation);
+    const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(historicalMarketData, currencyCode, allocation);
+    const dataMoments = calcSummarizeSeriesDistribution(historicalAnnualReturns);
     const useHistoricalMoments = historicalAnnualReturns.length >= 10;
     const effectiveMean = useHistoricalMoments ? dataMoments.mean : blended.mean;
     const effectiveStd = useHistoricalMoments ? dataMoments.std : blended.std;
@@ -1113,7 +1130,7 @@
       return 0.5;
     }
     const z = (0 - realReturnEstimate) / realReturnStdEstimate;
-    return clamp(normalCdf(z), 0, 1);
+    return clamp(calcNormalCdf(z), 0, 1);
   })();
   $: realReturnCdfXTicks = (() => {
     const sortedPoints = [...realReturnPercentiles].sort((a, b) => a.value - b.value);
@@ -1154,24 +1171,6 @@
   function fmtSignedPercent(decimal: number, digits = 1): string {
     const pct = decimal * 100;
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(digits)}%`;
-  }
-
-  function erfApprox(x: number): number {
-    const sign = x < 0 ? -1 : 1;
-    const absX = Math.abs(x);
-    const t = 1 / (1 + 0.3275911 * absX);
-    const a1 = 0.254829592;
-    const a2 = -0.284496736;
-    const a3 = 1.421413741;
-    const a4 = -1.453152027;
-    const a5 = 1.061405429;
-    const poly = (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t;
-    const y = 1 - poly * Math.exp(-absX * absX);
-    return sign * y;
-  }
-
-  function normalCdf(x: number): number {
-    return 0.5 * (1 + erfApprox(x / Math.SQRT2));
   }
 
   $: retirementYearlySpending = spendingAtAge(input.retirementAge, spendingPeriods);
@@ -1500,7 +1499,7 @@
     }
 
     const sortedP90 = [...p90Series].sort((a, b) => a - b);
-    const typicalUpper = percentile(sortedP90, 0.7);
+    const typicalUpper = calcPercentile(sortedP90, 0.7);
     const centralUpper = Math.max(...p75Series, 0);
 
     const clipCap = Math.max(typicalUpper * 1.1, centralUpper * 1.2, ...fiTargets, 0);
@@ -2025,298 +2024,53 @@
 </div>
 
 <div class="workspace">
-  <section class="left-panel">
-    <!-- <div class="card currency-card"> -->
-      <!-- <h3>Currency</h3> -->
-      <div class="currency-switch" role="group" aria-label="Currency selection">
-        {#each CURRENCIES as c}
-          <button
-            type="button"
-            class={`currency-btn currency-${c.code.toLowerCase()}`}
-            style={c.flagAsset ? `--flag-url: url('${c.flagAsset}')` : ''}
-            class:active={selectedCurrencyCode === c.code}
-            onclick={() => { selectedCurrencyCode = c.code; }}
-            aria-pressed={selectedCurrencyCode === c.code}
-          >
-            <span>{c.buttonLabel}</span>
-          </button>
-        {/each}
-      </div>
-    <!-- </div> -->
-
-    <div class="card mt-2">
-      <!-- <h3>Basic Setup</h3> -->
-      <div class="form-grid">
-        <label>
-          Age
-          <input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
-        </label>
-        <label>
-          FI Target year
-          <input type="number" min="25" max="80" step="1" bind:value={input.retirementAge} />
-        </label>
-        <label>
-          Until year
-          <input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
-        </label>
-        <label>
-          Portfolio ({selectedCurrency.symbol})
-          <input type="text" inputmode="numeric" value={fmtNum(input.currentSavings)} onchange={(e) => { input.currentSavings = numFromEvent(e); input = input; }} />
-        </label>
-      </div>
-
-      <div class="section-split">
-        <div>
-          <div class="data-table">
-            <div class="table-header"><span>Income sources</span><span>From</span><span>To</span><span>Yearly</span><span class="inflation-cell" title="Inflation-adjusted">Infl</span><span></span></div>
-            {#each incomeSources as src (src.id)}
-              <div class="table-row">
-                <input type="text" bind:value={src.label} placeholder="Salary" />
-
-                {#if src.id === 'is-default'}
-                  <div class="readonly-age-cell" aria-label="Salary starts at current age">{fmtNum(input.currentAge)}</div>
-                {:else}
-                  <input class="age-input" type="number" min="0" step="1" bind:value={src.fromAge} />
-                {/if}
-
-                {#if src.id === 'is-default'}
-                  <div class="readonly-age-cell" aria-label="Salary ends at FI target year">{fmtNum(input.retirementAge)}</div>
-                {:else if src.id === 'is-pension'}
-                  <div class="readonly-age-cell" aria-label="Pension ends at simulation end year">{fmtNum(input.simulateUntilAge)}</div>
-                {:else}
-                  <input class="age-input" type="number" min="0" step="1" bind:value={src.toAge} />
-                {/if}
-
-                <input type="text" inputmode="numeric" value={fmtNum(src.yearlyAmount)} onchange={(e) => { src.yearlyAmount = numFromEvent(e); incomeSources = incomeSources; }} />
-                <span class="inflation-cell">
-                  <input class="inflation-flag" type="checkbox" bind:checked={src.inflationAdjusted} title="Inflation-adjusted" aria-label="Inflation-adjusted income" />
-                </span>
-                {#if src.id !== 'is-default' && src.id !== 'is-pension'}
-                  <button class="btn-remove" onclick={() => removeIncomeSource(src.id)}>×</button>
-                {:else}
-                  <span></span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-          <button class="btn-add" onclick={addIncomeSource}>+ Add income</button>
-        </div>
-
-        <div class="section-split">
-          <div class="data-table">
-            <div class="table-header"><span>Expenses</span><span>From</span><span>To</span><span>Yearly</span><span class="inflation-cell" title="Inflation-adjusted">Infl</span><span></span></div>
-            {#each spendingPeriods as period (period.id)}
-              <div class="table-row">
-                <input type="text" bind:value={period.label} placeholder="Living" />
-
-                {#if period.id === 'sp-default'}
-                  <div class="readonly-age-cell" aria-label="Living expenses starts at current age">{fmtNum(input.currentAge)}</div>
-                {:else}
-                  <input class="age-input" type="number" min="0" step="1" bind:value={period.fromAge} />
-                {/if}
-
-                {#if period.id === 'sp-default'}
-                  <div class="readonly-age-cell" aria-label="Living expenses ends at simulation end year">{fmtNum(input.simulateUntilAge)}</div>
-                {:else}
-                  <input class="age-input" type="number" min="0" step="1" bind:value={period.toAge} />
-                {/if}
-
-                <input type="text" inputmode="numeric" value={fmtNum(period.yearlyAmount)} onchange={(e) => { period.yearlyAmount = numFromEvent(e); spendingPeriods = spendingPeriods; }} />
-                <span class="inflation-cell">
-                  <input class="inflation-flag" type="checkbox" bind:checked={period.inflationAdjusted} title="Inflation-adjusted" aria-label="Inflation-adjusted spending" />
-                </span>
-                {#if period.id !== 'sp-default'}
-                  <button class="btn-remove" onclick={() => removeSpendingPeriod(period.id)}>×</button>
-                {:else}
-                  <span></span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-          <button class="btn-add" onclick={addSpendingPeriod}>+ Add period</button>
-        </div>
-
-        <div class="section-split">
-          <p class="section-label">One-Time Events</p>
-          {#if lumpSumEvents.length > 0}
-            <div class="data-table data-table-events">
-              <div class="table-header"><span>Label</span><span>Age</span><span>Amount</span><span></span></div>
-              {#each lumpSumEvents as evt (evt.id)}
-                <div class="table-row">
-                  <input type="text" bind:value={evt.label} placeholder="Tuition" />
-                  <input type="number" min="0" step="1" bind:value={evt.age} />
-                  <input type="text" inputmode="numeric" value={fmtNum(evt.amount)} onchange={(e) => { evt.amount = numFromEvent(e); lumpSumEvents = lumpSumEvents; }} />
-                  <button class="btn-remove" onclick={() => removeLumpSumEvent(evt.id)}>×</button>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="note">No one-time events added.</p>
-          {/if}
-          <button class="btn-add" onclick={addLumpSumEvent}>+ Add event</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="assumptions-titlebar">
-        <h3>Assumptions</h3>
-        <button class="assumptions-reset-btn" type="button" onclick={resetAssumptionsToCurrencyDefaults}>Reset to currency defaults</button>
-      </div>
-      <div class="allocation-control">
-        <div class="allocation-head">
-          <span>Investment split</span>
-          <span class="mono-value">Stocks {stockAllocationPercent}% · Bonds {bondAllocationPercent}% · Bank {bankAllocationPercent}%</span>
-        </div>
-        <div class="allocation-slider-wrap" aria-label="Investment split slider">
-          <div class="allocation-track">
-            <span class="allocation-segment stocks" style={`width: ${stockAllocationPercent}%`}></span>
-            <span class="allocation-segment bonds" style={`left: ${stockAllocationPercent}%; width: ${bondAllocationPercent}%`}></span>
-            <span class="allocation-segment bank" style={`left: ${bondBoundaryPercent}%; width: ${bankAllocationPercent}%`}></span>
-          </div>
-          <input class="allocation-range" type="range" min="0" max="100" step="1" bind:value={stockBoundaryPercent} oninput={onStockBoundaryChange} aria-label="Stocks allocation boundary" />
-          <input class="allocation-range allocation-range-top" type="range" min="0" max="100" step="1" bind:value={bondBoundaryPercent} oninput={onBondBoundaryChange} aria-label="Bonds allocation boundary" />
-        </div>
-        {#if selectedHistoricalRegion}
-        <p class="note mono-value">
-          Historical market dataset loaded:<br />
-          {selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage}, {selectedHistoricalRegion.sampleSize} annual observations)
-          <button
-            type="button"
-            class="inline-link"
-            onclick={() => { showHistoricalMethodologyInfo = !showHistoricalMethodologyInfo; }}
-            aria-expanded={showHistoricalMethodologyInfo}
-          >
-            {showHistoricalMethodologyInfo ? 'less info' : 'more info'}
-          </button>
-        </p>
-        {#if showHistoricalMethodologyInfo}
-          <div class="note mono-value methodology-info">
-            Active calibration dataset (used now):<br />
-            • Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual observations), built from monthly market data.<br />
-            • Equity (stocks): monthly close-to-close total return proxies from Stooq index series, then compounded to annual returns.<br />
-            • Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based), then compounded to annual returns.<br />
-            • Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br />
-            • For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments computed from that annual return series (not handbook constants).<br />
-            • Monte Carlo path is monthly; when monthly history is available, calibration now uses empirical monthly portfolio returns with monthly regime detection/bootstrap. Annual moments are retained for summary/inputs.<br />
-            • Inflation currently remains a curated long-run reference input (separate from this market-file pipeline), with user-editable mean/volatility and neutral default shape (skew 0, kurt 3).<br />
-            • Legacy reference assumptions (MSCI/STOXX/FTSE/FRED/ECB/ONS-style long-run sources) remain broadly in line; this pipeline is preferred because it is one reproducible method across regions.
-          </div>
-        {/if}
-      {:else if historicalDataLoadError}
-        <p class="note mono-value">{historicalDataLoadError}</p>
-      {/if}
-      </div>
-      <div class="assumptions-table-wrap">
-        <table class="assumptions-table mono-value">
-          <thead>
-            <tr>
-              <th></th>
-              <th>Average</th>
-              <th>Volat.</th>
-              <th>Skew</th>
-              <th>Kurt</th>
-              <th>Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Stocks</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockMean)} onchange={(e) => { investmentMetrics.stockMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockStd)} onchange={(e) => { investmentMetrics.stockStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockSkew, 2)} onchange={(e) => { investmentMetrics.stockSkew = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockKurt, 2)} onchange={(e) => { investmentMetrics.stockKurt = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetStockMetricsToDefault}>Reset</button></td>
-            </tr>
-
-            <tr>
-              <td>Bonds</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondMean)} onchange={(e) => { investmentMetrics.bondMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondStd)} onchange={(e) => { investmentMetrics.bondStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondSkew, 2)} onchange={(e) => { investmentMetrics.bondSkew = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondKurt, 2)} onchange={(e) => { investmentMetrics.bondKurt = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBondMetricsToDefault}>Reset</button></td>
-            </tr>
-
-            <tr>
-              <td>Cash</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankMean)} onchange={(e) => { investmentMetrics.bankMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankStd)} onchange={(e) => { investmentMetrics.bankStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankSkew, 2)} onchange={(e) => { investmentMetrics.bankSkew = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankKurt, 2)} onchange={(e) => { investmentMetrics.bankKurt = numFromEvent(e); onInvestmentMetricChange(); }} /></td>
-              <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBankMetricsToDefault}>Reset</button></td>
-            </tr>
-
-            <tr class="portfolio-row portfolio-highlight-row" class:positive-return-row={input.meanReturn >= 0} class:negative-return-row={input.meanReturn < 0}>
-              <td>Portfolio</td>
-              <td>{fmtPercentDisplay(input.meanReturn, 1)}</td>
-              <td>{fmtPercentDisplay(input.returnVariability, 1)}</td>
-              <td>{fmtNum(portfolioDisplaySkew, 2)}</td>
-              <td>{fmtNum(portfolioDisplayKurt, 1)}</td>
-              <td></td>
-            </tr>
-
-            <tr>
-              <td>Equity-bond correlation</td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(input.equityBondCorrelation, 2)} onchange={(e) => { input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1); onInvestmentMetricChange(); }} /></td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td></td>
-            </tr>
-
-            <tr class="assumptions-separator"><td colspan="6"></td></tr>
-
-            <tr>
-              <td>Inflation</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { input.inflationMean = decimalFromPercentEvent(e); input = input; }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { input.inflationVariability = decimalFromPercentEvent(e); input = input; }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { input.inflationSkewness = numFromEvent(e); input = input; }} /></td>
-              <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { input.inflationKurtosis = Math.max(1, numFromEvent(e)); input = input; }} /></td>
-              <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetInflationToDefault}>Reset</button></td>
-            </tr>
-
-            <tr>
-              <td>Annual fee (TER + platform)</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.annualFeePercent, 2)} onchange={(e) => { input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1); input = input; }} /></td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetDragToDefault}>Reset</button></td>
-            </tr>
-
-            <tr>
-              <td>Tax on gains</td>
-              <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.taxOnGainsPercent, 2)} onchange={(e) => { input.taxOnGainsPercent = clamp(decimalFromPercentEvent(e), 0, 1); input = input; }} /></td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td></td>
-            </tr>
-
-            <tr class="portfolio-row real-return-highlight-row" class:positive-return-row={realReturnEstimate >= 0} class:negative-return-row={realReturnEstimate < 0}>
-              <td>Real return</td>
-              <td>{fmtPercentDisplay(realReturnEstimate, 1)}</td>
-              <td>{fmtPercentDisplay(realReturnStdEstimate, 1)}</td>
-              <td>{fmtNum(realReturnSkewEstimate, 2)}</td>
-              <td>{fmtNum(realReturnKurtEstimate, 1)}</td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="real-return-cdf-wrap">
-        
-        <p class="note mono-value"><br />Real return cumulative probability <br />(68% and 95% ranges shaded)</p>
-        <div class="real-return-cdf" bind:this={realReturnCdfEl} role="img" aria-label="Real return cumulative probability plot"></div>
-      </div>
-      
-    </div>
-
-      {#if errorMessage}
-        <div class="error">{errorMessage}</div>
-      {/if}
-  </section>
+  <PlannerInputPanel
+    {CURRENCIES}
+    bind:selectedCurrencyCode
+    {selectedCurrency}
+    bind:input
+    bind:incomeSources
+    bind:spendingPeriods
+    bind:lumpSumEvents
+    bind:stockBoundaryPercent
+    bind:bondBoundaryPercent
+    {stockAllocationPercent}
+    {bondAllocationPercent}
+    {bankAllocationPercent}
+    bind:investmentMetrics
+    {selectedHistoricalRegion}
+    {historicalDataLoadError}
+    bind:showHistoricalMethodologyInfo
+    {portfolioDisplaySkew}
+    {portfolioDisplayKurt}
+    {realReturnEstimate}
+    {realReturnStdEstimate}
+    {realReturnSkewEstimate}
+    {realReturnKurtEstimate}
+    {errorMessage}
+    bind:realReturnCdfEl
+    {fmtNum}
+    {numFromEvent}
+    {decimalFromPercentEvent}
+    {fmtPercentInputSig3}
+    {fmtPercentDisplay}
+    {clamp}
+    {addIncomeSource}
+    {removeIncomeSource}
+    {addSpendingPeriod}
+    {removeSpendingPeriod}
+    {addLumpSumEvent}
+    {removeLumpSumEvent}
+    {onStockBoundaryChange}
+    {onBondBoundaryChange}
+    {onInvestmentMetricChange}
+    {resetAssumptionsToCurrencyDefaults}
+    {resetStockMetricsToDefault}
+    {resetBondMetricsToDefault}
+    {resetBankMetricsToDefault}
+    {resetInflationToDefault}
+    {resetDragToDefault}
+  />
 
   <section class="right-panel">
     <div class="card status-banner">
@@ -2343,7 +2097,6 @@
           <label>
             Simulations to run
             <input type="text" inputmode="numeric" value={fmtNum(input.simulations)} onchange={(e) => { input.simulations = numFromEvent(e); input = input; }} />
-            
           </label>
           <button class="status-run-btn" onclick={runSimulation} disabled={running}>
             {running ? 'Running Monte Carlo…' : 'Run Monte Carlo'}
@@ -2352,100 +2105,19 @@
       </div>
     </div>
 
-    {#if stats}
-      <div class="summary-grid">
-        <div class="card">
-          <strong>Financial independence targets</strong>
-          <div class="results-kpi mono-value">SWR: {fmtCompactCurrency(stats.fiTargetSWR)}</div>
-          <div class="results-kpi mono-value">P95: {fmtCompactCurrency(stats.fiTargetP95)}</div>
-          <div class="note mono-value">SWR target = expenses {fmtCompactCurrency(retirementYearlySpending)}/yr ÷ {(input.safeWithdrawalRate * 100).toFixed(1)}%</div>
-          <div class="note mono-value">P95 target = portfolio at target FI year that implies {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}%+ chance of ending balance above zero</div>
-        </div>
-        <div class="card">
-          <strong>Chance to reach FI by age {input.retirementAge}</strong>
-          <div class="results-kpi mono-value" class:amount-positive={stats.fiProbabilitySWR >= 0.7} class:amount-negative={stats.fiProbabilitySWR < 0.7}>
-            SWR: {percentFormatter.format(stats.fiProbabilitySWR)}
-          </div>
-          <div class="results-kpi mono-value" class:amount-positive={stats.fiProbabilityP95 >= 0.7} class:amount-negative={stats.fiProbabilityP95 < 0.7}>
-            P95: {percentFormatter.format(stats.fiProbabilityP95)}
-          </div>
-          <div class="note mono-value">Median by age {input.retirementAge}: {fmtCompactCurrency(stats.retireMedian)}</div>
-          <div class="note mono-value">P10: {fmtCompactCurrency(stats.retireLow)} · P90: {fmtCompactCurrency(stats.retireHigh)}</div>
-        </div>
-        <div class="card">
-          <strong>Ending balance distribution</strong>
-          <div class="results-kpi mono-value">Median: {fmtCompactCurrency(stats.finalMedian)}</div>
-          <div class="note mono-value">
-            <span class:amount-positive={stats.finalLow > 0} class:amount-negative={stats.finalLow === 0}>P10: {fmtCompactCurrency(stats.finalLow)}</span>
-            · <span class:amount-positive={stats.finalHigh > 0} class:amount-negative={stats.finalHigh === 0}>P90: {fmtCompactCurrency(stats.finalHigh)}</span>
-          </div>
-        </div>
-        <div class="card">
-          <strong>Portfolio survives to age {input.simulateUntilAge}</strong>
-          <div class="results-kpi mono-value" class:amount-positive={stats.successProbability >= 0.9} class:amount-negative={stats.successProbability < 0.7}>
-            {percentFormatter.format(stats.successProbability)}
-          </div>
-          <div class="note mono-value">
-            Cumulative shortfall —
-            <span class:amount-negative={stats.shortfallHigh > 0}>P10: {fmtCompactCurrency(stats.shortfallHigh)}</span>
-            · <span class:amount-negative={stats.shortfallMedian > 0}>P50: {fmtCompactCurrency(stats.shortfallMedian)}</span>
-            · <span class:amount-negative={stats.shortfallLow > 0}>P90: {fmtCompactCurrency(stats.shortfallLow)}</span>
-          </div>
-          <div class="note mono-value">
-            Years at zero balance —
-            <span class:amount-negative={stats.depletedYearsHigh > 0}>P10: {fmtNum(stats.depletedYearsHigh, 1)}</span>
-            · <span class:amount-negative={stats.depletedYearsMedian > 0}>P50: {fmtNum(stats.depletedYearsMedian, 1)}</span>
-            · <span class:amount-negative={stats.depletedYearsLow > 0}>P90: {fmtNum(stats.depletedYearsLow, 1)}</span>
-          </div>
-        </div>
-        <!-- <div class="card">
-          <strong>Return distribution diagnostics</strong>
-          <div class="note mono-value">Arithmetic mean: {fmtSignedPercent(stats.returnMoments.arithmeticMean, 2)} · Geometric mean: {fmtSignedPercent(stats.returnMoments.geometricMean, 2)}</div>
-          <div class="note mono-value">Std dev: {fmtSignedPercent(stats.returnMoments.stdDev, 2)} · Skew: {stats.returnMoments.skewness.toFixed(2)} · Kurtosis: {stats.returnMoments.kurtosis.toFixed(2)}</div>
-          <div class="note mono-value">Advanced engine calibrates fat tails and left-tail clustering from a regime-detected long-run bootstrap sample.</div>
-        </div> -->
-        <!-- <div class="card">
-          <strong>Sequence-of-returns risk (first 10 years)</strong>
-          <div class="note mono-value">Worst early-return sequences often produce materially higher ruin risk despite similar long-run average returns.</div>
-          <table class="assumptions-table mono-value">
-            <thead>
-              <tr>
-                <th>Bucket</th>
-                <th>Early return</th>
-                <th>Ruin prob.</th>
-                <th>Ending median</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each stats.sequenceRisk as row}
-                <tr>
-                  <td>{row.bucketLabel}</td>
-                  <td>{fmtSignedPercent(row.earlyYearsMeanReturn, 2)}</td>
-                  <td class:amount-negative={row.ruinProbability >= 0.35} class:amount-positive={row.ruinProbability <= 0.15}>{percentFormatter.format(row.ruinProbability)}</td>
-                  <td>{fmtCompactCurrency(row.endingMedian)}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-          <div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
-        </div> -->
-      </div>
-    {/if}
+    <PlannerOutputCards
+      {stats}
+      {input}
+      {fmtCompactCurrency}
+      {retirementYearlySpending}
+      {FI_TARGET_SUCCESS_PROBABILITY}
+      {percentFormatter}
+      {fmtNum}
+    />
 
     <div class="chart-row">
-      <div class="card chart-card chart-card-main">
-        <div class="chart" bind:this={chartEl}></div>
-        <p class="note">
-          Fan shows middle 50% and 80% of outcomes. Dotted line is target year to achieve FI.
-          Red dashed line is FI target (P95) and orange dotted line is FI target (SWR). Shaded bands indicate spending periods.
-          Engine uses bootstrapped annual returns with regime detection to model sequence risk and clustered drawdowns.
-        </p>
-      </div>
-      {#if stats}
-        <div class="card chart-card chart-card-ruin">
-          <div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
-        </div>
-      {/if}
+      <PlannerTimelinePlot bind:chartEl />
+      <PlannerSecondaryPlot {stats} bind:ruinSurfaceEl />
     </div>
   </section>
 </div>

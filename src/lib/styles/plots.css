@@ -1,0 +1,103 @@
+/* ─── Chart ───────────────────────────────────────────────────────── */
+.chart { height: 480px; }
+
+/* ─── Derived pills ───────────────────────────────────────────────── */
+.derived-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.25rem 0 0.08rem;
+}
+
+.derived-pill {
+  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  color: #166534;
+  font-weight: 500;
+}
+
+.section-split {
+  margin-top: 0.3rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin: 0 0 0.15rem;
+}
+
+.status-banner {
+  width: 100%;
+  margin-bottom: 0.55rem;
+}
+
+.status-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.status-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.status-controls label {
+  min-width: 160px;
+}
+
+.status-run-btn {
+  min-height: 2.25rem;
+  white-space: nowrap;
+}
+
+.chart-card {
+  margin-top: 0.65rem;
+}
+
+.chart-row {
+  margin-top: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.chart-row .chart-card {
+  margin-top: 0;
+}
+
+.chart-card-main .chart {
+  height: 480px;
+}
+
+.ruin-surface-chart {
+  height: 360px;
+}
+
+.sequence-risk-chart {
+  height: 220px;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 1280px) {
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ruin-surface-chart {
+    height: 300px;
+  }
+}
