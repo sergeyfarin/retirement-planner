@@ -426,17 +426,19 @@
   $: selectedHistoricalRegion = historicalMarketData?.regions?.[selectedCurrencyCode] ?? null;
 
   $: historicalMetrics = calcGetHistoricalInvestmentMetrics(historicalMarketData, selectedCurrencyCode);
-  $: activeMetrics = input.simulationMode === 'historical' && historicalMetrics ? historicalMetrics : parametricMetrics;
+  $: activeMetrics = input.simulationMode === 'historical' && historicalMetrics && !input.historicalMomentTargeting 
+     ? historicalMetrics 
+     : parametricMetrics;
 
   let parametricInflationMean = ASSUMPTION_REFERENCES.EUR.inflationMetric.mean;
   let parametricInflationVariability = ASSUMPTION_REFERENCES.EUR.inflationMetric.std;
   let parametricInflationSkewness = DEFAULT_SKEWNESS;
   let parametricInflationKurtosis = DEFAULT_KURTOSIS;
 
-  $: activeInflationMean = input.simulationMode === 'historical' ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.mean : parametricInflationMean;
-  $: activeInflationVariability = input.simulationMode === 'historical' ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.std : parametricInflationVariability;
-  $: activeInflationSkewness = input.simulationMode === 'historical' ? DEFAULT_SKEWNESS : parametricInflationSkewness;
-  $: activeInflationKurtosis = input.simulationMode === 'historical' ? DEFAULT_KURTOSIS : parametricInflationKurtosis;
+  $: activeInflationMean = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.mean : parametricInflationMean;
+  $: activeInflationVariability = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.std : parametricInflationVariability;
+  $: activeInflationSkewness = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_SKEWNESS : parametricInflationSkewness;
+  $: activeInflationKurtosis = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_KURTOSIS : parametricInflationKurtosis;
 
   function fmtNum(n: number, decimals = 0): string {
     if (n == null || isNaN(n)) return '0';
@@ -813,6 +815,7 @@
 
   let input: PlannerInput = {
     simulationMode: 'historical',
+    historicalMomentTargeting: false,
     currentAge: 35,
     retirementAge: 50,
     simulateUntilAge: 90,
@@ -877,7 +880,7 @@
     // Force re-evaluating active metrics, then calculate everything based on it.
     // However, activeMetrics evaluates reactively, so we compute manually here just to push initial values.
     const historicalMetricsLocal = calcGetHistoricalInvestmentMetrics(historicalMarketData, currencyCode);
-    const tempActiveMetrics = input.simulationMode === 'historical' && historicalMetricsLocal ? historicalMetricsLocal : parametricMetrics;
+    const tempActiveMetrics = input.simulationMode === 'historical' && historicalMetricsLocal && !input.historicalMomentTargeting ? historicalMetricsLocal : parametricMetrics;
 
     const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
     const estimatedCorrelation = calcEstimateEquityBondCorrelation(historicalMarketData, currencyCode);

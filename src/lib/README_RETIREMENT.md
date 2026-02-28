@@ -569,7 +569,7 @@ Focus: fix the issues that affect numerical correctness and make the engine test
 | 1.2 | **Unit test scaffold** — ✅ Implemented and verified. `retirementEngine.test.ts` contains seed-based tests for `spendingAtAge`, `incomeAtAge`, `buildCashflowArrays`, `detectRegimes` (synthetic series), `drawShapedStandardScore` (moment check on 100k draws), `findRetirementBalanceTarget` (hand-crafted example), and `runMonteCarloSimulation` (smoke: output shape + median > 0). | M | `retirementEngine.test.ts` |
 | 1.3 | **Fix global mutable `spareNormal`** — ✅ Implemented in `calculations.ts` `RandomSource`; engine uses this safely encapsulated cache. | S | `calculations.ts`, `retirementEngine.ts` |
 | 1.4 | **Restructure drag model** — ✅ implemented as `annualFeePercent` + `taxOnGainsPercent`, with updated UI labels/defaults (0.5% / 15%). | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
-| 1.5 | **Add cross-asset correlation** — implemented `equityBondCorrelation` (default −0.1), covariance blending, and historical sample-correlation defaults. | M | `RetirementPlanner.svelte`, `retirementEngine.ts` |
+| 1.5 | **Add cross-asset correlation** — ✅ implemented `equityBondCorrelation` (default −0.1), covariance blending, and historical sample-correlation defaults. | M | `RetirementPlanner.svelte`, `retirementEngine.ts` |
 | 1.6 | **Add global simulation mode toggle** — ✅ Implemented and enhanced. Switched to toggle buttons instead of a combobox. In Historical mode, the inputs for stocks, bonds, cash, and inflation are explicitly disabled to reflect they are driven by the empirical dataset. | M | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte`, `retirementEngine.ts` |
 
 **Checkpoint:** all existing behavior reproduced (seed = undefined), tests pass, drag and correlation produce more realistic σ, and mode selection is explicit and consistent across preview/full runs.
@@ -582,10 +582,10 @@ Focus: improve the realism of the return-generation path.
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 2.1 | **Block bootstrap** — change monthly bootstrap from i.i.d. to contiguous blocks (block length 6 months, randomized start within regime pool). Preserves momentum and volatility clustering. | M | `retirementEngine.ts` |
-| 2.2 | **Regime-conditioned inflation** — in crisis regime, shift inflation mean upward by a configurable spread (default +1.5pp). Draw inflation from the regime-conditioned distribution instead of an unconditional one. | S | `retirementEngine.ts` |
-| 2.3 | **Replace shaped-normal with Cornish-Fisher** — implement the 4-term Cornish-Fisher expansion for the parametric fallback path. Add a calibration test comparing realized vs target moments. | S | `retirementEngine.ts`, `retirementEngine.test.ts` |
-| 2.4 | **Bond convexity term** — in `monthlyBondReturnsFromYield`, add $+\frac{1}{2}D(D+1)(\Delta y)^2$ convexity correction. | S | `import-retirement-market-data.mjs` |
+| 2.1 | **Block bootstrap** — ✅ Implemented completely. Changed monthly bootstrap from i.i.d. to contiguous blocks (default 6 months, randomized start within regime pool). Preserves momentum and volatility clustering. | M | `retirementEngine.ts` |
+| 2.2 | **Regime-conditioned inflation** — ✅ Implemented completely. In crisis regime, inflation mean shifts upward by a configurable spread (default +1.5pp). Drawn from the regime-conditioned distribution. | S | `retirementEngine.ts` |
+| 2.3 | **Replace shaped-normal with Cornish-Fisher** — ✅ Implemented completely. Replaced `drawShapedStandardScore` with 4-term Cornish-Fisher expansion `drawCornishFisherScore` for the parametric fallback path. Added a calibration test comparing realized vs target moments. | S | `retirementEngine.ts`, `retirementEngine.test.ts` |
+| 2.4 | **Bond convexity term** — ✅ Implemented completely. In `monthlyBondReturnsFromYield`, added $+\frac{1}{2}D(D+1)(\Delta y)^2$ convexity correction. Regenerated world market datasets. | S | `import-retirement-market-data.mjs` |
 | 2.5 | **Moment-targeted historical mode** — in `Historical bootstrapping` mode, apply affine moment targeting to sampled returns so simulation mean/vol aligns with user-adjusted assumptions while preserving historical sequence structure. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 
 **Checkpoint:** historical mode preserves sequence realism and can optionally match user targets; parametric mode remains fully assumption-driven.
@@ -622,7 +622,9 @@ Focus: optional enhancements for power users.
 | 4.5 | **Social Security claiming optimization** — allow benefit amounts that vary by claiming age (e.g., US: 70% at 62, 100% at 67, 124% at 70). | S | `RetirementPlanner.svelte` |
 | 4.6 | **Advanced dual-mode controls (optional)** — keep global mode as default, add optional expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 4.7 | **Optimize Student-t generation** — replace the $O(df)$ chained-normal method with a Gamma-based $O(1)$ method algorithm (e.g. Marsaglia and Tsang) for generating chi-square deviates. | M | `retirementEngine.ts` |
-| 4.8 | **Separate states for Historical vs Parametric moments** — When users tweak assumptions in parametric mode and switch back to historical, the UI holds the stale tweaked values instead of reverting to the empirical dataset moments, causing confusion. Separate `parametricMetrics` and `historicalMetrics` UI states. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
+| 4.8 | **Separate states for Historical vs Parametric moments** — ✅ Implemented completely. `historicalMetrics` vs `parametricMetrics` allow for a clear separation. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
+| 4.9 | **Expose Expert Engine Controls** — Expose the new `blockLength` (for block bootstrap) and `inflationCrisisSpread` variables as editable inputs the `PlannerInputPanel.svelte` for power users. | S | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte` |
+| 4.10 | **Visualizing Regimes in Charts** — Shade background of `PlannerTimelinePlot` to reflect periods of "Crisis" vs "Growth" for median outcomes or add a probability heatmap to help users intuitively grasp the regime switches. | M | `PlannerTimelinePlot.svelte` |
 
 **Checkpoint:** main thread stays responsive; advanced users can refine both Historical and Parametric workflows without ambiguity.
 
