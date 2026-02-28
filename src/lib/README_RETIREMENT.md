@@ -335,6 +335,24 @@ Correct derivation from the balance equation $\pi P = \pi$.
 
 **Fix:** Use **block bootstrap** — sample contiguous blocks of 3-12 months from the historical data within each regime. This preserves intra-regime time-series structure.
 
+#### P1.5 — Assumption-to-engine mismatch in custom mode inputs
+
+**Current:** UI assumption rows (mean/vol/skew/kurt for instruments and inflation) update portfolio and real-return CDF, but Monte Carlo can still be driven primarily by historical bootstrap pools.
+
+**Problem:** Users can see one distribution in inputs/CDF and a materially different distribution in simulation outcomes.
+
+**Fix:** Introduce explicit global simulation mode and make the active generator unambiguous:
+- **Historical bootstrap mode** (optionally moment-targeted to user assumptions)
+- **Parametric mode** (fully assumption-driven)
+
+#### P1.6 — RNG implementation duplication across modules
+
+**Current:** `calculations.ts` has `RandomSource` with `mulberry32`, while `retirementEngine.ts` has its own seeded RNG implementation.
+
+**Problem:** Documentation and runtime implementation can drift; reproducibility characteristics may differ by module.
+
+**Fix:** Consolidate to one RNG implementation used by all simulation paths.
+
 ---
 
 ### Priority 2 — Methodology Improvements
@@ -541,13 +559,14 @@ Focus: fix the issues that affect numerical correctness and make the engine test
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 1.1 | **Add seeded PRNG** — implemented with `mulberry32` + `RandomSource` spare cache, optional `seed` in `RetirementInput`. | S | `calculations.ts`, `retirementEngine.ts` |
+| 1.1 | **Add seeded PRNG** — implemented; optional `seed` in `RetirementInput` works in engine. Note: RNG implementation is currently duplicated (`retirementEngine.ts` local RNG and `calculations.ts` `mulberry32` `RandomSource`), needs consolidation. | S | `calculations.ts`, `retirementEngine.ts` |
 | 1.2 | **Unit test scaffold** — add `retirementEngine.test.ts`. Seed-based tests for: `spendingAtAge`, `incomeAtAge`, `buildCashflowArrays`, `detectRegimes` (synthetic series), `drawShapedStandardScore` (moment check on 100k draws), `findRetirementBalanceTarget` (hand-crafted example), `runMonteCarloSimulation` (smoke: output shape + median > 0). | M | new `retirementEngine.test.ts` |
-| 1.3 | **Fix global mutable `spareNormal`** — implemented inside `RandomSource` instance (part of 1.1). | S | `calculations.ts` |
+| 1.3 | **Fix global mutable `spareNormal`** — implemented in `calculations.ts` `RandomSource`; engine path does not use a global spare cache either. | S | `calculations.ts`, `retirementEngine.ts` |
 | 1.4 | **Restructure drag model** — implemented as `annualFeePercent` + `taxOnGainsPercent`, with updated UI labels/defaults (0.5% / 15%). | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 1.5 | **Add cross-asset correlation** — implemented `equityBondCorrelation` (default −0.1), covariance blending, and historical sample-correlation defaults. | M | `RetirementPlanner.svelte`, `retirementEngine.ts` |
+| 1.6 | **Add global simulation mode toggle** — add explicit mode switch used by both preview and full Monte Carlo: `Historical bootstrapping` vs `Parametric`. Persist mode in input state and show active mode near Run button. | M | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte`, `retirementEngine.ts` |
 
-**Checkpoint:** all existing behavior reproduced (seed = undefined), new tests pass, drag and correlation produce more realistic σ.
+**Checkpoint:** all existing behavior reproduced (seed = undefined), tests pass, drag and correlation produce more realistic σ, and mode selection is explicit and consistent across preview/full runs.
 
 ---
 
@@ -561,8 +580,9 @@ Focus: improve the realism of the return-generation path.
 | 2.2 | **Regime-conditioned inflation** — in crisis regime, shift inflation mean upward by a configurable spread (default +1.5pp). Draw inflation from the regime-conditioned distribution instead of an unconditional one. | S | `retirementEngine.ts` |
 | 2.3 | **Replace shaped-normal with Cornish-Fisher** — implement the 4-term Cornish-Fisher expansion for the parametric fallback path. Add a calibration test comparing realized vs target moments. | S | `retirementEngine.ts`, `retirementEngine.test.ts` |
 | 2.4 | **Bond convexity term** — in `monthlyBondReturnsFromYield`, add $+\frac{1}{2}D(D+1)(\Delta y)^2$ convexity correction. | S | `import-retirement-market-data.mjs` |
+| 2.5 | **Moment-targeted historical mode** — in `Historical bootstrapping` mode, apply affine moment targeting to sampled returns so simulation mean/vol aligns with user-adjusted assumptions while preserving historical sequence structure. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 
-**Checkpoint:** block bootstrap reproduces historical autocorrelation; inflation-return correlation visible in scenarios; bond returns more accurate for large yield moves.
+**Checkpoint:** historical mode preserves sequence realism and can optionally match user targets; parametric mode remains fully assumption-driven.
 
 ---
 
@@ -577,8 +597,9 @@ Focus: improve data proxies and surface better information to the user.
 | 3.3 | **Display geometric mean** — show geometric mean prominently in the summary panel alongside arithmetic mean. Add a tooltip explaining the difference and the variance drag formula. | S | `RetirementPlanner.svelte` |
 | 3.4 | **Convergence diagnostic** — after simulation, compute and display the standard error of the success probability: $SE = \sqrt{p(1-p)/N}$. Show a "convergence quality" indicator. | S | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 3.5 | **Rename drag UI** — if not already restructured in 1.4, at minimum rename "Annual drag" to "Annual fee (TER + platform)" and add a separate "Tax on gains" field. | S | `RetirementPlanner.svelte` |
+| 3.6 | **Mode transparency in UI** — show active mode badge, effective moments used by simulator, and warning text when displayed assumptions differ from simulation driver. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
 
-**Checkpoint:** data pipeline produces higher-fidelity regional returns; users see geometric mean and confidence in results.
+**Checkpoint:** users can clearly tell which mode is active and which moments were actually used in the run.
 
 ---
 
@@ -593,8 +614,9 @@ Focus: optional enhancements for power users.
 | 4.3 | **Mortality-weighted ruin** — optionally draw a death age from a life table (e.g., WHO period life table). Report "probability of ruin before death" instead of "ruin at fixed age." | M | `retirementEngine.ts`, new `mortalityTable.ts` |
 | 4.4 | **Two-bucket tax model** — allow users to specify % of savings in tax-advantaged vs taxable accounts, with different drag rates per bucket. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 4.5 | **Social Security claiming optimization** — allow benefit amounts that vary by claiming age (e.g., US: 70% at 62, 100% at 67, 124% at 70). | S | `RetirementPlanner.svelte` |
+| 4.6 | **Advanced dual-mode controls (optional)** — keep global mode as default, add optional expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 
-**Checkpoint:** main thread stays responsive; advanced users can model adaptive spending and longevity risk.
+**Checkpoint:** main thread stays responsive; advanced users can refine both Historical and Parametric workflows without ambiguity.
 
 ---
 
@@ -610,7 +632,7 @@ Focus: optional enhancements for power users.
 
 ```
 Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
-(1.1 → 1.2 → 1.3 → 1.4 → 1.5)  then  (2.1 → 2.2 → 2.3 → 2.4)  then ...
+(1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6)  then  (2.1 → 2.2 → 2.3 → 2.4 → 2.5)  then ...
 ```
 
-Phase 1 items are sequential (1.1 unblocks 1.2; 1.3 is part of 1.1). Phases 2–4 items are mostly independent within each phase and can be parallelized.
+Phase 1 items are sequential (1.1 unblocks 1.2; 1.3 is part of 1.1). Phases 2–4 items are mostly independent within each phase and can be parallelized, with mode-consistency tasks prioritized before UI polishing.

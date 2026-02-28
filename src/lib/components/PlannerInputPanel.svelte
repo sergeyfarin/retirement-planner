@@ -196,6 +196,13 @@
         <input class="allocation-range" type="range" min="0" max="100" step="1" bind:value={stockBoundaryPercent} oninput={onStockBoundaryChange} aria-label="Stocks allocation boundary" />
         <input class="allocation-range allocation-range-top" type="range" min="0" max="100" step="1" bind:value={bondBoundaryPercent} oninput={onBondBoundaryChange} aria-label="Bonds allocation boundary" />
       </div>
+      <label>
+        Simulation mode
+        <select bind:value={input.simulationMode}>
+          <option value="historical">Historical bootstrapping</option>
+          <option value="parametric">Parametric</option>
+        </select>
+      </label>
       {#if selectedHistoricalRegion}
       <p class="note mono-value">
         Historical market dataset loaded:<br />
