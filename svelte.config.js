@@ -1,5 +1,8 @@
 import adapter from '@sveltejs/adapter-auto';
 
+// Read optional base path from env (e.g. "/retirement")
+const basePath = process.env.BASE_PATH ?? '/retirement';
+
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {

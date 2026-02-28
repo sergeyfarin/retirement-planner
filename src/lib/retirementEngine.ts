@@ -1,4 +1,58 @@
-import { createRandomSource, percentile, summarize, type PercentileSeries, type RandomSource } from '../statistics';
+// Type definitions for statistics utilities
+export type RandomSource = {
+  random(): number;
+  normal(mean: number, stdDev: number): number;
+};
+
+export type PercentileSeries<T> = {
+  p10: T;
+  p25: T;
+  p50: T;
+  p75: T;
+  p90: T;
+};
+
+// Statistics utility functions
+function createRandomSource(seed?: number): RandomSource {
+  let state = seed ?? Math.random() * 0xffffffff;
+  
+  const random = () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
+
+  const normal = (mean: number, stdDev: number): number => {
+    let u1 = random();
+    const u2 = random();
+    while (u1 === 0) u1 = random();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return mean + z * stdDev;
+  };
+
+  return { random, normal };
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const index = p * (sorted.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index % 1;
+  
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+function summarize(values: number[]): PercentileSeries<number> {
+  const sorted = [...values].sort((a, b) => a - b);
+  return {
+    p10: percentile(sorted, 0.1),
+    p25: percentile(sorted, 0.25),
+    p50: percentile(sorted, 0.5),
+    p75: percentile(sorted, 0.75),
+    p90: percentile(sorted, 0.9)
+  };
+}
 
 export type SpendingPeriod = {
   id: string;

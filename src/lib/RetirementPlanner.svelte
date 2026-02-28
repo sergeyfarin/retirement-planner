@@ -1286,7 +1286,7 @@
     Plotly = module.default ?? module;
 
     try {
-      const response = await fetch(asset('/assets/retirement/historical-market-data.json'), { cache: 'no-store' });
+      const response = await fetch(asset('/assets/historical-market-data.json'), { cache: 'no-store' });
       if (response.ok) {
         const payload = await response.json();
         historicalMarketData = payload as HistoricalMarketDataset;
