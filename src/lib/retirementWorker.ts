@@ -1,5 +1,6 @@
 import { runMonteCarloSimulation } from './retirementEngine';
 import type { RetirementInput, SpendingPeriod, IncomeSource, LumpSumEvent } from './retirementEngine';
+import { run_monte_carlo } from 'rust-engine';
 
 export interface WorkerInputMessage {
     type: 'RUN_SIMULATION';
@@ -39,22 +40,27 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
 
     if (type === 'RUN_SIMULATION') {
         try {
-            const result = runMonteCarloSimulation(
+            self.postMessage({
+                type: 'SIMULATION_PROGRESS',
+                id,
+                payload: { progress: 0.1 }
+            });
+
+            // Call compiled WebAssembly module
+            const result = run_monte_carlo(
                 payload.input,
                 payload.spendingPeriods,
                 payload.incomeSources,
                 payload.lumpSumEvents,
                 payload.months,
-                payload.retireMonth,
-                (progress) => {
-                    const progMsg: WorkerProgressMessage = {
-                        type: 'SIMULATION_PROGRESS',
-                        id,
-                        payload: { progress }
-                    };
-                    self.postMessage(progMsg);
-                }
+                payload.retireMonth
             );
+
+            self.postMessage({
+                type: 'SIMULATION_PROGRESS',
+                id,
+                payload: { progress: 1.0 }
+            });
 
             const successMsg: WorkerResultMessage = {
                 type: 'SIMULATION_COMPLETE',

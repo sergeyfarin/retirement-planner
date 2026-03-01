@@ -1,6 +1,6 @@
 # Retirement Planner — Monte Carlo Simulator
 
-A high-performance, browser-based retirement forecasting engine built with **Svelte 5** and powered by **Markov regime-switching Monte Carlo simulation** with historical bootstrap resampling. All computation runs in a **Web Worker** to keep the UI responsive during 100,000+ simulation runs.
+A high-performance, browser-based retirement forecasting engine built with **Svelte 5** and powered by **Markov regime-switching Monte Carlo simulation** with historical bootstrap resampling. All computation runs in a custom-built **Rust WebAssembly (Wasm)** engine mounted in a **Web Worker** to keep the UI perfectly responsive during 100,000+ simulation runs.
 
 ---
 
@@ -34,10 +34,16 @@ data/retirement/raw/*.csv                ← Monthly equity-close, bond-close, c
 public/assets/retirement/
   historical-market-data.json            ← Preprocessed returns consumed at runtime
 
+rust-engine/
+  src/                     ← Rust source code for the Monte Carlo engine
+    calculations.rs        ← Math abstractions & RNG
+    engine.rs              ← Markov models & distribution generation
+    simulation.rs          ← O(N) path execution loops
+    stats.rs               ← Sequence risk & O(N^3) ruin surface aggregations
+  pkg/                     ← Compiled WebAssembly outputs
+
 src/lib/
-  calculations.ts          ← RandomSource (mulberry32 + Box-Muller), percentile, portfolio blending
-  retirementEngine.ts      ← Core simulation engine (898 lines)
-  retirementWorker.ts      ← Web Worker wrapper with progress reporting
+  retirementWorker.ts      ← Web Worker calling `run_monte_carlo` via wasm-bindgen
   RetirementPlanner.svelte ← Main application state, Worker controller, Plotly integration
   components/
     PlannerInputPanel.svelte       ← All user inputs (Svelte 5 $props + $bindable)
@@ -48,8 +54,8 @@ src/lib/
 
 ### Dual-Execution Pipeline
 
-1. **Live Preview (Synchronous, main thread):** When any input changes, a lightweight ~400-path simulation runs in <15ms to instantly update charts. Keeps the UI feeling snappy.
-2. **Full Simulation (Asynchronous Web Worker):** When the user clicks "Run Monte Carlo", a `RUN_SIMULATION` message is sent to the Worker. The Worker fires `SIMULATION_PROGRESS` messages every ~1% to update a progress bar, then sends back the full result via Structured Cloning.
+1. **Live Preview (Synchronous, main thread):** When any input changes, a lightweight ~400-path simulation runs in <5ms to instantly update charts using the fast Rust engine. Keeps the UI feeling snappy.
+2. **Full Simulation (Asynchronous Web Worker):** When the user clicks "Run Monte Carlo", a `RUN_SIMULATION` message is sent to the Worker. The Worker invokes the static WebAssembly binary which executes thousands of calculations per second over contiguous heap memory, avoiding the JavaScript Garbage Collector entirely, then only structured-clones the final ~2KB `SummaryStats` payload back to the UI.
 
 All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$derived`, `$bindable`).
 
