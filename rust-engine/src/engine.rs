@@ -77,7 +77,6 @@ pub struct SummaryStats {
 }
 
 const MIN_STATE_PROBABILITY: f64 = 0.001;
-const FI_TARGET_SUCCESS_PROBABILITY: f64 = 0.95;
 
 pub fn clamp_transition_probability(value: f64) -> f64 {
     clamp(value, MIN_STATE_PROBABILITY, 1.0 - MIN_STATE_PROBABILITY)

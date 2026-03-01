@@ -1,4 +1,4 @@
-use crate::calculations::{percentile, summarize};
+use crate::calculations::summarize;
 use crate::engine::{RuinSurface, SequenceRiskBucket};
 use crate::engine2::build_cashflow_arrays;
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};

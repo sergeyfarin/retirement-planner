@@ -1,5 +1,4 @@
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
-use std::collections::HashSet;
 
 pub fn apply_moment_targeting(
     value: f64,
