@@ -421,11 +421,11 @@
   let historicalDataLoadError = '';
   let showHistoricalMethodologyInfo = false;
 
-  $: selectedCurrency = CURRENCIES.find(c => c.code === selectedCurrencyCode) ?? CURRENCIES[0];
-  $: selectedAssumptionReference = ASSUMPTION_REFERENCES[selectedCurrencyCode];
-  $: selectedHistoricalRegion = historicalMarketData?.regions?.[selectedCurrencyCode] ?? null;
+  const selectedCurrency = $derived(CURRENCIES.find(c => c.code === selectedCurrencyCode) ?? CURRENCIES[0]);
+  const selectedAssumptionReference = $derived(ASSUMPTION_REFERENCES[selectedCurrencyCode]);
+  const selectedHistoricalRegion = $derived(historicalMarketData?.regions?.[selectedCurrencyCode] ?? null);
 
-  $: historicalMetrics = calcGetHistoricalInvestmentMetrics(historicalMarketData, selectedCurrencyCode);
+  const historicalMetrics = $derived(calcGetHistoricalInvestmentMetrics(historicalMarketData, selectedCurrencyCode));
   $: activeMetrics = input.simulationMode === 'historical' && historicalMetrics && !input.historicalMomentTargeting 
      ? historicalMetrics 
      : parametricMetrics;
@@ -435,10 +435,10 @@
   let parametricInflationSkewness = DEFAULT_SKEWNESS;
   let parametricInflationKurtosis = DEFAULT_KURTOSIS;
 
-  $: activeInflationMean = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.mean : parametricInflationMean;
-  $: activeInflationVariability = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.std : parametricInflationVariability;
-  $: activeInflationSkewness = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_SKEWNESS : parametricInflationSkewness;
-  $: activeInflationKurtosis = input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_KURTOSIS : parametricInflationKurtosis;
+  const activeInflationMean = $derived(input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.mean : parametricInflationMean);
+  const activeInflationVariability = $derived(input.simulationMode === 'historical' && !input.historicalMomentTargeting ? ASSUMPTION_REFERENCES[selectedCurrencyCode].inflationMetric.std : parametricInflationVariability);
+  const activeInflationSkewness = $derived(input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_SKEWNESS : parametricInflationSkewness);
+  const activeInflationKurtosis = $derived(input.simulationMode === 'historical' && !input.historicalMomentTargeting ? DEFAULT_KURTOSIS : parametricInflationKurtosis);
 
   function fmtNum(n: number, decimals = 0): string {
     if (n == null || isNaN(n)) return '0';
@@ -449,7 +449,7 @@
     return decimals > 0 && decPart ? `${sign}${withSep}.${decPart}` : `${sign}${withSep}`;
   }
 
-  $: fmtCurrency = (n: number) => `${selectedCurrency.symbol}\u00A0${fmtNum(n)}`;
+  const fmtCurrency = $derived((n: number) => `${selectedCurrency.symbol}\u00A0${fmtNum(n)}`);
 
   function fmtCompactValue(value: number): string {
     const abs = Math.abs(value);
@@ -466,7 +466,7 @@
     return Math.round(value).toString();
   }
 
-  $: fmtCompactCurrency = (n: number) => `${selectedCurrency.symbol}\u00A0${fmtCompactValue(n)}`;
+  const fmtCompactCurrency = $derived((n: number) => `${selectedCurrency.symbol}\u00A0${fmtCompactValue(n)}`);
 
   function toSignificant(value: number, digits = 3): number {
     if (!Number.isFinite(value) || value === 0) return 0;
@@ -493,7 +493,7 @@
     return `${sign}${shown}`;
   }
 
-  $: fmtHoverCompactCurrency = (n: number) => `${selectedCurrency.symbol}\u00A0${fmtHoverCompactValue(n)}`;
+  const fmtHoverCompactCurrency = $derived((n: number) => `${selectedCurrency.symbol}\u00A0${fmtHoverCompactValue(n)}`);
 
   function parseNum(s: string): number {
     const cleaned = String(s).replace(/'/g, '').replace(/[^\d.\-]/g, '');
@@ -795,21 +795,21 @@
     applyInvestmentAllocationMetrics();
   }
 
-  $: {
+  $effect(() => {
     normalizeAllocationBoundaries();
-  }
+  });
 
-  $: stockAllocationPercent = clamp(stockBoundaryPercent, 0, 100);
-  $: bondAllocationPercent = clamp(bondBoundaryPercent - stockBoundaryPercent, 0, 100);
-  $: bankAllocationPercent = clamp(100 - bondBoundaryPercent, 0, 100);
+  const stockAllocationPercent = $derived(clamp(stockBoundaryPercent, 0, 100));
+  const bondAllocationPercent = $derived(clamp(bondBoundaryPercent - stockBoundaryPercent, 0, 100));
+  const bankAllocationPercent = $derived(clamp(100 - bondBoundaryPercent, 0, 100));
 
-  $: currentAllocation = getAllocationSplit();
-  $: stockRiskComponent = currentAllocation.stocks * activeMetrics.stockStd;
-  $: bondRiskComponent = currentAllocation.bonds * activeMetrics.bondStd;
-  $: bankRiskComponent = currentAllocation.bank * activeMetrics.bankStd;
-  $: stockRiskContribution = input.returnVariability > 0 ? (stockRiskComponent ** 2) / input.returnVariability : 0;
-  $: bondRiskContribution = input.returnVariability > 0 ? (bondRiskComponent ** 2) / input.returnVariability : 0;
-  $: bankRiskContribution = input.returnVariability > 0 ? (bankRiskComponent ** 2) / input.returnVariability : 0;
+  const currentAllocation = $derived(getAllocationSplit());
+  const stockRiskComponent = $derived(currentAllocation.stocks * activeMetrics.stockStd);
+  const bondRiskComponent = $derived(currentAllocation.bonds * activeMetrics.bondStd);
+  const bankRiskComponent = $derived(currentAllocation.bank * activeMetrics.bankStd);
+  const stockRiskContribution = $derived(input.returnVariability > 0 ? (stockRiskComponent ** 2) / input.returnVariability : 0);
+  const bondRiskContribution = $derived(input.returnVariability > 0 ? (bondRiskComponent ** 2) / input.returnVariability : 0);
+  const bankRiskContribution = $derived(input.returnVariability > 0 ? (bankRiskComponent ** 2) / input.returnVariability : 0);
 
   // ─── Core inputs ─────────────────────────────────────────────────────────────
 
@@ -995,10 +995,10 @@
     };
   }
 
-  $: if (selectedCurrencyCode !== lastAppliedReferenceCurrency) {
+  $effect(() => { if (selectedCurrencyCode !== lastAppliedReferenceCurrency) {
     applyReferenceDefaults(selectedCurrencyCode);
     lastAppliedReferenceCurrency = selectedCurrencyCode;
-  }
+  } });
 
   // ─── Variable spending periods ────────────────────────────────────────────────
 
@@ -1022,7 +1022,7 @@
     spendingPeriods = spendingPeriods.filter(p => p.id !== id);
   }
 
-  $: {
+  $effect(() => {
     const living = spendingPeriods.find((period) => period.id === 'sp-default');
     let changed = false;
 
@@ -1040,7 +1040,7 @@
     if (changed) {
       spendingPeriods = [...spendingPeriods];
     }
-  }
+  });
 
   // ─── Income sources ───────────────────────────────────────────────────────────
 
@@ -1065,7 +1065,7 @@
     incomeSources = incomeSources.filter(s => s.id !== id);
   }
 
-  $: {
+  $effect(() => {
     const salary = incomeSources.find((src) => src.id === 'is-default');
     const pension = incomeSources.find((src) => src.id === 'is-pension');
     let changed = false;
@@ -1089,7 +1089,7 @@
     if (changed) {
       incomeSources = [...incomeSources];
     }
-  }
+  });
 
   // ─── Lump-sum events ──────────────────────────────────────────────────────────
 
@@ -1112,22 +1112,22 @@
 
   const FI_TARGET_SUCCESS_PROBABILITY = 0.95;
 
-  $: annualFeeRate = clamp(input.annualFeePercent, 0, 1);
-  $: taxOnGainsRate = clamp(input.taxOnGainsPercent, 0, 1);
+  const annualFeeRate = $derived(clamp(input.annualFeePercent, 0, 1));
+  const taxOnGainsRate = $derived(clamp(input.taxOnGainsPercent, 0, 1));
   $: nominalReturnAfterCostsEstimate = input.meanReturn > 0
     ? input.meanReturn * (1 - taxOnGainsRate) - annualFeeRate
     : input.meanReturn;
-  $: nominalStdAfterCostsEstimate = input.returnVariability * (1 - taxOnGainsRate) * (1 - annualFeeRate);
-  $: portfolioDisplaySkew = input.returnSkewness;
-  $: portfolioDisplayKurt = input.returnKurtosis;
-  $: realReturnSkewEstimate = input.returnSkewness - input.inflationSkewness;
-  $: realReturnKurtEstimate = Math.max(1, input.returnKurtosis + input.inflationKurtosis - 3);
-  $: realReturnEstimate = (1 + nominalReturnAfterCostsEstimate) / (1 + input.inflationMean) - 1;
-  $: realReturnStdEstimate = Math.sqrt(nominalStdAfterCostsEstimate ** 2 + input.inflationVariability ** 2);
-  $: realReturn68Low = realReturnEstimate - realReturnStdEstimate;
-  $: realReturn68High = realReturnEstimate + realReturnStdEstimate;
-  $: realReturn95Low = realReturnEstimate - 2 * realReturnStdEstimate;
-  $: realReturn95High = realReturnEstimate + 2 * realReturnStdEstimate;
+  const nominalStdAfterCostsEstimate = $derived(input.returnVariability * (1 - taxOnGainsRate) * (1 - annualFeeRate));
+  const portfolioDisplaySkew = $derived(input.returnSkewness);
+  const portfolioDisplayKurt = $derived(input.returnKurtosis);
+  const realReturnSkewEstimate = $derived(input.returnSkewness - input.inflationSkewness);
+  const realReturnKurtEstimate = $derived(Math.max(1, input.returnKurtosis + input.inflationKurtosis - 3));
+  const realReturnEstimate = $derived((1 + nominalReturnAfterCostsEstimate) / (1 + input.inflationMean) - 1);
+  const realReturnStdEstimate = $derived(Math.sqrt(nominalStdAfterCostsEstimate ** 2 + input.inflationVariability ** 2));
+  const realReturn68Low = $derived(realReturnEstimate - realReturnStdEstimate);
+  const realReturn68High = $derived(realReturnEstimate + realReturnStdEstimate);
+  const realReturn95Low = $derived(realReturnEstimate - 2 * realReturnStdEstimate);
+  const realReturn95High = $derived(realReturnEstimate + 2 * realReturnStdEstimate);
   $: realReturnPercentiles = [
     { label: 'P5', probability: 0.05, z: -1.6448536269514722 },
     { label: 'P10', probability: 0.10, z: -1.2815515655446004 },
@@ -1141,9 +1141,9 @@
     probability: entry.probability,
     value: realReturnEstimate + entry.z * realReturnStdEstimate
   }));
-  $: realReturnCdfMin = Math.min(realReturn95Low, ...realReturnPercentiles.map((point) => point.value));
-  $: realReturnCdfMax = Math.max(realReturn95High, ...realReturnPercentiles.map((point) => point.value));
-  $: realReturnCdfSpan = Math.max(1e-6, realReturnCdfMax - realReturnCdfMin);
+  const realReturnCdfMin = $derived(Math.min(realReturn95Low, ...realReturnPercentiles.map((point) => point.value)));
+  const realReturnCdfMax = $derived(Math.max(realReturn95High, ...realReturnPercentiles.map((point) => point.value)));
+  const realReturnCdfSpan = $derived(Math.max(1e-6, realReturnCdfMax - realReturnCdfMin));
   $: zeroReturnPercentile = (() => {
     if (realReturnStdEstimate <= 1e-9) {
       if (realReturnEstimate < 0) return 1;
@@ -1252,11 +1252,11 @@
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(digits)}%`;
   }
 
-  $: retirementYearlySpending = spendingAtAge(input.retirementAge, spendingPeriods);
-  $: baselineFiTarget = retirementYearlySpending / Math.max(0.01, input.safeWithdrawalRate);
-  $: fiTargetSWR = baselineFiTarget;
-  $: fiTargetP95 = stats?.fiTargetP95 ?? fiTargetSWR;
-  $: fiTarget = fiTargetP95;
+  const retirementYearlySpending = $derived(spendingAtAge(input.retirementAge, spendingPeriods));
+  const baselineFiTarget = $derived(retirementYearlySpending / Math.max(0.01, input.safeWithdrawalRate));
+  const fiTargetSWR = $derived(baselineFiTarget);
+  const fiTargetP95 = $derived(stats?.fiTargetP95 ?? fiTargetSWR);
+  const fiTarget = $derived(fiTargetP95);
 
   $: previewTriggerKey = [
     selectedCurrencyCode,
@@ -1302,11 +1302,11 @@
     lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|')
   ].join('::');
 
-  $: if (previewReady && previewTriggerKey) {
+  $effect(() => { if (previewReady && previewTriggerKey) {
     schedulePreviewRecalculation();
-  }
+  } });
 
-  $: if (plotReady && realReturnCdfEl) {
+  $effect(() => { if (plotReady && realReturnCdfEl) {
     realReturnPercentiles;
     realReturnCdfXTicks;
     realReturn68Low;
@@ -1317,7 +1317,7 @@
     realReturnCdfMax;
     realReturnCdfSpan;
     drawRealReturnCdfChart();
-  }
+  } });
 
   function schedulePreviewRecalculation() {
     if (previewRecalcTimer) clearTimeout(previewRecalcTimer);
