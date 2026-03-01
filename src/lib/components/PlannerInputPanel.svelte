@@ -256,7 +256,7 @@
         <div class="note mono-value methodology-info">
           Active calibration dataset (used now):<br />
           • Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual observations), built from monthly market data.<br />
-          • Equity (stocks): monthly close-to-close total return proxies from Stooq index series, then compounded to annual returns.<br />
+          • Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with synthetic dividend adjustments if needed, e.g. for CAC), then compounded to annual returns.<br />
           • Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based), then compounded to annual returns.<br />
           • Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br />
           • For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments computed from that annual return series (not handbook constants).<br />
