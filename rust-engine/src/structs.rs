@@ -1,5 +1,4 @@
-use crate::calculations::RandomSource;
-use crate::engine::*;
+// Svelte↔Rust payload API boundary types
 
 // Let's create `structs.rs` to hold all Svelte<->Rust payload API boundary types to avoid cluttering engine.rs
 
