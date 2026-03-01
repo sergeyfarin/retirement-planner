@@ -1628,7 +1628,7 @@
         <div class="status-controls">
           <label>
             Simulations to run
-            <input type="text" inputmode="numeric" value={fmtNum(input.simulations)} onchange={(e) => { input.simulations = numFromEvent(e); input = input; }} />
+            <input type="text" inputmode="numeric" value={fmtNum(input.simulations)} onchange={(e) => { input.simulations = numFromEvent(e); onSimulationSettingsChange(); }} />
           </label>
           <button class="status-run-btn" onclick={runSimulation} disabled={running}>
             {running ? 'Running Monte Carlo…' : 'Run Monte Carlo'}
