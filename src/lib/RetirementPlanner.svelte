@@ -492,7 +492,7 @@
 
 	// ─── Reactive state ─────────────────────────────────────────────────────────
 
-	let Plotly: any = $state();
+	let Plotly: any = null;
 	let plotReady = $state(false);
 	let realReturnCdfEl: HTMLDivElement | null = $state(null);
 
@@ -2097,7 +2097,7 @@
 
 		<div class="chart-row">
 			<PlannerTimelinePlot
-				bind:Plotly
+				{Plotly}
 				{plotReady}
 				{simulation}
 				{stats}
@@ -2110,7 +2110,7 @@
 				{fmtHoverCompactCurrency}
 			/>
 			<PlannerSecondaryPlot
-				bind:Plotly
+				{Plotly}
 				{plotReady}
 				{stats}
 				simulateUntilAge={input.simulateUntilAge}
