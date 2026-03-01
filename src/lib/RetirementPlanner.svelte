@@ -1688,6 +1688,15 @@
 		}
 	});
 
+	$effect(() => {
+		if (previewReady) {
+			// In Svelte 5, we must explicitly read signals within the synchronous execution of the effect to track them.
+			// Using $state.snapshot deeply reads the objects and tracks mutations.
+			$state.snapshot({ input, spendingPeriods, incomeSources, lumpSumEvents });
+			schedulePreviewRecalculation();
+		}
+	});
+
 	function schedulePreviewRecalculation() {
 		if (previewRecalcTimer) clearTimeout(previewRecalcTimer);
 		previewRecalcTimer = setTimeout(() => {
@@ -1796,15 +1805,14 @@
 
 		try {
 			const workerResult = await new Promise<WorkerResultMessage['payload']>((resolve, reject) => {
-				const payload: WorkerInputMessage['payload'] = {
+				const payload: WorkerInputMessage['payload'] = $state.snapshot({
 					input: { ...input, simulations: requestedSimulations },
-					// Must clone objects so worker postMessage structured cloning succeeds without proxy interference
-					spendingPeriods: structuredClone(spendingPeriods),
-					incomeSources: structuredClone(incomeSources),
-					lumpSumEvents: structuredClone(lumpSumEvents),
+					spendingPeriods,
+					incomeSources,
+					lumpSumEvents,
 					months: validated.months,
 					retireMonth: validated.retireMonth
-				};
+				});
 
 				const msg: WorkerInputMessage = {
 					type: 'RUN_SIMULATION',
