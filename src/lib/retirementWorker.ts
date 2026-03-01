@@ -26,6 +26,14 @@ export interface WorkerErrorMessage {
     payload: { message: string };
 }
 
+export interface WorkerProgressMessage {
+    type: 'SIMULATION_PROGRESS';
+    id: string;
+    payload: { progress: number };
+}
+
+export type WorkerMessageOut = WorkerResultMessage | WorkerErrorMessage | WorkerProgressMessage;
+
 self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
     const { type, id, payload } = event.data;
 
@@ -37,7 +45,15 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
                 payload.incomeSources,
                 payload.lumpSumEvents,
                 payload.months,
-                payload.retireMonth
+                payload.retireMonth,
+                (progress) => {
+                    const progMsg: WorkerProgressMessage = {
+                        type: 'SIMULATION_PROGRESS',
+                        id,
+                        payload: { progress }
+                    };
+                    self.postMessage(progMsg);
+                }
             );
 
             const successMsg: WorkerResultMessage = {

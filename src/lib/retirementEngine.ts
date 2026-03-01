@@ -625,7 +625,8 @@ export function runMonteCarloSimulation(
   incomeSources: IncomeSource[],
   lumpSumEvents: LumpSumEvent[],
   months: number,
-  retireMonth: number
+  retireMonth: number,
+  onProgress?: (progress: number) => void
 ): { simulation: SimulationResult; stats: SummaryStats; simCount: number } {
   const rng = createRandomSource(input.seed);
   const simulationMode = input.simulationMode ?? 'historical';
@@ -706,8 +707,12 @@ export function runMonteCarloSimulation(
   const crisisInflationMean = input.inflationMean + growthProb * effectiveInflationSpread;
 
   const blockLength = input.blockLength ?? 6;
+  const progressUpdateInterval = Math.max(10, Math.floor(simCount / 100));
 
   for (let sim = 0; sim < simCount; sim++) {
+    if (onProgress && sim > 0 && sim % progressUpdateInterval === 0) {
+      onProgress(sim / simCount);
+    }
     let balance = input.currentSavings;
     let depleted = false;
     let cumulativeShortfall = 0;
