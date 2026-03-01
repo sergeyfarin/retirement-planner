@@ -103,6 +103,7 @@ pub fn run_monte_carlo_simulation(
     lump_sum_events: &[LumpSumEvent],
     months: u32,
     retire_month: u32,
+    progress_callback: Option<&dyn Fn(f64)>,
 ) -> SimulationResultWrapper {
     let mut rng = RandomSource::new(input.seed);
 
@@ -279,6 +280,8 @@ pub fn run_monte_carlo_simulation(
 
     let block_length = input.block_length.unwrap_or(6);
 
+    let progress_step = (sim_count / 10).max(1);
+
     for sim in 0..sim_count {
         let mut balance = input.current_savings;
         let mut depleted = false;
@@ -442,6 +445,19 @@ pub fn run_monte_carlo_simulation(
         if !depleted && balance > 0.0 {
             success_count += 1;
         }
+
+        // Report progress every ~10%
+        if sim % progress_step == 0 || sim == sim_count - 1 {
+            if let Some(cb) = &progress_callback {
+                let progress = (sim + 1) as f64 / sim_count as f64 * 0.9; // 0-90% for sim loop
+                cb(progress);
+            }
+        }
+    }
+
+    // Report "processing results" phase at 90%
+    if let Some(cb) = &progress_callback {
+        cb(0.90);
     }
 
     let target_fi_p95 = find_retirement_balance_target(&retire_balances, &final_balances, 0.95);

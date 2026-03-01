@@ -25,12 +25,19 @@ pub fn run_monte_carlo(
     lumpsum_events_val: JsValue,
     months: u32,
     retire_month: u32,
+    progress_callback: Option<js_sys::Function>,
 ) -> Result<JsValue, JsValue> {
     let input: RetirementInput = serde_wasm_bindgen::from_value(input_val)?;
     let spending_periods: Vec<SpendingPeriod> =
         serde_wasm_bindgen::from_value(spending_periods_val)?;
     let income_sources: Vec<IncomeSource> = serde_wasm_bindgen::from_value(income_sources_val)?;
     let lumpsum_events: Vec<LumpSumEvent> = serde_wasm_bindgen::from_value(lumpsum_events_val)?;
+
+    let cb_wrapper: Option<Box<dyn Fn(f64)>> = progress_callback.map(|cb| {
+        Box::new(move |progress: f64| {
+            let _ = cb.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+        }) as Box<dyn Fn(f64)>
+    });
 
     let wrapper = crate::simulation::run_monte_carlo_simulation(
         &input,
@@ -39,6 +46,7 @@ pub fn run_monte_carlo(
         &lumpsum_events,
         months,
         retire_month,
+        cb_wrapper.as_deref(),
     );
 
     let res = WasmResult {

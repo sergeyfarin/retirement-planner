@@ -48,20 +48,24 @@ self.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
                 wasmReady = true;
             }
 
-            self.postMessage({
-                type: 'SIMULATION_PROGRESS',
-                id,
-                payload: { progress: 0.05 }
-            });
+            // Progress callback: Rust calls this every ~10% during simulation
+            const onProgress = (progress: number) => {
+                self.postMessage({
+                    type: 'SIMULATION_PROGRESS',
+                    id,
+                    payload: { progress }
+                });
+            };
 
-            // Call compiled WebAssembly module
+            // Call compiled WebAssembly module with progress callback
             const result = run_monte_carlo(
                 payload.input,
                 payload.spendingPeriods,
                 payload.incomeSources,
                 payload.lumpSumEvents,
                 payload.months,
-                payload.retireMonth
+                payload.retireMonth,
+                onProgress
             );
 
             self.postMessage({

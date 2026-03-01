@@ -1827,8 +1827,10 @@
 							reject(new Error(e.data.payload.message));
 						} else if (e.data.type === 'SIMULATION_PROGRESS') {
 							runningProgress = e.data.payload.progress;
-							if (runningProgress < 1.0) {
-								runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations… Computing in Rust engine…`;
+							if (runningProgress >= 0.90) {
+								runStatusMessage = `Almost done. Processing results…`;
+							} else {
+								runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations… (${Math.round(runningProgress * 100)}%)`;
 							}
 						}
 					}
