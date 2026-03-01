@@ -241,9 +241,17 @@ async function buildEurRegion() {
 
   const daxReturns = monthlyReturnsFromCloseMap(daxClose);
   const cacReturns = monthlyReturnsFromCloseMap(cacClose);
+
+  // Apply a 3.0% synthetic annual dividend yield to the CAC 40 to approximate Total Return
+  const monthlyCacDiv = Math.pow(1.03, 1 / 12) - 1;
+  const adjustedCacReturns = new Map();
+  for (const [month, ret] of cacReturns.entries()) {
+    adjustedCacReturns.set(month, ret + monthlyCacDiv);
+  }
+
   const eurEquityReturns = blendReturnSeries([
     { returns: daxReturns, weight: 0.6 },
-    { returns: cacReturns, weight: 0.4 }
+    { returns: adjustedCacReturns, weight: 0.4 }
   ]);
   const eurEquityClose = buildIndexFromMonthlyReturns(eurEquityReturns);
 
@@ -255,7 +263,7 @@ async function buildEurRegion() {
   return {
     rows: mergeRows(filterFromYear(eurEquityClose, MIN_START_YEAR), filterFromYear(bondClose, MIN_START_YEAR), filterFromYear(eurCashRate, MIN_START_YEAR)),
     sourceLines: [
-      'equity_source=synthetic Euro equity index from ^DAX (60%) + ^CAC (40%), Stooq monthly',
+      'equity_source=synthetic Euro equity index from ^DAX (60%) + ^CAC (40% + 3% synthetic annual div), Stooq monthly',
       'bond_source=synthetic EUR 10Y total return from Germany 10Y IRLTLT01DEM156N (FRED) with duration 7y',
       'cash_source=IR3TIB01EZM156N (FRED) stitched with IR3TIB01DEM156N pre-euro'
     ]

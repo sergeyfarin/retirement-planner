@@ -47,7 +47,7 @@ src/lib/calculations.ts                ← RandomSource (seeded/unseeded RNG + B
 |---|---|---|---|
 | USD | S&P 500 (^SPX, Stooq) | Synthetic 10Y total return from GS10 yield (FRED), duration 7y | 3m T-bill TB3MS (FRED) |
 | GBP | FTSE 100 (^UKX, Stooq) | Synthetic UK 10Y total return (IRLTLT01GBM156N), duration 7y | UK 3m interbank (IR3TIB01GBM156N) |
-| EUR | Synthetic 60% DAX + 40% CAC | Synthetic DE 10Y total return (IRLTLT01DEM156N), duration 7y | EZ 3m interbank stitched with DE pre-euro |
+| EUR | Synthetic 60% DAX TR + 40% CAC (adjusted +3% PR div) | Synthetic DE 10Y total return (IRLTLT01DEM156N), duration 7y | EZ 3m interbank stitched with DE pre-euro |
 | WORLD | 55% SPX + 20% UKX + 25% DAX | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
 
 ### 3.2 Bond total return synthesis
@@ -450,15 +450,15 @@ Correct derivation from the balance equation $\pi P = \pi$.
 
 **Status:** Restructured to explicit annual fee + tax-on-gains model.
 
-#### P3.5 — EUR equity proxy is DAX+CAC only
+#### P3.5 — EUR equity proxy is DAX+CAC only ✅ Implemented
 
-**Current:** EUR equities are 60% DAX + 40% CAC.
+**Current implementation:** EUR equities are 60% DAX Total Return + 40% CAC Price Return augmented with a synthetic 3% annual dividend.
 
-**Problem:** This is a Germany + France proxy, not a eurozone-wide or pan-European index. It misses Dutch, Spanish, Italian, Finnish, and other markets. The DAX is a total-return index (includes dividends); CAC is typically price-only. Mixing them without dividend adjustment creates an upward bias for the DAX component and downward bias for CAC.
+**Problem:** This is a Germany + France proxy, not a eurozone-wide or pan-European index. It misses Dutch, Spanish, Italian, Finnish, and other markets. The DAX is a total-return index (includes dividends); CAC is typically price-only. Mixing them without dividend adjustment created an upward bias for the DAX component and downward bias for CAC. Broader indices like EURO STOXX 50 lack data before 1986.
 
-**Impact:** Moderate — for a pan-European allocation, MSCI Europe or STOXX Europe 600 would be more representative.
+**Impact:** Moderate — for a pan-European allocation, MSCI Europe or STOXX Europe 600 would be more representative, but they lack the 1970s stagflation cycle data.
 
-**Fix:** If using Stooq, consider using ^SX5E (EURO STOXX 50) as a single proxy, or blend more indices. Document the DAX-is-total-return vs CAC-is-price-only discrepancy.
+**Status:** Retained the DAX+CAC blend to preserve critical 1970s stagflation data, but added a 3% synthetic annual dividend to the CAC component in the data importer to correct the Price Return vs Total Return discrepancy.
 
 #### P3.6 — World equity blend weights are hard-coded
 
@@ -598,7 +598,7 @@ Focus: improve data proxies and surface better information to the user.
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 3.1 | **Fix EUR equity proxy** — replace DAX+CAC blend with EURO STOXX 50 (^SX5E on Stooq) or document the total-return vs price-return discrepancy. | S | `import-retirement-market-data.mjs` |
+| 3.1 | **Fix EUR equity proxy** — ✅ Implemented. Retained DAX + CAC proxy for deep history, but added a 3% synthetic annual dividend to CAC to correct PR vs TR discrepancy. | S | `import-retirement-market-data.mjs` |
 | 3.2 | **Fix world blend weights** — update to approximate market-cap weights (US 60%, EUR 20%, UK 8%, Japan 12%) and add a Japan equity proxy (^NKX). | M | `import-retirement-market-data.mjs` |
 | 3.3 | **Display geometric mean** — show geometric mean prominently in the summary panel alongside arithmetic mean. Add a tooltip explaining the difference and the variance drag formula. | S | `RetirementPlanner.svelte` |
 | 3.4 | **Convergence diagnostic** — after simulation, compute and display the standard error of the success probability: $SE = \sqrt{p(1-p)/N}$. Show a "convergence quality" indicator. | S | `retirementEngine.ts`, `RetirementPlanner.svelte` |
@@ -625,6 +625,8 @@ Focus: optional enhancements for power users.
 | 4.8 | **Separate states for Historical vs Parametric moments** — ✅ Implemented completely. `historicalMetrics` vs `parametricMetrics` allow for a clear separation. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
 | 4.9 | **Expose Expert Engine Controls** — Expose the new `blockLength` (for block bootstrap) and `inflationCrisisSpread` variables as editable inputs the `PlannerInputPanel.svelte` for power users. | S | `PlannerInputPanel.svelte`, `RetirementPlanner.svelte` |
 | 4.10 | **Visualizing Regimes in Charts** — Shade background of `PlannerTimelinePlot` to reflect periods of "Crisis" vs "Growth" for median outcomes or add a probability heatmap to help users intuitively grasp the regime switches. | M | `PlannerTimelinePlot.svelte` |
+| 4.11 | **Factor Tilts (Small-Cap / Value)** — Current equity proxies are strictly large-cap blend limits. Incorporating small-cap or value datasets (e.g., Russell 2000) could let users model explicitly tilted factor portfolios, which historically offer a different sequence-of-return risk profile. | M | `import-retirement-market-data.mjs`, `RetirementPlanner.svelte` |
+| 4.12 | **Extended Eurozone Expansion** — Since we fixed the CAC PR gap with a synthetic dividend, we could further improve the Eurozone proxy in the future by adding AEX (Netherlands) and IBEX (Spain) data from the 1980s onward, stitching them onto the DAX/CAC long-run core to broaden geopolitical representation. | M | `import-retirement-market-data.mjs` |
 
 **Checkpoint:** main thread stays responsive; advanced users can refine both Historical and Parametric workflows without ambiguity.
 
