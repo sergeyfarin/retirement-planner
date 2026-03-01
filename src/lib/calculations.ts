@@ -340,14 +340,18 @@ export function buildRegimeModelFromPortfolio(
 
   const skewTilt = Math.max(-2, Math.min(2, portfolioSkewness));
   const excessKurtosis = Math.max(0, portfolioKurtosis - 3);
-  const spread = Math.max(0.01, template.meanSpread * (1 + excessKurtosis * 0.08) * (1 + Math.max(0, -skewTilt) * 0.25));
+
+  let spread = template.meanSpread * (1 + excessKurtosis * 0.08) * (1 + Math.max(0, -skewTilt) * 0.25);
+  const maxSpread = Math.sqrt((portfolioStd ** 2) / (growthProbability * crisisProbability));
+  spread = Math.min(spread, maxSpread * 0.8); // Cap regime spread to at most ~64% of total variance
+
   const growthMean = portfolioMean + crisisProbability * spread;
   const crisisMean = portfolioMean - growthProbability * spread;
 
   const growthStdMultiplier = Math.max(0.1, template.growthStdMultiplier * (1 + Math.max(0, skewTilt) * 0.1));
   const crisisStdMultiplier = Math.max(growthStdMultiplier + 0.2, template.crisisStdMultiplier * (1 + excessKurtosis * 0.06));
 
-  const targetVariance = Math.max(1e-8, portfolioStd ** 2);
+  const targetVariance = portfolioStd ** 2;
   const regimeMeanVariance =
     growthProbability * (growthMean - portfolioMean) ** 2 +
     crisisProbability * (crisisMean - portfolioMean) ** 2;
@@ -361,9 +365,8 @@ export function buildRegimeModelFromPortfolio(
     ? Math.sqrt(remainingVariance / weightedMultiplierSquare)
     : portfolioStd;
 
-  const floorStd = 0.005;
-  const growthStd = Math.max(floorStd, sharedScale * growthStdMultiplier);
-  const crisisStd = Math.max(growthStd + floorStd, sharedScale * crisisStdMultiplier);
+  const growthStd = sharedScale * growthStdMultiplier;
+  const crisisStd = sharedScale * crisisStdMultiplier;
 
   return {
     stayGrowth,
