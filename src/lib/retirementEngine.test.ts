@@ -12,6 +12,7 @@ import {
   type RetirementInput,
   type SpendingPeriod
 } from './retirementEngine';
+import { run_monte_carlo } from 'rust-engine';
 
 function sampleMoments(values: number[]): { mean: number; std: number; skewness: number; kurtosis: number } {
   const n = values.length;
@@ -186,13 +187,13 @@ describe('runMonteCarloSimulation smoke', () => {
 
     const months = (input.simulateUntilAge - input.currentAge) * 12;
     const retireMonth = (input.retirementAge - input.currentAge) * 12;
-    const result = runMonteCarloSimulation(input, spendingPeriods, incomeSources, [], months, retireMonth);
+    const result = run_monte_carlo(input, spendingPeriods, incomeSources, [], months, retireMonth);
 
-    expect(result.simCount).toBeGreaterThanOrEqual(400);
+    expect(result.sim_count).toBeGreaterThanOrEqual(400);
     expect(result.simulation.months).toBe(months);
     expect(result.simulation.percentiles.p50.length).toBe(months);
-    expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
-    expect(result.stats.successProbability).toBeLessThanOrEqual(1);
-    expect(result.stats.finalMedian).toBeGreaterThan(0);
+    expect(result.stats.success_probability).toBeGreaterThanOrEqual(0);
+    expect(result.stats.success_probability).toBeLessThanOrEqual(1);
+    expect(result.stats.final_median).toBeGreaterThan(0);
   });
 });
