@@ -506,6 +506,7 @@
 	let runStatusMessage = $state('');
 	let resultStage: string = $state('none');
 	let lastSimulatedFingerprint = $state('');
+	let lastSimulatedCount = $state(0);
 	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
 	let previewReady = $state(false);
 
@@ -547,7 +548,7 @@
 		simulationMode: 'historical',
 		historicalMomentTargeting: false,
 		currentAge: 35,
-		retirementAge: 60,
+		retirementAge: 62,
 		simulateUntilAge: 90,
 		currentSavings: 120000,
 		meanReturn: blendPortfolioMetrics(
@@ -1677,8 +1678,8 @@
 	$effect(() => {
 		if (plotReady) {
 			if (resultStage === 'none' && !running) {
-				// Run automatically on first load
-				void runSimulation();
+				// Run automatically on first load with minimum simulations for speed
+				void runSimulation(FULL_MONTE_CARLO_MIN_SIMULATIONS);
 			}
 		}
 	});
@@ -1744,7 +1745,7 @@
 	let activeWorker: Worker | null = null;
 	let runningId: string | null = null;
 
-	async function runSimulation() {
+	async function runSimulation(simCountOverride?: number) {
 		errorMessage = '';
 		const validated = validateSimulationInputs(input, spendingPeriods);
 		if (validated.error) {
@@ -1752,9 +1753,11 @@
 			return;
 		}
 
+		let simCountToRun = simCountOverride !== undefined ? simCountOverride : input.simulations;
+
 		const requestedSimulations = Math.max(
 			FULL_MONTE_CARLO_MIN_SIMULATIONS,
-			Math.round(input.simulations)
+			Math.round(simCountToRun)
 		);
 
 		// Capture the exact fingerprint of the inputs we are about to simulate
@@ -1775,7 +1778,11 @@
 		try {
 			const workerResult = await new Promise<WorkerResultMessage['payload']>((resolve, reject) => {
 				const payload: WorkerInputMessage['payload'] = $state.snapshot({
-					input: { ...input, simulations: requestedSimulations },
+					input: {
+						...input,
+						simulations: requestedSimulations,
+						seed: input.seed || Math.floor(Math.random() * 1000000)
+					},
 					spendingPeriods,
 					incomeSources,
 					lumpSumEvents,
@@ -1821,6 +1828,7 @@
 			stats = workerResult.stats;
 			resultStage = 'final';
 			lastSimulatedFingerprint = fingerprintForThisRun;
+			lastSimulatedCount = workerResult.simCount;
 			runStatusMessage = `${fmtNum(workerResult.simCount)} Monte Carlo simulations completed.`;
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
@@ -2054,7 +2062,7 @@
 							Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
 							results below.
 						{:else if resultStage === 'final'}
-							Showing results for {fmtNum(input.simulations)} simulations.
+							Showing results for {fmtNum(lastSimulatedCount)} simulations.
 						{:else}
 							Click "Run Monte Carlo" to generate your retirement forecast.
 						{/if}
