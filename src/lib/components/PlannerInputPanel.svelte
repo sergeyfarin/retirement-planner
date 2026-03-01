@@ -110,7 +110,7 @@
                 <input class="age-input" type="number" min="0" step="1" bind:value={src.toAge} />
               {/if}
 
-              <input type="text" inputmode="numeric" value={fmtNum(src.yearlyAmount)} onchange={(e) => { src.yearlyAmount = numFromEvent(e); incomeSources = incomeSources; }} />
+              <input type="text" inputmode="numeric" value={fmtNum(src.yearlyAmount)} onchange={(e) => { src.yearlyAmount = numFromEvent(e); onSimulationSettingsChange(); }} />
               <span class="inflation-cell">
                 <input class="inflation-flag" type="checkbox" bind:checked={src.inflationAdjusted} title="Inflation-adjusted" aria-label="Inflation-adjusted income" />
               </span>
@@ -144,7 +144,7 @@
                 <input class="age-input" type="number" min="0" step="1" bind:value={period.toAge} />
               {/if}
 
-              <input type="text" inputmode="numeric" value={fmtNum(period.yearlyAmount)} onchange={(e) => { period.yearlyAmount = numFromEvent(e); spendingPeriods = spendingPeriods; }} />
+              <input type="text" inputmode="numeric" value={fmtNum(period.yearlyAmount)} onchange={(e) => { period.yearlyAmount = numFromEvent(e); onSimulationSettingsChange(); }} />
               <span class="inflation-cell">
                 <input class="inflation-flag" type="checkbox" bind:checked={period.inflationAdjusted} title="Inflation-adjusted" aria-label="Inflation-adjusted spending" />
               </span>
@@ -168,7 +168,7 @@
               <div class="table-row">
                 <input type="text" bind:value={evt.label} placeholder="Tuition" />
                 <input type="number" min="0" step="1" bind:value={evt.age} />
-                <input type="text" inputmode="numeric" value={fmtNum(evt.amount)} onchange={(e) => { evt.amount = numFromEvent(e); lumpSumEvents = lumpSumEvents; }} />
+                <input type="text" inputmode="numeric" value={fmtNum(evt.amount)} onchange={(e) => { evt.amount = numFromEvent(e); onSimulationSettingsChange(); }} />
                 <button class="btn-remove" onclick={() => removeLumpSumEvent(evt.id)}>×</button>
               </div>
             {/each}
@@ -182,7 +182,7 @@
     <div class="allocation-control">
     <label>
         Portfolio ({selectedCurrency.symbol})
-        <input type="text" inputmode="numeric" value={fmtNum(input.currentSavings)} onchange={(e) => { input.currentSavings = numFromEvent(e); input = input; }} />
+        <input type="text" inputmode="numeric" value={fmtNum(input.currentSavings)} onchange={(e) => { input.currentSavings = numFromEvent(e); onSimulationSettingsChange(); }} />
       </label>
       <div class="allocation-head">
         <span>Investment split</span>
@@ -341,7 +341,7 @@
 
           <tr>
             <td>Annual fees</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.annualFeePercent, 2)} onchange={(e) => { input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1); input = input; }} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.annualFeePercent, 2)} onchange={(e) => { input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1); onSimulationSettingsChange(); }} /></td>
             <td></td>
             <td></td>
             <td></td>
@@ -350,7 +350,7 @@
 
           <tr>
             <td>Tax on gains</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.taxOnGainsPercent, 2)} onchange={(e) => { input.taxOnGainsPercent = clamp(decimalFromPercentEvent(e), 0, 1); input = input; }} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.taxOnGainsPercent, 2)} onchange={(e) => { input.taxOnGainsPercent = clamp(decimalFromPercentEvent(e), 0, 1); onSimulationSettingsChange(); }} /></td>
             <td></td>
             <td></td>
             <td></td>
