@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { createSimulationWorker } from './workerHelper';
 	import type {
 		WorkerInputMessage,
@@ -502,7 +502,7 @@
 	let running = $state(false);
 	let runStatusMessage = $state('');
 	let resultStage: 'idle' | 'preview' | 'final' = $state('idle');
-	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = $state(null);
+	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
 	let previewReady = $state(false);
 
 	let selectedCurrencyCode: CurrencyCode = $state('EUR');
@@ -1688,23 +1688,16 @@
 		}
 	});
 
-	$effect(() => {
-		if (previewReady) {
-			// In Svelte 5, we must explicitly read signals within the synchronous execution of the effect to track them.
-			// Using $state.snapshot deeply reads the objects and tracks mutations.
-			$state.snapshot({ input, spendingPeriods, incomeSources, lumpSumEvents });
-			schedulePreviewRecalculation();
-		}
-	});
-
 	function schedulePreviewRecalculation() {
 		if (previewRecalcTimer) clearTimeout(previewRecalcTimer);
 		previewRecalcTimer = setTimeout(() => {
-			if (running) {
-				schedulePreviewRecalculation();
-				return;
-			}
-			void recomputeApproximatePreview();
+			untrack(() => {
+				if (running) {
+					schedulePreviewRecalculation();
+					return;
+				}
+				void recomputeApproximatePreview();
+			});
 		}, 120);
 	}
 
@@ -2104,7 +2097,7 @@
 
 		<div class="chart-row">
 			<PlannerTimelinePlot
-				{Plotly}
+				bind:Plotly
 				{plotReady}
 				{simulation}
 				{stats}
@@ -2117,7 +2110,7 @@
 				{fmtHoverCompactCurrency}
 			/>
 			<PlannerSecondaryPlot
-				{Plotly}
+				bind:Plotly
 				{plotReady}
 				{stats}
 				simulateUntilAge={input.simulateUntilAge}
