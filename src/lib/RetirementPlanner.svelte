@@ -501,6 +501,7 @@
 	let stats: SummaryStats | null = $state<SummaryStats | null>(null);
 	let errorMessage = $state('');
 	let running = $state(false);
+	let runningProgress = $state(0);
 	let runStatusMessage = $state('');
 	let resultStage: 'idle' | 'preview' | 'final' = $state('idle');
 	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1787,6 +1788,7 @@
 		);
 
 		running = true;
+		runningProgress = 0;
 		runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations…`;
 
 		// Terminate any existing worker immediately
@@ -1814,12 +1816,17 @@
 					payload
 				};
 
-				activeWorker!.onmessage = (e: MessageEvent<WorkerResultMessage | WorkerErrorMessage>) => {
+				activeWorker!.onmessage = (
+					e: MessageEvent<WorkerResultMessage | WorkerErrorMessage | WorkerProgressMessage>
+				) => {
 					if (e.data.id === runningId) {
 						if (e.data.type === 'SIMULATION_COMPLETE') {
 							resolve(e.data.payload);
 						} else if (e.data.type === 'SIMULATION_ERROR') {
 							reject(new Error(e.data.payload.message));
+						} else if (e.data.type === 'SIMULATION_PROGRESS') {
+							runningProgress = e.data.payload.progress;
+							runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations… (${Math.round(runningProgress * 100)}%)`;
 						}
 					}
 				};
@@ -2079,8 +2086,15 @@
 							}}
 						/>
 					</label>
-					<button class="status-run-btn" onclick={runSimulation} disabled={running}>
-						{running ? 'Running Monte Carlo…' : 'Run Monte Carlo'}
+					<button
+						class="btn-primary"
+						disabled={running}
+						onclick={() => void runSimulation()}
+						title="Run a massive Monte Carlo simulation on background thread."
+					>
+						{running
+							? `Running Monte Carlo… ${Math.round(runningProgress * 100)}%`
+							: 'Run Monte Carlo'}
 					</button>
 				</div>
 			</div>
