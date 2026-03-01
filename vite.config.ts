@@ -7,6 +7,10 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
 	plugins: [sveltekit(), wasm(), topLevelAwait()],
+	worker: {
+		format: 'es',
+		plugins: () => [wasm(), topLevelAwait()]
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [
