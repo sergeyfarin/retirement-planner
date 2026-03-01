@@ -59,7 +59,7 @@ src/lib/
 
 The application relies entirely on the high-performance Web Worker for all simulations, prioritizing precision over noisy live previews:
 
-1. **Initial Baseline Run:** On load, a 60,000-path baseline simulation runs automatically to populate the charts using the Rust engine.
+1. **Initial Baseline Run:** On load, a 20,000-path baseline simulation runs automatically to populate the charts rapidly using the Rust engine.
 2. **Stale State Protection:** When any input changes, the UI charts gray out (stale state) and a warning banner appears. This explicitly prevents confusion from stale data while avoiding the extreme statistical noise (±30% jumps in ending balance) typical of small-sample "live" previews.
 3. **Full Simulation:** The user clicks "Run Monte Carlo" to trigger a new simulation. The Web Worker initializes the WASM module via `init()`, invokes `run_monte_carlo()` with a **progress callback** (~10 incremental updates), executes over contiguous heap memory without garbage collection, and structured-clones only the final ~2 KB `SummaryStats` payload back to the UI.
 
