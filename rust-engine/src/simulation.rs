@@ -257,14 +257,27 @@ pub fn run_monte_carlo_simulation(
         &effective_annual_history
     });
     let sim_count = 400.max(input.simulations.round() as usize);
-    let mut all_balances: Vec<Vec<f64>> = Vec::with_capacity(sim_count);
+
+    // ── Memory-efficient data structures ──────────────────────────────────
+    // Reservoir sampling: keep at most RESERVOIR_K balances per month
+    // for percentile computation. Exact for sim_count <= K, sampled above.
+    const RESERVOIR_K: usize = 5000;
+    let months_usize = months as usize;
+    let mut reservoirs: Vec<Vec<f64>> = (0..months_usize)
+        .map(|_| Vec::with_capacity(RESERVOIR_K.min(sim_count)))
+        .collect();
+
+    // Cap growth_factors at 800 rows — build_ruin_surface only uses min(sim_count, 800)
+    const RUIN_SAMPLE_CAP: usize = 800;
+    let growth_cap = sim_count.min(RUIN_SAMPLE_CAP);
+    let mut growth_factors: Vec<Vec<f64>> = Vec::with_capacity(growth_cap);
+
     let mut final_balances = Vec::with_capacity(sim_count);
     let mut retire_balances = Vec::with_capacity(sim_count);
     let mut shortfall_totals = Vec::with_capacity(sim_count);
     let mut depleted_years_series = Vec::with_capacity(sim_count);
     let mut depleted_flags = Vec::with_capacity(sim_count);
     let mut annual_real_returns_by_sim = Vec::with_capacity(sim_count);
-    let mut growth_factors: Vec<Vec<f64>> = Vec::with_capacity(sim_count);
     let mut success_count = 0;
 
     let spending_at_retirement = spending_at_age(input.retirement_age, spending_periods, 1.0);
@@ -297,8 +310,8 @@ pub fn run_monte_carlo_simulation(
         let monthly_fee_factor = (1.0 - annual_fee_rate / 12.0).max(0.0);
         let mut regime_state = initial_regime_state(monthly_markov.0, monthly_markov.1, &mut rng);
         let mut annual_real_returns = Vec::new();
-        let mut sim_balances = vec![0.0_f64; months as usize];
-        let mut sim_growth = vec![1.0_f64; months as usize];
+        let mut sim_balances = vec![0.0_f64; months_usize];
+        let mut sim_growth = vec![1.0_f64; months_usize];
 
         let mut block_remaining = 0;
         let mut current_history_index = 0;
@@ -448,8 +461,24 @@ pub fn run_monte_carlo_simulation(
         depleted_years_series.push((depleted_months as f64) / 12.0);
         depleted_flags.push(depleted);
         annual_real_returns_by_sim.push(annual_real_returns);
-        all_balances.push(sim_balances);
-        growth_factors.push(sim_growth);
+
+        // Reservoir sampling: insert this sim's balances into per-month reservoirs
+        for m in 0..months_usize {
+            if sim < RESERVOIR_K {
+                reservoirs[m].push(sim_balances[m]);
+            } else {
+                // Reservoir replacement with probability K/(sim+1)
+                let j = (rng.random() * (sim + 1) as f64).floor() as usize;
+                if j < RESERVOIR_K {
+                    reservoirs[m][j] = sim_balances[m];
+                }
+            }
+        }
+
+        // Only keep growth_factors for the first RUIN_SAMPLE_CAP simulations
+        if sim < RUIN_SAMPLE_CAP {
+            growth_factors.push(sim_growth);
+        }
 
         if !depleted && balance > 0.0 {
             success_count += 1;
@@ -480,23 +509,19 @@ pub fn run_monte_carlo_simulation(
         .filter(|&&b| b >= target_fi_swr)
         .count();
 
-    let mut pt10 = Vec::with_capacity(months as usize);
-    let mut pt25 = Vec::with_capacity(months as usize);
-    let mut pt50 = Vec::with_capacity(months as usize);
-    let mut pt75 = Vec::with_capacity(months as usize);
-    let mut pt90 = Vec::with_capacity(months as usize);
+    let mut pt10 = Vec::with_capacity(months_usize);
+    let mut pt25 = Vec::with_capacity(months_usize);
+    let mut pt50 = Vec::with_capacity(months_usize);
+    let mut pt75 = Vec::with_capacity(months_usize);
+    let mut pt90 = Vec::with_capacity(months_usize);
 
-    let mut column = vec![0.0; sim_count];
-    for m in 0..months as usize {
-        for s in 0..sim_count {
-            column[s] = all_balances[s][m];
-        }
-        column.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        pt10.push(percentile(&column, 0.1));
-        pt25.push(percentile(&column, 0.25));
-        pt50.push(percentile(&column, 0.5));
-        pt75.push(percentile(&column, 0.75));
-        pt90.push(percentile(&column, 0.9));
+    for m in 0..months_usize {
+        reservoirs[m].sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        pt10.push(percentile(&reservoirs[m], 0.1));
+        pt25.push(percentile(&reservoirs[m], 0.25));
+        pt50.push(percentile(&reservoirs[m], 0.5));
+        pt75.push(percentile(&reservoirs[m], 0.75));
+        pt90.push(percentile(&reservoirs[m], 0.9));
     }
 
     let percentile_series = PercentileSeries {
@@ -507,7 +532,7 @@ pub fn run_monte_carlo_simulation(
         p90: pt90,
     };
 
-    let mut ages = Vec::with_capacity(months as usize);
+    let mut ages = Vec::with_capacity(months_usize);
     for i in 0..months {
         ages.push(((input.current_age + (i as f64) / 12.0) * 100.0).round() / 100.0);
     }
@@ -539,7 +564,7 @@ pub fn run_monte_carlo_simulation(
         lump_sum_events,
         &growth_factors,
         months,
-        sim_count,
+        growth_cap,
     );
 
     let stats = SummaryStats {
