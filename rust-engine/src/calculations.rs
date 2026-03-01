@@ -39,7 +39,7 @@ impl RandomSource {
             *state = state.wrapping_add(0x6D2B79F5);
             let mut t = *state ^ (*state >> 15);
             t = t.wrapping_mul(1 | *state);
-            t ^= t.wrapping_add(t.wrapping_mul(t ^ (t >> 7)) & (61 | t)); // Approximation of JS Math.imul
+            let _ = t.wrapping_add(t.wrapping_mul(t ^ (t >> 7)) & (61 | t)); // Approximation of JS Math.imul (value unused)
 
             // Following exact JS imul steps:
             let js_imul1 = (*state ^ (*state >> 15)).wrapping_mul(1 | *state);
