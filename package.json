@@ -2,8 +2,9 @@
 	"name": "retirement-planner",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build && npm run prepack",
+		"build:wasm": "cd rust-engine && wasm-pack build --target web",
+		"dev": "npm run build:wasm && vite dev",
+		"build": "npm run build:wasm && vite build && npm run prepack",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"prepack": "svelte-kit sync && svelte-package && publint",

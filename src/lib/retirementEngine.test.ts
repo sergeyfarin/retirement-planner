@@ -12,7 +12,18 @@ import {
   type RetirementInput,
   type SpendingPeriod
 } from './retirementEngine';
-import { run_monte_carlo } from 'rust-engine';
+import init, { run_monte_carlo } from 'rust-engine';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+let wasmReady = false;
+async function ensureWasm() {
+  if (!wasmReady) {
+    const wasmBuffer = readFileSync(join(process.cwd(), 'rust-engine', 'pkg', 'rust_engine_bg.wasm'));
+    await init(wasmBuffer);
+    wasmReady = true;
+  }
+}
 
 function sampleMoments(values: number[]): { mean: number; std: number; skewness: number; kurtosis: number } {
   const n = values.length;
@@ -145,7 +156,7 @@ describe('retirementEngine stochastic helpers', () => {
 });
 
 describe('runMonteCarloSimulation smoke', () => {
-  it('returns stable output shape and sane median with seed', () => {
+  it('returns stable output shape and sane median with seed', async () => {
     const input: RetirementInput = {
       currentAge: 35,
       retirementAge: 50,
@@ -187,6 +198,8 @@ describe('runMonteCarloSimulation smoke', () => {
 
     const months = (input.simulateUntilAge - input.currentAge) * 12;
     const retireMonth = (input.retirementAge - input.currentAge) * 12;
+
+    await ensureWasm();
     const result = run_monte_carlo(input, spendingPeriods, incomeSources, [], months, retireMonth);
 
     expect(result.sim_count).toBeGreaterThanOrEqual(400);
