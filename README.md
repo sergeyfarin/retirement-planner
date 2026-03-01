@@ -36,11 +36,14 @@ public/assets/retirement/
 
 rust-engine/
   src/                     ← Rust source code for the Monte Carlo engine
-    calculations.rs        ← Math abstractions & RNG
-    engine.rs              ← Markov models & distribution generation
-    simulation.rs          ← O(N) path execution loops
-    stats.rs               ← Sequence risk & O(N^3) ruin surface aggregations
-  pkg/                     ← Compiled WebAssembly outputs
+    lib.rs                 ← WASM entry point (wasm-bindgen exports)
+    simulation.rs          ← Main simulation loop with reservoir sampling
+    calculations.rs        ← Math abstractions, RNG (mulberry32/random), percentiles
+    engine.rs              ← Markov models, regime state transitions, output structs
+    engine2.rs             ← Regime detection, bootstrap pooling, cashflow arrays
+    stats.rs               ← Sequence risk analysis, ruin surface replay
+    structs.rs             ← Svelte↔Rust API boundary types (serde)
+  pkg/                     ← Compiled WebAssembly outputs (wasm-pack build --target web)
 
 src/lib/
   retirementWorker.ts      ← Web Worker calling `run_monte_carlo` via wasm-bindgen
@@ -54,8 +57,8 @@ src/lib/
 
 ### Dual-Execution Pipeline
 
-1. **Live Preview (Synchronous, main thread):** When any input changes, a lightweight ~400-path simulation runs in <5ms to instantly update charts using the fast Rust engine. Keeps the UI feeling snappy.
-2. **Full Simulation (Asynchronous Web Worker):** When the user clicks "Run Monte Carlo", a `RUN_SIMULATION` message is sent to the Worker. The Worker invokes the static WebAssembly binary which executes thousands of calculations per second over contiguous heap memory, avoiding the JavaScript Garbage Collector entirely, then only structured-clones the final ~2KB `SummaryStats` payload back to the UI.
+1. **Live Preview (Synchronous, main thread):** When any input changes, a lightweight ~400-path simulation runs in <5ms to instantly update charts using the TypeScript engine. Keeps the UI feeling snappy.
+2. **Full Simulation (Asynchronous Web Worker):** When the user clicks "Run Monte Carlo", a `RUN_SIMULATION` message is sent to the Worker. The Worker initializes the WASM module via `init()`, then invokes `run_monte_carlo()` with a **progress callback** that reports ~10 incremental updates during execution. The Rust engine executes over contiguous heap memory, uses **reservoir sampling** (K=5000 per month) to cap memory at ~28 MB regardless of simulation count, and structured-clones only the final ~2 KB `SummaryStats` payload back to the UI.
 
 All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$derived`, `$bindable`).
 
@@ -215,6 +218,17 @@ Where:
 
 All output balances are in **real (today's purchasing power) terms**.
 
+### 5.4 Memory-Efficient Percentile Computation
+
+For large simulation counts (10,000+), storing all balances per month per simulation would require hundreds of megabytes. The engine uses **reservoir sampling** (Algorithm R) with K=5,000 samples per month:
+
+- For sim ≤ K: all balances are kept exactly
+- For sim > K: each new balance replaces a random existing sample with probability K/(sim+1)
+
+This guarantees a uniform random sample per month, capped at ~24 MB total regardless of simulation count. Percentile accuracy at K=5,000 is excellent (±0.5% for P10–P90).
+
+Growth factors for the ruin surface replay are capped at 800 rows (~4 MB), matching the 800-path subsampling already used by `build_ruin_surface`.
+
 ---
 
 ## 6. Portfolio Construction (UI Layer)
@@ -284,7 +298,7 @@ Each cell replays the stored growth factors (subsampled to 800 paths max) with r
 
 ## 8. Random Number Generation
 
-- **`RandomSource`** class in `calculations.ts` wraps either `mulberry32` (when `seed` is provided) or `Math.random()` (default)
+- **`RandomSource`** struct in `calculations.rs` wraps either `mulberry32` (when `seed` is provided) or thread-local random
 - **Box-Muller** transform for normal draws, with spare cache **encapsulated per instance** (no global mutable state)
 - **Student-t** generation via ratio of normal to chi-squared (only used in `buildBootstrapHistory` — called 120 times per run, not in the hot loop)
 - When `seed` is set, results are fully deterministic and reproducible
@@ -343,10 +357,17 @@ Each cell replays the stored growth factors (subsampled to 800 paths max) with r
 
 ## 12. Development
 
+### Prerequisites
+
+- **Node.js** ≥ 20
+- **Rust** toolchain (install via [rustup](https://rustup.rs/))
+- **wasm-pack** (`curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`)
+
 ```bash
 npm install
-npm run dev          # Start dev server
-npm run build        # Production build
+npm run dev          # Builds WASM + starts dev server
+npm run build        # Production build (WASM + Vite + publint)
+npm run build:wasm   # Rebuild WASM module only
 npm run test:unit    # Run unit tests
 ```
 
