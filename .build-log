@@ -1,0 +1,414 @@
+
+> retirement-planner@0.0.1 build
+> vite build && npm run prepack
+
+vite v7.3.1 building ssr environment for production...
+transforming...
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:825:38 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+823:     simulateUntilAge: 90,
+824:     currentSavings: 120000,
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+                                                            ^
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:826:45 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+824:     currentSavings: 120000,
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+                                                                   ^
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:827:42 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+                                                                ^
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+829:     equityBondCorrelation: DEFAULT_EQUITY_BOND_CORRELATION,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:828:42 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+                                                                ^
+829:     equityBondCorrelation: DEFAULT_EQUITY_BOND_CORRELATION,
+830:     inflationMean: ASSUMPTION_REFERENCES.EUR.inflationMetric.mean,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:841:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+839:     simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
+840:     regimeModel: buildRegimeModelFromPortfolio(
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+                                                  ^
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:842:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+840:     regimeModel: buildRegimeModelFromPortfolio(
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+                                                  ^
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:843:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+                                                  ^
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+845:       ASSUMPTION_REFERENCES.EUR.regimeTemplate
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:844:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+                                                  ^
+845:       ASSUMPTION_REFERENCES.EUR.regimeTemplate
+846:     ),
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1050:50 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1048: 
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+                                                             ^
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+1052:   ]);
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1050:75 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1048: 
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+                                                                                      ^
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+1052:   ]);
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1051:80 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+                                                                                           ^
+1052:   ]);
+1053: 
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:383:6 `Plotly` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+381:   // ─── Reactive state ─────────────────────────────────────────────────────────
+382: 
+383:   let Plotly: any;
+                      ^
+384:   let plotReady = false;
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:384:6 `plotReady` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+382: 
+383:   let Plotly: any;
+384:   let plotReady = false;
+                    ^
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+386: 
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:385:6 `realReturnCdfEl` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+383:   let Plotly: any;
+384:   let plotReady = false;
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+                                                 ^
+386: 
+387:   let simulation: SimulationResult | null = null;
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:387:6 `simulation` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+386: 
+387:   let simulation: SimulationResult | null = null;
+                                              ^
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:388:6 `stats` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+386: 
+387:   let simulation: SimulationResult | null = null;
+388:   let stats: SummaryStats | null = null;
+                                     ^
+389:   let errorMessage = '';
+390:   let running = false;
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:389:6 `errorMessage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+387:   let simulation: SimulationResult | null = null;
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+                       ^
+390:   let running = false;
+391:   let runStatusMessage = '';
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:390:6 `running` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+390:   let running = false;
+                  ^
+391:   let runStatusMessage = '';
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:391:6 `runStatusMessage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+389:   let errorMessage = '';
+390:   let running = false;
+391:   let runStatusMessage = '';
+                           ^
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+393:   let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:392:6 `resultStage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+390:   let running = false;
+391:   let runStatusMessage = '';
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+                                                    ^
+393:   let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
+394:   let previewReady = false;
+3:22:41 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:396:6 `selectedCurrencyCode` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+394:   let previewReady = false;
+395: 
+396:   let selectedCurrencyCode: CurrencyCode = 'EUR';
+                                             ^
+397:   const DEFAULT_EQUITY_BOND_CORRELATION = -0.1;
+398:   const DEFAULT_ANNUAL_FEE_PERCENT = 0.005;
+✓ 202 modules transformed.
+rendering chunks...
+vite v7.3.1 building client environment for production...
+transforming...
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:825:38 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+823:     simulateUntilAge: 90,
+824:     currentSavings: 120000,
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+                                                            ^
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:826:45 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+824:     currentSavings: 120000,
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+                                                                   ^
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:827:42 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+825:     meanReturn: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+                                                                ^
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+829:     equityBondCorrelation: DEFAULT_EQUITY_BOND_CORRELATION,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:828:42 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+826:     returnVariability: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+827:     returnSkewness: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+828:     returnKurtosis: blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+                                                                ^
+829:     equityBondCorrelation: DEFAULT_EQUITY_BOND_CORRELATION,
+830:     inflationMean: ASSUMPTION_REFERENCES.EUR.inflationMetric.mean,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:841:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+839:     simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
+840:     regimeModel: buildRegimeModelFromPortfolio(
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+                                                  ^
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:842:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+840:     regimeModel: buildRegimeModelFromPortfolio(
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+                                                  ^
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:843:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+841:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).mean,
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+                                                  ^
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+845:       ASSUMPTION_REFERENCES.EUR.regimeTemplate
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:844:28 This reference only captures the initial value of `parametricMetrics`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+842:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).std,
+843:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).skewness,
+844:       blendPortfolioMetrics(parametricMetrics, DEFAULT_ALLOCATION, DEFAULT_EQUITY_BOND_CORRELATION).kurtosis,
+                                                  ^
+845:       ASSUMPTION_REFERENCES.EUR.regimeTemplate
+846:     ),
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1050:50 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1048: 
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+                                                             ^
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+1052:   ]);
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1050:75 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1048: 
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+                                                                                      ^
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+1052:   ]);
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:1051:80 This reference only captures the initial value of `input`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1049:   let incomeSources: IncomeSource[] = $state([
+1050:     { id: 'is-default', label: 'Salary', fromAge: input.currentAge, toAge: input.retirementAge, yearlyAmount: 65000, inflationAdjusted: false },
+1051:     { id: 'is-pension', label: 'Pension / Social security', fromAge: 67, toAge: input.simulateUntilAge, yearlyAmount: 15000, inflationAdjusted: true }
+                                                                                           ^
+1052:   ]);
+1053: 
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:383:6 `Plotly` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+381:   // ─── Reactive state ─────────────────────────────────────────────────────────
+382: 
+383:   let Plotly: any;
+                      ^
+384:   let plotReady = false;
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:384:6 `plotReady` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+382: 
+383:   let Plotly: any;
+384:   let plotReady = false;
+                    ^
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+386: 
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:385:6 `realReturnCdfEl` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+383:   let Plotly: any;
+384:   let plotReady = false;
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+                                                 ^
+386: 
+387:   let simulation: SimulationResult | null = null;
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:387:6 `simulation` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+385:   let realReturnCdfEl: HTMLDivElement | null = null;
+386: 
+387:   let simulation: SimulationResult | null = null;
+                                              ^
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:388:6 `stats` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+386: 
+387:   let simulation: SimulationResult | null = null;
+388:   let stats: SummaryStats | null = null;
+                                     ^
+389:   let errorMessage = '';
+390:   let running = false;
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:389:6 `errorMessage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+387:   let simulation: SimulationResult | null = null;
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+                       ^
+390:   let running = false;
+391:   let runStatusMessage = '';
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:390:6 `running` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+388:   let stats: SummaryStats | null = null;
+389:   let errorMessage = '';
+390:   let running = false;
+                  ^
+391:   let runStatusMessage = '';
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:391:6 `runStatusMessage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+389:   let errorMessage = '';
+390:   let running = false;
+391:   let runStatusMessage = '';
+                           ^
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+393:   let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:392:6 `resultStage` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+390:   let running = false;
+391:   let runStatusMessage = '';
+392:   let resultStage: 'idle' | 'preview' | 'final' = 'idle';
+                                                    ^
+393:   let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
+394:   let previewReady = false;
+3:22:46 PM [vite-plugin-svelte] src/lib/RetirementPlanner.svelte:396:6 `selectedCurrencyCode` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+394:   let previewReady = false;
+395: 
+396:   let selectedCurrencyCode: CurrencyCode = 'EUR';
+                                             ^
+397:   const DEFAULT_EQUITY_BOND_CORRELATION = -0.1;
+398:   const DEFAULT_ANNUAL_FEE_PERCENT = 0.005;
+✓ 167 modules transformed.
+rendering chunks...
+computing gzip size...
+.svelte-kit/output/client/_app/version.json                                        0.03 kB │ gzip:     0.05 kB
+.svelte-kit/output/client/.vite/manifest.json                                      3.69 kB │ gzip:     0.70 kB
+.svelte-kit/output/client/_app/immutable/workers/retirementWorker-C6LQm_ms.js     11.64 kB
+.svelte-kit/output/client/_app/immutable/assets/0.CJNg30-J.css                     7.39 kB │ gzip:     2.29 kB
+.svelte-kit/output/client/_app/immutable/assets/2.Dq-G7BTt.css                    16.22 kB │ gzip:     4.14 kB
+.svelte-kit/output/client/_app/immutable/chunks/C_HPlmrh.js                        0.04 kB │ gzip:     0.06 kB
+.svelte-kit/output/client/_app/immutable/entry/start.CUMbaV4D.js                   0.12 kB │ gzip:     0.11 kB
+.svelte-kit/output/client/_app/immutable/chunks/C8SAvuAA.js                        0.37 kB │ gzip:     0.26 kB
+.svelte-kit/output/client/_app/immutable/nodes/0.DxUpqQmH.js                       0.46 kB │ gzip:     0.34 kB
+.svelte-kit/output/client/_app/immutable/chunks/Dne_GbWC.js                        0.51 kB │ gzip:     0.33 kB
+.svelte-kit/output/client/_app/immutable/nodes/1.C2OKMi7d.js                       0.62 kB │ gzip:     0.37 kB
+.svelte-kit/output/client/_app/immutable/chunks/DYof9Cpx.js                        1.23 kB │ gzip:     0.70 kB
+.svelte-kit/output/client/_app/immutable/chunks/CDNNZgn7.js                        4.21 kB │ gzip:     2.03 kB
+.svelte-kit/output/client/_app/immutable/entry/app.DjprImcn.js                     4.60 kB │ gzip:     2.06 kB
+.svelte-kit/output/client/_app/immutable/chunks/BJG6Zbvm.js                        6.05 kB │ gzip:     2.80 kB
+.svelte-kit/output/client/_app/immutable/chunks/KRX7bxQ2.js                        6.17 kB │ gzip:     2.86 kB
+.svelte-kit/output/client/_app/immutable/chunks/BrMoQsTb.js                       20.32 kB │ gzip:     8.11 kB
+.svelte-kit/output/client/_app/immutable/chunks/Dnb55hRe.js                       22.91 kB │ gzip:     9.07 kB
+.svelte-kit/output/client/_app/immutable/nodes/2.COkCN_Vp.js                      94.81 kB │ gzip:    30.66 kB
+.svelte-kit/output/client/_app/immutable/chunks/71lb40GF.js                    4,810.58 kB │ gzip: 1,466.59 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 35.66s
+.svelte-kit/output/server/.vite/manifest.json                                    3.40 kB
+.svelte-kit/output/server/_app/immutable/workers/retirementWorker-C6LQm_ms.js   11.64 kB
+.svelte-kit/output/server/_app/immutable/assets/_layout.CJNg30-J.css             7.39 kB
+.svelte-kit/output/server/_app/immutable/assets/_page.Dq-G7BTt.css              16.22 kB
+.svelte-kit/output/server/entries/pages/_layout.ts.js                            0.05 kB
+.svelte-kit/output/server/chunks/environment.js                                  0.23 kB
+.svelte-kit/output/server/entries/pages/_layout.svelte.js                        0.23 kB
+.svelte-kit/output/server/chunks/equality.js                                     0.33 kB
+.svelte-kit/output/server/internal.js                                            0.38 kB
+.svelte-kit/output/server/chunks/server.js                                       0.46 kB
+.svelte-kit/output/server/chunks/utils.js                                        0.78 kB
+.svelte-kit/output/server/entries/fallbacks/error.svelte.js                      1.35 kB
+.svelte-kit/output/server/chunks/routing.js                                      2.69 kB
+.svelte-kit/output/server/chunks/context.js                                      2.94 kB
+.svelte-kit/output/server/chunks/url.js                                          3.21 kB
+.svelte-kit/output/server/chunks/exports.js                                      3.84 kB
+.svelte-kit/output/server/remote-entry.js                                       19.03 kB
+.svelte-kit/output/server/chunks/shared.js                                      27.00 kB
+.svelte-kit/output/server/chunks/index.js                                       35.78 kB
+.svelte-kit/output/server/chunks/internal.js                                    81.81 kB
+.svelte-kit/output/server/entries/pages/_page.svelte.js                         82.93 kB
+.svelte-kit/output/server/index.js                                             121.13 kB
+✓ built in 41.14s
+
+Run npm run preview to preview your production build locally.
+
+> Using @sveltejs/adapter-static
+Overwriting build/index.html with fallback page. Consider using a different name for the fallback.
+  Wrote site to "build"
+  ✔ done
+
+> retirement-planner@0.0.1 prepack
+> svelte-kit sync && svelte-package && publint
+
+src/lib -> dist
+Running publint v0.3.17 for retirement-planner...
+Packing files with `npm pack`...
+Linting...
+All good!
