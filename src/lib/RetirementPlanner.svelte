@@ -492,6 +492,7 @@
 
 	// ─── Reactive state ─────────────────────────────────────────────────────────
 
+	// svelte-ignore non_reactive_update
 	let Plotly: any = null;
 	let plotReady = $state(false);
 	let realReturnCdfEl: HTMLDivElement | null = $state(null);
