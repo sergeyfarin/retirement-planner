@@ -10,6 +10,7 @@ use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod
 use wasm_bindgen::prelude::*;
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WasmResult {
     pub simulation: crate::engine::SimulationResult,
     pub stats: crate::engine::SummaryStats,

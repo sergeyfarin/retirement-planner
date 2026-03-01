@@ -202,11 +202,11 @@ describe('runMonteCarloSimulation smoke', () => {
     await ensureWasm();
     const result = run_monte_carlo(input, spendingPeriods, incomeSources, [], months, retireMonth);
 
-    expect(result.sim_count).toBeGreaterThanOrEqual(400);
+    expect(result.simCount).toBeGreaterThanOrEqual(400);
     expect(result.simulation.months).toBe(months);
     expect(result.simulation.percentiles.p50.length).toBe(months);
-    expect(result.stats.success_probability).toBeGreaterThanOrEqual(0);
-    expect(result.stats.success_probability).toBeLessThanOrEqual(1);
-    expect(result.stats.final_median).toBeGreaterThan(0);
+    expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
+    expect(result.stats.successProbability).toBeLessThanOrEqual(1);
+    expect(result.stats.finalMedian).toBeGreaterThan(0);
   });
 });

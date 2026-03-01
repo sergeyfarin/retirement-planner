@@ -2,6 +2,7 @@ use crate::calculations::{clamp, PercentileSeries, RandomSource};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RegimeModel {
     pub stay_growth: f64,
     pub stay_crisis: f64,
@@ -12,6 +13,7 @@ pub struct RegimeModel {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ReturnMoments {
     pub arithmetic_mean: f64,
     pub geometric_mean: f64,
@@ -21,6 +23,7 @@ pub struct ReturnMoments {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SimulationResult {
     pub months: u32,
     pub ages: Vec<f64>,
@@ -31,6 +34,7 @@ pub struct SimulationResult {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SequenceRiskBucket {
     pub bucket_label: String,
     pub early_years_mean_return: f64,
@@ -39,6 +43,7 @@ pub struct SequenceRiskBucket {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RuinSurface {
     pub retirement_ages: Vec<usize>,
     pub spending_multipliers: Vec<f64>,
@@ -46,6 +51,7 @@ pub struct RuinSurface {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SummaryStats {
     pub fi_target: f64,
     pub fi_target_swr: f64,

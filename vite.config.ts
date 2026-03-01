@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { resolve } from 'path';
 
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
@@ -10,6 +11,14 @@ export default defineConfig({
 	worker: {
 		format: 'es',
 		plugins: () => [wasm(), topLevelAwait()]
+	},
+	server: {
+		fs: {
+			allow: ['.', resolve(__dirname, 'rust-engine/pkg')]
+		}
+	},
+	optimizeDeps: {
+		exclude: ['rust-engine']
 	},
 	test: {
 		expect: { requireAssertions: true },
