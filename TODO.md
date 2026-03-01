@@ -74,6 +74,10 @@ All Phase 1 Performance issues have been successfully resolved via the **Rust We
 **Action:** Allow users to input their desired geometric mean (CAGR) directly. The engine reverse-calculates the required arithmetic mean: $\mu_{arith} \approx \mu_{geom} + \sigma^2/2$.
 **Files:** `PlannerInputPanel.svelte`, `calculations.ts`
 
+### 4.4 Extract Assumptions Metadata (S)
+**Action:** Move the massive `ASSUMPTION_REFERENCES` object (containing ~300 lines of descriptive text, URLs, and expected ranges) out of `RetirementPlanner.svelte`. Either extract it into a dedicated config file (`src/lib/config/currencyAssumptions.ts`) to clean up the UI component, or build a dedicated "Data Sources" info modal to actively display this rigorous research data to the user.
+**Files:** `RetirementPlanner.svelte`, new config file or modal component.
+
 ---
 
 ## Priority 5 — Data Quality & Coverage
