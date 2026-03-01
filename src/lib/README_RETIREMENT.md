@@ -48,7 +48,7 @@ src/lib/calculations.ts                ← RandomSource (seeded/unseeded RNG + B
 | USD | S&P 500 (^SPX, Stooq) | Synthetic 10Y total return from GS10 yield (FRED), duration 7y | 3m T-bill TB3MS (FRED) |
 | GBP | FTSE 100 (^UKX, Stooq) | Synthetic UK 10Y total return (IRLTLT01GBM156N), duration 7y | UK 3m interbank (IR3TIB01GBM156N) |
 | EUR | Synthetic 60% DAX TR + 40% CAC (adjusted +3% PR div) | Synthetic DE 10Y total return (IRLTLT01DEM156N), duration 7y | EZ 3m interbank stitched with DE pre-euro |
-| WORLD | 55% SPX + 20% UKX + 25% DAX | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
+| WORLD | 55% US + 15% EUR + 5% UK + 15% Japan (NKX) + 10% Asia/EM (HSI, backfilled 1960-69 w/ NKX). All converted to USD. | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
 
 ### 3.2 Bond total return synthesis
 
@@ -390,17 +390,7 @@ Correct derivation from the balance equation $\pi P = \pi$.
 
 **Fix:** For a personal calculator, even a simple two-bucket model (tax-advantaged % vs. taxable %, with different drags) would be a significant improvement.
 
-#### P2.4 — No volatility term in expected wealth growth
-
-**Current:** The regime model correctly uses geometric returns implicitly (through multiplicative compounding), but the summary statistics report arithmetic mean rather than the more decision-relevant geometric mean.
-
-**Problem:** The mean of simulated returns is the arithmetic mean, but wealth grows at the geometric mean $\approx \mu - \sigma^2/2$. The `returnMoments` output already computes both, but the FI target calculations and the UI primarily reference arithmetic means.
-
-**Impact:** Users may overestimate expected growth. With σ = 17%, the arithmetic-to-geometric drag is ~1.4%/year.
-
-**Fix:** Display geometric mean prominently in the UI; use it for any "expected" balance projections.
-
-#### P2.5 — Ruin surface uses shared growth factors but different cashflows
+#### P2.4 — Ruin surface uses shared growth factors but different cashflows
 
 **Current:** `buildRuinSurface()` reuses the growth factor paths from the main simulation but constructs new cashflow arrays for each (retAge, spending) combination. This means the asset returns are held constant while only cashflow timing changes.
 
@@ -460,13 +450,16 @@ Correct derivation from the balance equation $\pi P = \pi$.
 
 **Status:** Retained the DAX+CAC blend to preserve critical 1970s stagflation data, but added a 3% synthetic annual dividend to the CAC component in the data importer to correct the Price Return vs Total Return discrepancy.
 
-#### P3.6 — World equity blend weights are hard-coded
+#### P3.6 — World equity blend weights are hard-coded ✅ Implemented
 
-**Current:** World = 55% S&P 500 + 20% FTSE 100 + 25% DAX.
+**Current implementation:** World = 55% US + 15% EUR + 5% UK + 15% Japan + 10% Asia/EM (converted to USD).
 
-**Problem:** Real-world global market-cap weights are approximately: US ~62%, Europe ~15%, Japan ~6%, UK ~4%, etc. The current weights overweight UK and Europe relative to market-cap. Japan and emerging markets are missing entirely.
+**Problem:** The previous world blend (55% S&P 500 + 20% FTSE 100 + 25% DAX) overweighted the UK and Europe relative to market-cap, and entirely missed Japan (famous for its massive 1989 asset bubble sequence risk) and Emerging Markets.
 
-**Fix:** Either align weights to current market-cap percentages and add Japan + EM proxies, or document clearly that this is a "developed-market Western blend proxy" rather than a true world index.
+**Status:** Reconstructed the World proxy to better reflect global market capitalization while strictly preserving the deep history from 1960.
+- Added Japan using the Nikkei 225 (`^NKX`), converting from JPY to USD.
+- Added Asia/Emerging Markets using the Hang Seng Index (`^HSI`), converting from HKD to USD.
+- Because `^HSI` only dates back to 1969, the 1960-1969 window for the EM slice is synthesized/backfilled using Nikkei returns to preserve the 1970s stagflation cycle dataset for the World scenario.
 
 ---
 
@@ -599,8 +592,8 @@ Focus: improve data proxies and surface better information to the user.
 | # | Task | Effort | Files |
 |---|---|---|---|
 | 3.1 | **Fix EUR equity proxy** — ✅ Implemented. Retained DAX + CAC proxy for deep history, but added a 3% synthetic annual dividend to CAC to correct PR vs TR discrepancy. | S | `import-retirement-market-data.mjs` |
-| 3.2 | **Fix world blend weights** — update to approximate market-cap weights (US 60%, EUR 20%, UK 8%, Japan 12%) and add a Japan equity proxy (^NKX). | M | `import-retirement-market-data.mjs` |
-| 3.3 | **Display geometric mean** — show geometric mean prominently in the summary panel alongside arithmetic mean. Add a tooltip explaining the difference and the variance drag formula. | S | `RetirementPlanner.svelte` |
+| 3.2 | **Fix world blend weights** — ✅ Implemented Option D. US (55%), EUR (15%), UK (5%), Japan (15%), Asia/EM (10% Hang Seng backfilled with Nikkei 1960-69). | M | `import-retirement-market-data.mjs` |
+| 3.3 | **Display geometric mean** — ✅ Implemented. Separated "Arithmetic Input" from calculated "CAGR (Geom)" output directly in the asset assumptions panel, with variance drag tooltips. | S | `RetirementPlanner.svelte` |
 | 3.4 | **Convergence diagnostic** — after simulation, compute and display the standard error of the success probability: $SE = \sqrt{p(1-p)/N}$. Show a "convergence quality" indicator. | S | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 3.5 | **Rename drag UI** — if not already restructured in 1.4, at minimum rename "Annual drag" to "Annual fee (TER + platform)" and add a separate "Tax on gains" field. | S | `RetirementPlanner.svelte` |
 | 3.6 | **Mode transparency in UI** — show active mode badge, effective moments used by simulator, and warning text when displayed assumptions differ from simulation driver. | S | `RetirementPlanner.svelte`, `PlannerInputPanel.svelte` |
@@ -627,6 +620,7 @@ Focus: optional enhancements for power users.
 | 4.10 | **Visualizing Regimes in Charts** — Shade background of `PlannerTimelinePlot` to reflect periods of "Crisis" vs "Growth" for median outcomes or add a probability heatmap to help users intuitively grasp the regime switches. | M | `PlannerTimelinePlot.svelte` |
 | 4.11 | **Factor Tilts (Small-Cap / Value)** — Current equity proxies are strictly large-cap blend limits. Incorporating small-cap or value datasets (e.g., Russell 2000) could let users model explicitly tilted factor portfolios, which historically offer a different sequence-of-return risk profile. | M | `import-retirement-market-data.mjs`, `RetirementPlanner.svelte` |
 | 4.12 | **Extended Eurozone Expansion** — Since we fixed the CAC PR gap with a synthetic dividend, we could further improve the Eurozone proxy in the future by adding AEX (Netherlands) and IBEX (Spain) data from the 1980s onward, stitching them onto the DAX/CAC long-run core to broaden geopolitical representation. | M | `import-retirement-market-data.mjs` |
+| 4.13 | **Reverse-engineered CAGR Target Input** — Now that "Arithmetic" and "Geometric" means are separate in the UI, we could add a mode where users explicitly input their desired "CAGR" and the parametric engine dynamically reverse-calculates and bounds the required normal Arithmetic Mean for generation. | M | `PlannerInputPanel.svelte`, `calculations.ts` |
 
 **Checkpoint:** main thread stays responsive; advanced users can refine both Historical and Parametric workflows without ambiguity.
 
