@@ -1,10 +1,9 @@
-import { runMonteCarloSimulation } from './retirementEngine';
 import type { RetirementInput, SpendingPeriod, IncomeSource, LumpSumEvent } from './retirementEngine';
-import { run_monte_carlo } from 'rust-engine';
+import init, { run_monte_carlo } from 'rust-engine';
 
 export interface WorkerInputMessage {
     type: 'RUN_SIMULATION';
-    id: string; // for request tracking
+    id: string;
     payload: {
         input: RetirementInput;
         spendingPeriods: SpendingPeriod[];
@@ -18,7 +17,8 @@ export interface WorkerInputMessage {
 export interface WorkerResultMessage {
     type: 'SIMULATION_COMPLETE';
     id: string;
-    payload: ReturnType<typeof runMonteCarloSimulation>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload: any;
 }
 
 export interface WorkerErrorMessage {
@@ -35,15 +35,23 @@ export interface WorkerProgressMessage {
 
 export type WorkerMessageOut = WorkerResultMessage | WorkerErrorMessage | WorkerProgressMessage;
 
-self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
+let wasmReady = false;
+
+self.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
     const { type, id, payload } = event.data;
 
     if (type === 'RUN_SIMULATION') {
         try {
+            // Initialize WASM module on first use
+            if (!wasmReady) {
+                await init();
+                wasmReady = true;
+            }
+
             self.postMessage({
                 type: 'SIMULATION_PROGRESS',
                 id,
-                payload: { progress: 0.1 }
+                payload: { progress: 0.05 }
             });
 
             // Call compiled WebAssembly module
