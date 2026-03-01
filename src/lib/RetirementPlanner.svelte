@@ -504,7 +504,8 @@
 	let running = $state(false);
 	let runningProgress = $state(0);
 	let runStatusMessage = $state('');
-	let resultStage: 'idle' | 'preview' | 'final' = $state('idle');
+	let resultStage: string = $state('none');
+	let lastSimulatedFingerprint = $state('');
 	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
 	let previewReady = $state(false);
 
@@ -514,9 +515,8 @@
 	const DEFAULT_TAX_ON_GAINS_PERCENT = 0.15;
 	const DEFAULT_SKEWNESS = 0;
 	const DEFAULT_KURTOSIS = 3;
-	const QUICK_PREVIEW_SIMULATIONS = 200;
-	const FULL_MONTE_CARLO_MIN_SIMULATIONS = 1500;
-	const DEFAULT_FULL_MONTE_CARLO_SIMULATIONS = 3000;
+	const FULL_MONTE_CARLO_MIN_SIMULATIONS = 20000;
+	const DEFAULT_FULL_MONTE_CARLO_SIMULATIONS = 60000;
 	let stockBoundaryPercent = $state(DEFAULT_STOCK_BOUNDARY_PERCENT);
 	let bondBoundaryPercent = $state(DEFAULT_BOND_BOUNDARY_PERCENT);
 	const initialParametricMetrics: InvestmentMetricInputs = {
@@ -547,7 +547,7 @@
 		simulationMode: 'historical',
 		historicalMomentTargeting: false,
 		currentAge: 35,
-		retirementAge: 50,
+		retirementAge: 60,
 		simulateUntilAge: 90,
 		currentSavings: 120000,
 		meanReturn: blendPortfolioMetrics(
@@ -1347,7 +1347,7 @@
 			fromAge: 35,
 			toAge: 50,
 			yearlyAmount: 65000,
-			inflationAdjusted: false
+			inflationAdjusted: true
 		},
 		{
 			id: 'is-pension',
@@ -1670,9 +1670,16 @@
 		].join('::')
 	);
 
+	let inputsChangedSinceLastRun = $derived(
+		resultStage === 'final' && previewTriggerKey !== lastSimulatedFingerprint
+	);
+
 	$effect(() => {
-		if (previewReady && previewTriggerKey) {
-			schedulePreviewRecalculation();
+		if (plotReady) {
+			if (resultStage === 'none' && !running) {
+				// Run automatically on first load
+				void runSimulation();
+			}
 		}
 	});
 
@@ -1691,45 +1698,8 @@
 		}
 	});
 
-	function schedulePreviewRecalculation() {
-		if (previewRecalcTimer) clearTimeout(previewRecalcTimer);
-		previewRecalcTimer = setTimeout(() => {
-			untrack(() => {
-				if (running || resultStage === 'final') {
-					if (running) schedulePreviewRecalculation();
-					return;
-				}
-				void recomputeApproximatePreview();
-			});
-		}, 120);
-	}
-
-	async function recomputeApproximatePreview() {
-		errorMessage = '';
-		const validated = validateSimulationInputs(input, spendingPeriods);
-		if (validated.error) {
-			errorMessage = validated.error;
-			return;
-		}
-
-		const previewMonteCarlo = runMonteCarloSimulation(
-			{
-				...input,
-				simulations: QUICK_PREVIEW_SIMULATIONS
-			},
-			spendingPeriods,
-			incomeSources,
-			lumpSumEvents,
-			validated.months,
-			validated.retireMonth
-		);
-		simulation = previewMonteCarlo.simulation;
-		stats = previewMonteCarlo.stats;
-		resultStage = 'preview';
-		runStatusMessage = `${previewMonteCarlo.simCount} simulation quick preview. Run Monte Carlo for a 1,500+ simulation result.`;
-
-		await tick();
-	}
+	// Quick preview logic removed in favor of "Option 3: Stale Results Badge"
+	// The user now sees previous results grayscaled until a full run completes.
 
 	// ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -1757,7 +1727,6 @@
 
 		plotReady = true;
 		previewReady = true;
-		await recomputeApproximatePreview();
 	});
 
 	onDestroy(() => {
@@ -1787,6 +1756,9 @@
 			FULL_MONTE_CARLO_MIN_SIMULATIONS,
 			Math.round(input.simulations)
 		);
+
+		// Capture the exact fingerprint of the inputs we are about to simulate
+		const fingerprintForThisRun = previewTriggerKey;
 
 		running = true;
 		runningProgress = 0;
@@ -1827,7 +1799,7 @@
 							reject(new Error(e.data.payload.message));
 						} else if (e.data.type === 'SIMULATION_PROGRESS') {
 							runningProgress = e.data.payload.progress;
-							if (runningProgress >= 0.90) {
+							if (runningProgress >= 0.9) {
 								runStatusMessage = `Almost done. Processing results…`;
 							} else if (runningProgress <= 0) {
 								runStatusMessage = `Initializing Rust engine…`;
@@ -1848,7 +1820,8 @@
 			simulation = workerResult.simulation;
 			stats = workerResult.stats;
 			resultStage = 'final';
-			runStatusMessage = `${workerResult.simCount} Monte Carlo simulations completed.`;
+			lastSimulatedFingerprint = fingerprintForThisRun;
+			runStatusMessage = `${fmtNum(workerResult.simCount)} Monte Carlo simulations completed.`;
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 			runStatusMessage = '';
@@ -2060,29 +2033,36 @@
 	/>
 
 	<section class="right-panel">
-		<div class="card status-banner">
+		<div class="card status-banner" class:attention={inputsChangedSinceLastRun && !running}>
 			<div class="status-row">
-				<div>
+				<div class="status-text">
 					<strong>
 						{#if running}
-							Running full Monte Carlo simulation…
+							Computing Monte Carlo Simulation…
+						{:else if inputsChangedSinceLastRun}
+							Inputs Changed — Re-run Required
 						{:else if resultStage === 'final'}
-							Monte Carlo result is shown
+							Simulation Up to Date
 						{:else}
-							Quick Monte Carlo preview is shown
+							Ready to Simulate
 						{/if}
 					</strong>
 					<p class="note">
-						{#if runStatusMessage}
-							{runStatusMessage}
+						{#if running}
+							{runStatusMessage || 'Running...'}
+						{:else if inputsChangedSinceLastRun}
+							Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
+							results below.
+						{:else if resultStage === 'final'}
+							Showing results for {fmtNum(input.simulations)} simulations.
 						{:else}
-							Quick preview (400 simulations) updates automatically whenever inputs change.
+							Click "Run Monte Carlo" to generate your retirement forecast.
 						{/if}
 					</p>
 				</div>
 				<div class="status-controls">
 					<label>
-						Simulations to run
+						Simulations
 						<input
 							type="text"
 							inputmode="numeric"
@@ -2095,51 +2075,68 @@
 					</label>
 					<button
 						class="btn-primary"
-						disabled={running}
+						disabled={running || (!inputsChangedSinceLastRun && resultStage === 'final')}
 						onclick={() => void runSimulation()}
 						title="Run a massive Monte Carlo simulation on background thread."
 					>
-						{running
-							? `Running Monte Carlo… ${Math.round(runningProgress * 100)}%`
-							: 'Run Monte Carlo'}
+						{running ? 'Running…' : 'Run Monte Carlo'}
 					</button>
 				</div>
 			</div>
 		</div>
 
-		<PlannerOutputCards
-			{stats}
-			{input}
-			{fmtCompactCurrency}
-			{retirementYearlySpending}
-			{FI_TARGET_SUCCESS_PROBABILITY}
-			{percentFormatter}
-			{fmtNum}
-		/>
+		{#if stats}
+			<div class="outputs-wrapper" class:stale-results={inputsChangedSinceLastRun}>
+				<PlannerOutputCards
+					{stats}
+					{input}
+					{fmtCompactCurrency}
+					{retirementYearlySpending}
+					{FI_TARGET_SUCCESS_PROBABILITY}
+					{percentFormatter}
+					{fmtNum}
+				/>
 
-		<div class="chart-row">
-			<PlannerTimelinePlot
-				{Plotly}
-				{plotReady}
-				{simulation}
-				{stats}
-				retirementAge={input.retirementAge}
-				{baselineFiTarget}
-				{spendingPeriods}
-				{lumpSumEvents}
-				currencySymbol={selectedCurrency.symbol}
-				{fmtCompactValue}
-				{fmtHoverCompactCurrency}
-			/>
-			<PlannerSecondaryPlot
-				{Plotly}
-				{plotReady}
-				{stats}
-				simulateUntilAge={input.simulateUntilAge}
-				currencySymbol={selectedCurrency.symbol}
-				{fmtCompactValue}
-				{fmtHoverCompactCurrency}
-			/>
-		</div>
+				<div class="chart-row">
+					<PlannerTimelinePlot
+						{Plotly}
+						{plotReady}
+						{simulation}
+						{stats}
+						retirementAge={input.retirementAge}
+						{baselineFiTarget}
+						{spendingPeriods}
+						{lumpSumEvents}
+						currencySymbol={selectedCurrency.symbol}
+						{fmtCompactValue}
+						{fmtHoverCompactCurrency}
+					/>
+					<PlannerSecondaryPlot
+						{Plotly}
+						{plotReady}
+						{stats}
+						simulateUntilAge={input.simulateUntilAge}
+						currencySymbol={selectedCurrency.symbol}
+						{fmtCompactValue}
+						{fmtHoverCompactCurrency}
+					/>
+				</div>
+			</div>
+		{/if}
 	</section>
 </div>
+
+<style>
+	.stale-results {
+		filter: grayscale(100%);
+		opacity: 0.6;
+		transition:
+			filter 0.3s ease,
+			opacity 0.3s ease;
+		pointer-events: none;
+	}
+	.status-banner.attention {
+		border-left: 4px solid var(--color-warning, #f59e0b);
+		background-color: var(--bg-warning-light, rgba(245, 158, 11, 0.05));
+	}
+</style>
