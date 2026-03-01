@@ -257,14 +257,14 @@ pub fn run_monte_carlo_simulation(
         &effective_annual_history
     });
     let sim_count = 400.max(input.simulations.round() as usize);
-    let mut all_balances = vec![vec![0.0; months as usize]; sim_count];
+    let mut all_balances: Vec<Vec<f64>> = Vec::with_capacity(sim_count);
     let mut final_balances = Vec::with_capacity(sim_count);
     let mut retire_balances = Vec::with_capacity(sim_count);
     let mut shortfall_totals = Vec::with_capacity(sim_count);
     let mut depleted_years_series = Vec::with_capacity(sim_count);
     let mut depleted_flags = Vec::with_capacity(sim_count);
     let mut annual_real_returns_by_sim = Vec::with_capacity(sim_count);
-    let mut growth_factors = vec![vec![1.0; months as usize]; sim_count];
+    let mut growth_factors: Vec<Vec<f64>> = Vec::with_capacity(sim_count);
     let mut success_count = 0;
 
     let spending_at_retirement = spending_at_age(input.retirement_age, spending_periods, 1.0);
@@ -282,6 +282,11 @@ pub fn run_monte_carlo_simulation(
 
     let progress_step = (sim_count / 10).max(1);
 
+    // Signal that setup is complete, simulation is starting
+    if let Some(cb) = &progress_callback {
+        cb(0.0);
+    }
+
     for sim in 0..sim_count {
         let mut balance = input.current_savings;
         let mut depleted = false;
@@ -292,6 +297,8 @@ pub fn run_monte_carlo_simulation(
         let monthly_fee_factor = (1.0 - annual_fee_rate / 12.0).max(0.0);
         let mut regime_state = initial_regime_state(monthly_markov.0, monthly_markov.1, &mut rng);
         let mut annual_real_returns = Vec::new();
+        let mut sim_balances = vec![0.0_f64; months as usize];
+        let mut sim_growth = vec![1.0_f64; months as usize];
 
         let mut block_remaining = 0;
         let mut current_history_index = 0;
@@ -413,7 +420,7 @@ pub fn run_monte_carlo_simulation(
             balance += monthly_net_flow[m] + lump_sum_by_month[m];
             balance *= monthly_portfolio_growth_factor;
             balance /= 1.0 + monthly_inflation;
-            growth_factors[sim][m] = monthly_portfolio_growth_factor / (1.0 + monthly_inflation);
+            sim_growth[m] = monthly_portfolio_growth_factor / (1.0 + monthly_inflation);
 
             if balance <= 0.0 {
                 cumulative_shortfall += (0.0_f64).max(-balance);
@@ -429,18 +436,20 @@ pub fn run_monte_carlo_simulation(
             if balance == 0.0 {
                 depleted_months += 1;
             }
-            all_balances[sim][m] = balance;
+            sim_balances[m] = balance;
         }
 
         let retire_index = (retire_month as usize)
             .saturating_sub(1)
             .min((months as usize).saturating_sub(1));
-        retire_balances.push(all_balances[sim][retire_index]);
+        retire_balances.push(sim_balances[retire_index]);
         final_balances.push(balance);
         shortfall_totals.push(cumulative_shortfall);
         depleted_years_series.push((depleted_months as f64) / 12.0);
         depleted_flags.push(depleted);
         annual_real_returns_by_sim.push(annual_real_returns);
+        all_balances.push(sim_balances);
+        growth_factors.push(sim_growth);
 
         if !depleted && balance > 0.0 {
             success_count += 1;

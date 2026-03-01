@@ -1829,6 +1829,8 @@
 							runningProgress = e.data.payload.progress;
 							if (runningProgress >= 0.90) {
 								runStatusMessage = `Almost done. Processing results…`;
+							} else if (runningProgress <= 0) {
+								runStatusMessage = `Initializing Rust engine…`;
 							} else {
 								runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations… (${Math.round(runningProgress * 100)}%)`;
 							}
