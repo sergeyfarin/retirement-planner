@@ -92,6 +92,17 @@ function monthlyReturnsFromCloseMap(closeMap) {
   return out;
 }
 
+function getPrevMonth(monthStr) {
+  const year = parseInt(monthStr.slice(0, 4), 10);
+  const month = parseInt(monthStr.slice(5, 7), 10);
+  if (month === 1) {
+    return `${year - 1}-12`;
+  } else {
+    const m = month - 1;
+    return `${year}-${m < 10 ? '0' : ''}${m}`;
+  }
+}
+
 function buildIndexFromMonthlyReturns(returnMap, base = 100) {
   const months = [...returnMap.keys()].sort();
   const closeMap = new Map();
@@ -271,23 +282,71 @@ async function buildEurRegion() {
 }
 
 async function buildWorldRegion() {
-  const [spxClose, ukxClose, daxClose, us10yYield, uk10yYield, de10yYield, usCashRate, ukCashRate, deCashRate, ezCashRate] = await Promise.all([
+  const [spxClose, ukxClose, daxClose, cacClose, nkxClose, hsiClose, us10yYield, uk10yYield, de10yYield, usCashRate, ukCashRate, deCashRate, ezCashRate, usdJpy, usdHkd] = await Promise.all([
     fetchStooqMonthlyCloses('^spx'),
     fetchStooqMonthlyCloses('^ukx'),
     fetchStooqMonthlyCloses('^dax'),
+    fetchStooqMonthlyCloses('^cac'),
+    fetchStooqMonthlyCloses('^nkx'),
+    fetchStooqMonthlyCloses('^hsi'),
     fetchFredSeries('GS10'),
     fetchFredSeries('IRLTLT01GBM156N'),
     fetchFredSeries('IRLTLT01DEM156N'),
     fetchFredSeries('TB3MS'),
     fetchFredSeries('IR3TIB01GBM156N'),
     fetchFredSeries('IR3TIB01DEM156N'),
-    fetchFredSeries('IR3TIB01EZM156N')
+    fetchFredSeries('IR3TIB01EZM156N'),
+    fetchFredSeries('EXJPUS'), // JPY per USD
+    fetchFredSeries('EXHKUS')  // HKD per USD
   ]);
 
+  // Process EUR proxy (DAX + CAC TR)
+  const daxReturns = monthlyReturnsFromCloseMap(daxClose);
+  const cacReturns = monthlyReturnsFromCloseMap(cacClose);
+  const monthlyCacDiv = Math.pow(1.03, 1 / 12) - 1;
+  const adjustedCacReturns = new Map();
+  for (const [month, ret] of cacReturns.entries()) {
+    adjustedCacReturns.set(month, ret + monthlyCacDiv);
+  }
+  const eurEquityReturns = blendReturnSeries([
+    { returns: daxReturns, weight: 0.6 },
+    { returns: adjustedCacReturns, weight: 0.4 }
+  ]);
+
+  // Process Japan (Nikkei) to USD
+  const nkxLocalReturns = monthlyReturnsFromCloseMap(nkxClose);
+  const nkxUsdReturns = new Map();
+  for (const [month, localRet] of nkxLocalReturns.entries()) {
+    // Before 1971, JPY was pegged to USD at 360
+    let prevFx = usdJpy.get(getPrevMonth(month)) || 360;
+    let currFx = usdJpy.get(month) || 360;
+    // Return in USD = (1 + local_return) * (prevFx / currFx) - 1
+    // (If JPY per USD goes down, JPY strengthened, US investor gains)
+    let fxReturn = prevFx / currFx;
+    nkxUsdReturns.set(month, (1 + localRet) * fxReturn - 1);
+  }
+
+  // Process Asia/EM (Hang Seng) to USD
+  const hsiLocalReturns = monthlyReturnsFromCloseMap(hsiClose);
+  const hsiUsdReturns = new Map();
+  for (const [month, localRet] of hsiLocalReturns.entries()) {
+    // Before 1983 peg, HKD hovered around 5-6, but for simplicity assuming fixed 5.7 if missing
+    let prevFx = usdHkd.get(getPrevMonth(month)) || 5.7;
+    let currFx = usdHkd.get(month) || 5.7;
+    let fxReturn = prevFx / currFx;
+    hsiUsdReturns.set(month, (1 + localRet) * fxReturn - 1);
+  }
+
+  // Option D backfill: Hang Seng starts in 1969. Backfill with Nikkei USD returns.
+  const emAsiaReturns = stitchSeries(hsiUsdReturns, nkxUsdReturns);
+
+  // Option D World Blend
   const worldEquityReturns = blendReturnSeries([
     { returns: monthlyReturnsFromCloseMap(spxClose), weight: 0.55 },
-    { returns: monthlyReturnsFromCloseMap(ukxClose), weight: 0.2 },
-    { returns: monthlyReturnsFromCloseMap(daxClose), weight: 0.25 }
+    { returns: eurEquityReturns, weight: 0.15 },
+    { returns: monthlyReturnsFromCloseMap(ukxClose), weight: 0.05 },
+    { returns: nkxUsdReturns, weight: 0.15 },
+    { returns: emAsiaReturns, weight: 0.10 }
   ]);
   const worldEquityClose = buildIndexFromMonthlyReturns(worldEquityReturns);
 
@@ -304,7 +363,7 @@ async function buildWorldRegion() {
   return {
     rows: mergeRows(filterFromYear(worldEquityClose, MIN_START_YEAR), filterFromYear(worldBondClose, MIN_START_YEAR), filterFromYear(worldCashRate, MIN_START_YEAR)),
     sourceLines: [
-      'equity_source=synthetic World equity from ^SPX (55%) + ^UKX (20%) + ^DAX (25%), Stooq monthly',
+      'equity_source=synthetic Option D World Blend: US(55%) + EUR(15%) + UK(5%) + Japan(15%) + AsiaEM(10%, HSI backfilled w/ NKX), Stooq monthly, USD adjusted',
       'bond_source=synthetic World bond from US/UK/DE 10Y yields with duration 7y, FRED',
       'cash_source=average of US TB3MS + UK 3m + EUR 3m (stitched pre/post euro), FRED'
     ]

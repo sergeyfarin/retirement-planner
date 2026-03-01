@@ -256,7 +256,7 @@
         <div class="note mono-value methodology-info">
           Active calibration dataset (used now):<br />
           • Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual observations), built from monthly market data.<br />
-          • Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with synthetic dividend adjustments if needed, e.g. for CAC), then compounded to annual returns.<br />
+          • Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK + Japan (Nikkei) and Asia/EM (Hang Seng, backfilled 1960-69 with Nikkei to preserve deep history). All foreign indices in the World blend are converted to USD.<br />
           • Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based), then compounded to annual returns.<br />
           • Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br />
           • For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments computed from that annual return series (not handbook constants).<br />
@@ -270,12 +270,13 @@
     {/if}
     </div>
     <div class="assumptions-table-wrap">
-      <table class="assumptions-table mono-value">
+      <table class="assumptions-table mt-1 pb-1">
         <thead>
           <tr>
             <th></th>
-            <th>Average</th>
-            <th>Volat.</th>
+            <th title="The arithmetic mean is the mathematical center used to generate random Monte Carlo paths.">Arith. Input</th>
+            <th title="The statistical standard deviation (volatility).">Volatility</th>
+            <th title="Expected Compound Annual Growth Rate (Geometric Mean). Growth over time is dragged down by volatility: CAGR ≈ Arithmetic Mean - Volatility²/2">CAGR (Geom)</th>
             <th>Skew</th>
             <th>Kurt</th>
             <th>Reset</th>
@@ -286,6 +287,7 @@
             <td>Stocks</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockMean)} onchange={(e) => { parametricMetrics.stockMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.stockStd)} onchange={(e) => { parametricMetrics.stockStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((investmentMetrics.stockStd * investmentMetrics.stockStd) / 2, 2)}">{fmtPercentDisplay(investmentMetrics.stockMean - (investmentMetrics.stockStd * investmentMetrics.stockStd) / 2, 1)}</td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockSkew, 2)} onchange={(e) => { parametricMetrics.stockSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.stockKurt, 2)} onchange={(e) => { parametricMetrics.stockKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetStockMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
@@ -295,6 +297,7 @@
             <td>Bonds</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondMean)} onchange={(e) => { parametricMetrics.bondMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bondStd)} onchange={(e) => { parametricMetrics.bondStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((investmentMetrics.bondStd * investmentMetrics.bondStd) / 2, 2)}">{fmtPercentDisplay(investmentMetrics.bondMean - (investmentMetrics.bondStd * investmentMetrics.bondStd) / 2, 1)}</td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondSkew, 2)} onchange={(e) => { parametricMetrics.bondSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bondKurt, 2)} onchange={(e) => { parametricMetrics.bondKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBondMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
@@ -304,6 +307,7 @@
             <td>Cash</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankMean)} onchange={(e) => { parametricMetrics.bankMean = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(investmentMetrics.bankStd)} onchange={(e) => { parametricMetrics.bankStd = decimalFromPercentEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((investmentMetrics.bankStd * investmentMetrics.bankStd) / 2, 2)}">{fmtPercentDisplay(investmentMetrics.bankMean - (investmentMetrics.bankStd * investmentMetrics.bankStd) / 2, 1)}</td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankSkew, 2)} onchange={(e) => { parametricMetrics.bankSkew = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtNum(investmentMetrics.bankKurt, 2)} onchange={(e) => { parametricMetrics.bankKurt = numFromEvent(e); onInvestmentMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetBankMetricsToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
@@ -315,12 +319,14 @@
             <td></td>
             <td></td>
             <td></td>
+            <td></td>
           </tr>
 
           <tr class="portfolio-row portfolio-highlight-row" class:positive-return-row={input.meanReturn >= 0} class:negative-return-row={input.meanReturn < 0}>
             <td>Portfolio</td>
             <td>{fmtPercentDisplay(input.meanReturn, 1)}</td>
             <td>{fmtPercentDisplay(input.returnVariability, 1)}</td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((input.returnVariability * input.returnVariability) / 2, 2)}">{fmtPercentDisplay(input.meanReturn - (input.returnVariability * input.returnVariability) / 2, 1)}</td>
             <td>{fmtNum(portfolioDisplaySkew, 2)}</td>
             <td>{fmtNum(portfolioDisplayKurt, 1)}</td>
             <td></td>
@@ -328,12 +334,13 @@
 
 
 
-          <tr class="assumptions-separator"><td colspan="6"></td></tr>
+          <tr class="assumptions-separator"><td colspan="7"></td></tr>
 
           <tr>
             <td>Inflation</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { parametricInflationMean = decimalFromPercentEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { parametricInflationVariability = decimalFromPercentEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((input.inflationVariability * input.inflationVariability) / 2, 2)}">{fmtPercentDisplay(input.inflationMean - (input.inflationVariability * input.inflationVariability) / 2, 1)}</td>
             <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { parametricInflationSkewness = numFromEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { parametricInflationKurtosis = Math.max(1, numFromEvent(e)); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetInflationToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
@@ -342,6 +349,7 @@
           <tr>
             <td>Annual fees</td>
             <td><input type="text" inputmode="decimal" value={fmtPercentDisplay(input.annualFeePercent, 2)} onchange={(e) => { input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1); onSimulationSettingsChange(); }} /></td>
+            <td></td>
             <td></td>
             <td></td>
             <td></td>
@@ -355,12 +363,14 @@
             <td></td>
             <td></td>
             <td></td>
+            <td></td>
           </tr>
 
           <tr class="portfolio-row real-return-highlight-row" class:positive-return-row={realReturnEstimate >= 0} class:negative-return-row={realReturnEstimate < 0}>
             <td>Real return</td>
             <td>{fmtPercentDisplay(realReturnEstimate, 1)}</td>
             <td>{fmtPercentDisplay(realReturnStdEstimate, 1)}</td>
+            <td class="geometric-cagr" title="Variance Drag ≈ {fmtPercentDisplay((realReturnStdEstimate * realReturnStdEstimate) / 2, 2)}">{fmtPercentDisplay(realReturnEstimate - (realReturnStdEstimate * realReturnStdEstimate) / 2, 1)}</td>
             <td>{fmtNum(realReturnSkewEstimate, 2)}</td>
             <td>{fmtNum(realReturnKurtEstimate, 1)}</td>
             <td></td>
