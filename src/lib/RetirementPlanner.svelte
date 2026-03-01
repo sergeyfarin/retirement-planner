@@ -1154,27 +1154,37 @@
     return clamp(calcNormalCdf(z), 0, 1);
   })();
   $: realReturnCdfXTicks = (() => {
-    const sortedPoints = [...realReturnPercentiles].filter(p => p.label !== 'P50').sort((a, b) => a.value - b.value);
-    const merged: { value: number; labels: string[] }[] = [];
+    // Generate base percentile ticks
+    const basePercentiles = [...realReturnPercentiles]
+      .filter(p => p.label !== 'P50')
+      .map(p => ({ value: p.value, labels: [p.label], color: p.value > 0 ? '#16a34a' : p.value < 0 ? '#dc2626' : '#475569' }));
 
-    for (const point of sortedPoints) {
+    // Inject the calculated Geometric CAGR as a special tick
+    const geometricCagr = realReturnEstimate - (realReturnStdEstimate * realReturnStdEstimate) / 2;
+    const allPoints = [...basePercentiles];
+    
+    // Only inject CAGR tick if there is actual variance to drag it away from the Arithmetic Mean
+    if (realReturnStdEstimate > 1e-9) {
+      allPoints.push({ 
+        value: geometricCagr, 
+        labels: ['CAGR'], 
+        color: geometricCagr > 0 ? '#16a34a' : geometricCagr < 0 ? '#dc2626' : '#475569' 
+      });
+    }
+
+    allPoints.sort((a, b) => a.value - b.value);
+    const merged: { value: number; labels: string[]; color: string }[] = [];
+
+    for (const point of allPoints) {
       const existing = merged.find((entry) => Math.abs(entry.value - point.value) < 0.001);
       if (existing) {
-        existing.labels.push(point.label);
+        existing.labels.push(...point.labels);
       } else {
-        merged.push({ value: point.value, labels: [point.label] });
+        merged.push({ value: point.value, labels: [...point.labels], color: point.color });
       }
     }
 
-    const zeroTick = merged.find((entry) => Math.abs(entry.value) < 0.001);
-    const zeroPercentileLabel = `P${Math.round(zeroReturnPercentile * 100)}`;
-    if (zeroTick) {
-      if (!zeroTick.labels.includes(zeroPercentileLabel)) {
-        zeroTick.labels = [...zeroTick.labels, zeroPercentileLabel];
-      }
-    } else {
-      merged.push({ value: 0, labels: [zeroPercentileLabel] });
-    }
+    // 0-tick is now moved to the top axis, so we don't inject it into the bottom merged array anymore.
 
     merged.sort((a, b) => a.value - b.value);
 
@@ -1196,11 +1206,10 @@
 
     return merged.map((entry) => {
       const bottomLabel = entry.labels.join('/');
-      const isZeroTick = Math.abs(entry.value) < 0.001;
       return {
         value: entry.value,
-        label: isZeroTick ? `0<br>${bottomLabel}` : `${fmtSignedPercent(entry.value, 1)}<br>${bottomLabel}`,
-        color: entry.value > 0 ? '#16a34a' : entry.value < 0 ? '#dc2626' : '#475569'
+        label: `${fmtSignedPercent(entry.value, 1)}<br>${bottomLabel}`,
+        color: entry.color
       };
     });
   })();
@@ -1212,17 +1221,28 @@
       { sig: '-1σ', z: -1, p: 0.15865 },
       { sig: 'Mean', z: 0, p: 0.50 },
       { sig: '+1σ', z: 1, p: 0.84135 },
-      { sig: '+2σ', z: 2, p: 0.97725 }
+      { sig: '+2σ', z: 2, p: 0.97725 },
+      { sig: '0%', z: (0 - realReturnEstimate) / realReturnStdEstimate, p: zeroReturnPercentile }
     ];
     return topPoints.map(pt => {
       const value = realReturnEstimate + pt.z * realReturnStdEstimate;
-      const pLabel = pt.z === 0 ? 'P50' : `P${Math.round(pt.p * 100)}`;
-      const valLabel = fmtSignedPercent(value, 1);
+      
+      let pLabel = `P${Math.round(pt.p * 100)}`;
+      let valLabel = fmtSignedPercent(value, 1);
+      let sigLabel = pt.sig;
+      
+      if (pt.sig === 'Mean') {
+        pLabel = 'Arith.';
+      } else if (pt.sig === '0%') {
+        sigLabel = '';
+        valLabel = '0%';
+      }
+      
       const color = value > 0 ? '#16a34a' : value < 0 ? '#dc2626' : '#475569';
       return {
         value,
         color,
-        label: `${pt.sig}<br>${pLabel}<br>${valLabel}`
+        label: `${sigLabel}<br>${pLabel}<br>${valLabel}`
       };
     });
   })();
