@@ -54,10 +54,14 @@ pub struct RuinSurface {
 #[serde(rename_all = "camelCase")]
 pub struct SummaryStats {
     pub fi_target: f64,
+    #[serde(rename = "fiTargetSWR")]
     pub fi_target_swr: f64,
+    #[serde(rename = "fiTargetP95")]
     pub fi_target_p95: f64,
     pub success_probability: f64,
+    #[serde(rename = "fiProbabilitySWR")]
     pub fi_probability_swr: f64,
+    #[serde(rename = "fiProbabilityP95")]
     pub fi_probability_p95: f64,
     pub return_moments: ReturnMoments,
     pub sequence_risk: Vec<SequenceRiskBucket>,

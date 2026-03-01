@@ -152,7 +152,7 @@
 					<div class="table-header">
 						<span>Income sources</span><span>From</span><span>To</span><span>Yearly</span><span
 							class="inflation-cell"
-							title="Inflation-adjusted">Infl</span
+							title="Inflation-adjusted">Infl<br />adj.</span
 						><span></span>
 					</div>
 					{#each incomeSources as src (src.id)}
@@ -213,7 +213,7 @@
 					<div class="table-header">
 						<span>Expenses</span><span>From</span><span>To</span><span>Yearly</span><span
 							class="inflation-cell"
-							title="Inflation-adjusted">Infl</span
+							title="Inflation-adjusted">Infl<br />adj.</span
 						><span></span>
 					</div>
 					{#each spendingPeriods as period (period.id)}
@@ -362,18 +362,18 @@
 	</div>
 
 	<div class="card">
-		<div class="assumptions-titlebar">
+		<!-- <div class="assumptions-titlebar">
 			<h3>Assumptions</h3>
 			<button
 				class="assumptions-reset-btn"
 				type="button"
 				onclick={resetAssumptionsToCurrencyDefaults}>Reset to currency defaults</button
 			>
-		</div>
+		</div> -->
 
 		<div>
 			<div class="simulation-mode-wrap mb-4">
-				<div class="block mb-2 font-semibold">Simulation mode</div>
+				<div class="block mb-2 font-semibold">Simulation mode and assumptions</div>
 				<div class="mode-toggle-group" role="group" aria-label="Simulation mode selection">
 					<button
 						type="button"
@@ -386,7 +386,7 @@
 						}}
 						aria-pressed={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
 					>
-						Historical
+						Historical<br />Data Sampling
 					</button>
 					<button
 						type="button"
@@ -399,7 +399,7 @@
 						}}
 						aria-pressed={input.simulationMode === 'historical' && input.historicalMomentTargeting}
 					>
-						Historical (Targeted)
+						Historical <br />(with Adjustments)
 					</button>
 					<button
 						type="button"
@@ -412,15 +412,14 @@
 						}}
 						aria-pressed={input.simulationMode === 'parametric'}
 					>
-						Parametric
+						Parametric<br />(User Inputs)
 					</button>
 				</div>
 			</div>
 			{#if selectedHistoricalRegion}
 				<p class="note mono-value">
 					Historical market dataset loaded:<br />
-					{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage}, {selectedHistoricalRegion.sampleSize}
-					annual observations)
+					{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage} of monthly data)
 					<button
 						type="button"
 						class="inline-link"

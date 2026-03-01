@@ -55,10 +55,13 @@ src/lib/
     PlannerSecondaryPlot.svelte    ← Ruin surface heatmap + sequence risk chart
 ```
 
-### Dual-Execution Pipeline
+### Execution Pipeline
 
-1. **Live Preview (Synchronous, main thread):** When any input changes, a lightweight ~400-path simulation runs in <5ms to instantly update charts using the TypeScript engine. Keeps the UI feeling snappy.
-2. **Full Simulation (Asynchronous Web Worker):** When the user clicks "Run Monte Carlo", a `RUN_SIMULATION` message is sent to the Worker. The Worker initializes the WASM module via `init()`, then invokes `run_monte_carlo()` with a **progress callback** that reports ~10 incremental updates during execution. The Rust engine executes over contiguous heap memory, uses **reservoir sampling** (K=5000 per month) to cap memory at ~28 MB regardless of simulation count, and structured-clones only the final ~2 KB `SummaryStats` payload back to the UI.
+The application relies entirely on the high-performance Web Worker for all simulations, prioritizing precision over noisy live previews:
+
+1. **Initial Baseline Run:** On load, a 60,000-path baseline simulation runs automatically to populate the charts using the Rust engine.
+2. **Stale State Protection:** When any input changes, the UI charts gray out (stale state) and a warning banner appears. This explicitly prevents confusion from stale data while avoiding the extreme statistical noise (±30% jumps in ending balance) typical of small-sample "live" previews.
+3. **Full Simulation:** The user clicks "Run Monte Carlo" to trigger a new simulation. The Web Worker initializes the WASM module via `init()`, invokes `run_monte_carlo()` with a **progress callback** (~10 incremental updates), executes over contiguous heap memory without garbage collection, and structured-clones only the final ~2 KB `SummaryStats` payload back to the UI.
 
 All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$derived`, `$bindable`).
 

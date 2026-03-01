@@ -14,7 +14,7 @@ All Phase 1 Performance issues have been successfully resolved via the **Rust We
 - **Growth factor cap** at 800 rows for ruin surface replay (~4 MB)
 - `#[serde(rename_all = "camelCase")]` on all output structs for seamless JS interop
 - `server.fs.allow` + `optimizeDeps.exclude` in Vite config for correct WASM module serving
-- Preview reactivity guard (`resultStage === 'final'`) prevents overwriting worker results
+- Replaced noisy 400-sim live preview with a **stale state protection flow**, keeping results accurate while preserving UI clarity
 
 ---
 
