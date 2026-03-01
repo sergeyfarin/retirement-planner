@@ -608,7 +608,7 @@ Focus: optional enhancements for power users.
 
 | # | Task | Effort | Files |
 |---|---|---|---|
-| 4.1 | **Web Worker** — move `runMonteCarloSimulation` to a Web Worker. Post input, receive result. Show progress bar. | M | new `retirementWorker.ts`, `RetirementPlanner.svelte` |
+| 4.1 | **Web Worker** — ✅ Implemented. Moved `runMonteCarloSimulation` into a Vite `?worker`. The main thread passes serialized inputs and receives results asynchronously. This completely eliminates UI freezing during heavy 40,000+ simulation runs. *Note: this required completing a partial `$state` / `$derived` Svelte 5 runes migration in `RetirementPlanner.svelte` as the Vite worker plugin enforces strict mode.* | M | `retirementWorker.ts`, `workerHelper.ts`, `RetirementPlanner.svelte` |
 | 4.2 | **Dynamic spending (Guyton-Klinger guardrails)** — add an optional spending strategy: cut spending by 10% if portfolio drops below 80% of initial; raise by 10% if above 120%. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 | 4.3 | **Mortality-weighted ruin** — optionally draw a death age from a life table (e.g., WHO period life table). Report "probability of ruin before death" instead of "ruin at fixed age." | M | `retirementEngine.ts`, new `mortalityTable.ts` |
 | 4.4 | **Two-bucket tax model** — allow users to specify % of savings in tax-advantaged vs taxable accounts, with different drag rates per bucket. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
