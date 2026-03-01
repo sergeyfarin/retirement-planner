@@ -697,7 +697,14 @@ export function runMonteCarloSimulation(
 
   const spendingAtRetirement = spendingAtAge(input.retirementAge, spendingPeriods);
 
-  const inflationCrisisSpread = input.inflationCrisisSpread ?? 0.015;
+  const growthProb = getGrowthStationaryProbability(stayGrowth, stayCrisis);
+  const crisisProb = 1 - growthProb;
+  const requestedInflationSpread = input.inflationCrisisSpread ?? 0.015;
+  const maxInflationSpread = Math.sqrt((input.inflationVariability ** 2) / (growthProb * crisisProb));
+  const effectiveInflationSpread = Math.min(requestedInflationSpread, maxInflationSpread * 0.8);
+  const growthInflationMean = input.inflationMean - crisisProb * effectiveInflationSpread;
+  const crisisInflationMean = input.inflationMean + growthProb * effectiveInflationSpread;
+
   const blockLength = input.blockLength ?? 6;
 
   for (let sim = 0; sim < simCount; sim++) {
@@ -777,7 +784,7 @@ export function runMonteCarloSimulation(
       const monthlyPortfolioGrowthFactor = (1 + monthlyAssetReturnAfterTax) * monthlyFeeFactor;
       const monthlyPortfolioReturnAfterCosts = monthlyPortfolioGrowthFactor - 1;
 
-      const effectiveInflationMean = input.inflationMean + (regimeState === 1 ? inflationCrisisSpread : 0);
+      const effectiveInflationMean = regimeState === 0 ? growthInflationMean : crisisInflationMean;
       const monthlyInflation = drawMonthlyReturnShaped(
         effectiveInflationMean,
         input.inflationVariability,

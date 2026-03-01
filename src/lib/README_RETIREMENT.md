@@ -586,7 +586,7 @@ Focus: improve the realism of the return-generation path.
 | 2.2 | **Regime-conditioned inflation** — ✅ Implemented completely. In crisis regime, inflation mean shifts upward by a configurable spread (default +1.5pp). Drawn from the regime-conditioned distribution. | S | `retirementEngine.ts` |
 | 2.3 | **Replace shaped-normal with Cornish-Fisher** — ✅ Implemented completely. Replaced `drawShapedStandardScore` with 4-term Cornish-Fisher expansion `drawCornishFisherScore` for the parametric fallback path. Added a calibration test comparing realized vs target moments. | S | `retirementEngine.ts`, `retirementEngine.test.ts` |
 | 2.4 | **Bond convexity term** — ✅ Implemented completely. In `monthlyBondReturnsFromYield`, added $+\frac{1}{2}D(D+1)(\Delta y)^2$ convexity correction. Regenerated world market datasets. | S | `import-retirement-market-data.mjs` |
-| 2.5 | **Moment-targeted historical mode** — in `Historical bootstrapping` mode, apply affine moment targeting to sampled returns so simulation mean/vol aligns with user-adjusted assumptions while preserving historical sequence structure. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
+| 2.5 | **Moment-targeted historical mode** — ✅ Implemented completely. Wired a `historicalMomentTargeting` toggle into Svelte so users can optionally unlock parametric inputs in Historical Mode, allowing the engine's `applyMomentTargeting` affine transformation to shift empirical sequences to custom bounds. | M | `retirementEngine.ts`, `RetirementPlanner.svelte` |
 
 **Checkpoint:** historical mode preserves sequence realism and can optionally match user targets; parametric mode remains fully assumption-driven.
 

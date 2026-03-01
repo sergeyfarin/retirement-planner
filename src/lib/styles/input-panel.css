@@ -276,7 +276,7 @@ button.assumptions-reset-btn:hover:not(:disabled) {
 
 .real-return-cdf {
   width: 100%;
-  height: 118px;
+  height: 160px;
   display: block;
   border-radius: 6px;
   background: rgba(248, 250, 252, 0.55);

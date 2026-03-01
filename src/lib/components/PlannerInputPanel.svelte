@@ -45,6 +45,8 @@
   export let onStockBoundaryChange: () => void;
   export let onBondBoundaryChange: () => void;
   export let onInvestmentMetricChange: () => void;
+  export let onInflationMetricChange: () => void;
+  export let onSimulationSettingsChange: () => void;
   export let resetAssumptionsToCurrencyDefaults: () => void;
   export let resetStockMetricsToDefault: () => void;
   export let resetBondMetricsToDefault: () => void;
@@ -207,34 +209,35 @@
     <div>
     <div class="simulation-mode-wrap mb-4">
       <div class="block mb-2 font-semibold">Simulation mode</div>
-      <div class="currency-switch mode-switch" role="group" aria-label="Simulation mode selection">
+      <div class="mode-toggle-group" role="group" aria-label="Simulation mode selection">
         <button
           type="button"
-          class="currency-btn"
-          class:active={input.simulationMode === 'historical'}
-          onclick={() => { input.simulationMode = 'historical'; }}
-          aria-pressed={input.simulationMode === 'historical'}
+          class="btn-mode"
+          class:active={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
+          onclick={() => { input.simulationMode = 'historical'; input.historicalMomentTargeting = false; onSimulationSettingsChange(); }}
+          aria-pressed={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
         >
-          <span>Historical bootstrapping</span>
+          Historical
         </button>
         <button
           type="button"
-          class="currency-btn"
+          class="btn-mode"
+          class:active={input.simulationMode === 'historical' && input.historicalMomentTargeting}
+          onclick={() => { input.simulationMode = 'historical'; input.historicalMomentTargeting = true; onSimulationSettingsChange(); }}
+          aria-pressed={input.simulationMode === 'historical' && input.historicalMomentTargeting}
+        >
+          Historical (Targeted)
+        </button>
+        <button
+          type="button"
+          class="btn-mode"
           class:active={input.simulationMode === 'parametric'}
-          onclick={() => { input.simulationMode = 'parametric'; }}
+          onclick={() => { input.simulationMode = 'parametric'; input.historicalMomentTargeting = false; onSimulationSettingsChange(); }}
           aria-pressed={input.simulationMode === 'parametric'}
         >
-          <span>Parametric</span>
+          Parametric
         </button>
       </div>
-      {#if input.simulationMode === 'historical'}
-        <div class="mt-3 text-sm opacity-90">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" bind:checked={input.historicalMomentTargeting} />
-            <span>Override historical moments (Targeting)</span>
-          </label>
-        </div>
-      {/if}
     </div>
       {#if selectedHistoricalRegion}
       <p class="note mono-value">
@@ -329,10 +332,10 @@
 
           <tr>
             <td>Inflation</td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { parametricInflationMean = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { parametricInflationVariability = decimalFromPercentEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { parametricInflationSkewness = numFromEvent(e); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
-            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { parametricInflationKurtosis = Math.max(1, numFromEvent(e)); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationMean)} onchange={(e) => { parametricInflationMean = decimalFromPercentEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationVariability)} onchange={(e) => { parametricInflationVariability = decimalFromPercentEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationSkewness, 2)} onchange={(e) => { parametricInflationSkewness = numFromEvent(e); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
+            <td><input type="text" inputmode="decimal" value={fmtNum(input.inflationKurtosis, 2)} onchange={(e) => { parametricInflationKurtosis = Math.max(1, numFromEvent(e)); onInflationMetricChange(); }} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting} /></td>
             <td><button type="button" class="assumptions-reset-cell-btn" onclick={resetInflationToDefault} disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}>Reset</button></td>
           </tr>
 
@@ -370,6 +373,25 @@
       <div class="real-return-cdf" bind:this={realReturnCdfEl} role="img" aria-label="Real return cumulative probability plot"></div>
     </div>
   </div>
+  <details class="card mt-4 mb-2">
+    <summary class="font-semibold cursor-pointer select-none" style="outline: none;">Advanced tuning</summary>
+    <div class="mt-3 pt-3 border-t border-slate-200">
+      <div class="mb-3">
+        <label for="adv-block-length" class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Bootstrap Block Length (Months)</label>
+        <div class="flex items-center gap-2">
+          <input id="adv-block-length" type="number" min="1" max="120" step="1" bind:value={input.blockLength} oninput={onSimulationSettingsChange} class="w-16 text-center" />
+          <span class="text-xs text-slate-500 opacity-80 leading-tight">Length of historical sequences drawn during block bootstrapping.</span>
+        </div>
+      </div>
+      <div>
+        <label for="adv-crisis-jump" class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Crisis Inflation Jump</label>
+        <div class="flex items-center gap-2">
+          <input id="adv-crisis-jump" type="text" inputmode="decimal" value={fmtPercentInputSig3(input.inflationCrisisSpread ?? 0.015)} onchange={(e) => { input.inflationCrisisSpread = Math.max(0, decimalFromPercentEvent(e)); onSimulationSettingsChange(); }} class="w-16 text-center" />
+          <span class="text-xs text-slate-500 opacity-80 leading-tight">Absolute percentage jump applied to inflation baseline during an economic Crisis.</span>
+        </div>
+      </div>
+    </div>
+  </details>
 
   {#if errorMessage}
     <div class="error">{errorMessage}</div>

@@ -831,6 +831,8 @@
     inflationKurtosis: DEFAULT_KURTOSIS,
     annualFeePercent: DEFAULT_ANNUAL_FEE_PERCENT,
     taxOnGainsPercent: DEFAULT_TAX_ON_GAINS_PERCENT,
+    blockLength: 6,
+    inflationCrisisSpread: 0.015,
     safeWithdrawalRate: 0.04,
     simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
     regimeModel: buildRegimeModelFromPortfolio(
@@ -843,7 +845,7 @@
     historicalAnnualReturns: undefined
   };
 
-  function onInvestmentMetricChange() {
+  async function onInvestmentMetricChange() {
     parametricMetrics = {
       ...parametricMetrics,
       stockStd: Math.max(0, parametricMetrics.stockStd),
@@ -853,6 +855,21 @@
       bankStd: Math.max(0, parametricMetrics.bankStd),
       bankKurt: Math.max(1, parametricMetrics.bankKurt)
     };
+    await tick();
+    applyInvestmentAllocationMetrics();
+  }
+
+  async function onInflationMetricChange() {
+    parametricInflationVariability = Math.max(0, parametricInflationVariability);
+    parametricInflationKurtosis = Math.max(1, parametricInflationKurtosis);
+    await tick();
+    applyInvestmentAllocationMetrics();
+  }
+
+  async function onSimulationSettingsChange() {
+    // Await Svelte 4 logic so that `$:` reactive derivations 
+    // for activeMetrics fully resolve before flushing input properties to monte carlo engine
+    await tick();
     applyInvestmentAllocationMetrics();
   }
 
@@ -1137,7 +1154,7 @@
     return clamp(calcNormalCdf(z), 0, 1);
   })();
   $: realReturnCdfXTicks = (() => {
-    const sortedPoints = [...realReturnPercentiles].sort((a, b) => a.value - b.value);
+    const sortedPoints = [...realReturnPercentiles].filter(p => p.label !== 'P50').sort((a, b) => a.value - b.value);
     const merged: { value: number; labels: string[] }[] = [];
 
     for (const point of sortedPoints) {
@@ -1161,6 +1178,22 @@
 
     merged.sort((a, b) => a.value - b.value);
 
+    // If 0 gets too close to an adjacent tick (e.g. less than 1.5% distance), visually stagger its label
+    const minVisualDistancePct = 0.015;
+    for (let i = 0; i < merged.length; i++) {
+      const current = merged[i];
+      const prev = i > 0 ? merged[i - 1] : null;
+      const next = i < merged.length - 1 ? merged[i + 1] : null;
+      
+      const distToPrev = prev ? Math.abs(current.value - prev.value) : Infinity;
+      const distToNext = next ? Math.abs(next.value - current.value) : Infinity;
+
+      // Only stagger the exactly 0 tick if it's crowded
+      if (Math.abs(current.value) < 0.001 && (distToPrev < minVisualDistancePct || distToNext < minVisualDistancePct)) {
+         current.labels = current.labels.map(l => `<span style="display:inline-block; transform:translateY(12px)">${l}</span>`);
+      }
+    }
+
     return merged.map((entry) => {
       const bottomLabel = entry.labels.join('/');
       const isZeroTick = Math.abs(entry.value) < 0.001;
@@ -1168,6 +1201,28 @@
         value: entry.value,
         label: isZeroTick ? `0<br>${bottomLabel}` : `${fmtSignedPercent(entry.value, 1)}<br>${bottomLabel}`,
         color: entry.value > 0 ? '#16a34a' : entry.value < 0 ? '#dc2626' : '#475569'
+      };
+    });
+  })();
+
+  $: realReturnCdfXTicksTop = (() => {
+    if (realReturnStdEstimate <= 1e-9) return [];
+    const topPoints = [
+      { sig: '-2σ', z: -2, p: 0.02275 },
+      { sig: '-1σ', z: -1, p: 0.15865 },
+      { sig: 'Mean', z: 0, p: 0.50 },
+      { sig: '+1σ', z: 1, p: 0.84135 },
+      { sig: '+2σ', z: 2, p: 0.97725 }
+    ];
+    return topPoints.map(pt => {
+      const value = realReturnEstimate + pt.z * realReturnStdEstimate;
+      const pLabel = pt.z === 0 ? 'P50' : `P${Math.round(pt.p * 100)}`;
+      const valLabel = fmtSignedPercent(value, 1);
+      const color = value > 0 ? '#16a34a' : value < 0 ? '#dc2626' : '#475569';
+      return {
+        value,
+        color,
+        label: `${pt.sig}<br>${pLabel}<br>${valLabel}`
       };
     });
   })();
@@ -1393,6 +1448,7 @@
       {
         x: percentileValues,
         y: percentileProbabilities,
+        xaxis: 'x2',
         type: 'scatter',
         mode: 'lines',
         line: { color: '#334155', width: 1.3 },
@@ -1402,6 +1458,7 @@
       {
         x: percentileValues,
         y: percentileProbabilities,
+        xaxis: 'x2',
         type: 'scatter',
         mode: 'markers',
         marker: {
@@ -1415,8 +1472,8 @@
     ];
 
     const layout = {
-      height: 128,
-      margin: { t: 6, l: 8, r: 8, b: 40 },
+      height: 176,
+      margin: { t: 44, l: 8, r: 8, b: 40 },
       showlegend: false,
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'rgba(248,250,252,0.55)',
@@ -1428,6 +1485,22 @@
         tickmode: 'array',
         tickvals: realReturnCdfXTicks.map((tick) => tick.value),
         ticktext: realReturnCdfXTicks.map((tick) => `<span style="color:${tick.color};font-weight:700">${tick.label}</span>`),
+        tickfont: { size: 9, family: "'JetBrains Mono', monospace", color: '#64748b' },
+        tickangle: 0,
+        range: [realReturnCdfMin - realReturnCdfSpan * 0.04, realReturnCdfMax + realReturnCdfSpan * 0.04],
+        fixedrange: true,
+        zeroline: false
+      },
+      xaxis2: {
+        overlaying: 'x',
+        side: 'top',
+        showgrid: false,
+        ticks: 'inside',
+        ticklen: 4,
+        tickcolor: '#94a3b8',
+        tickmode: 'array',
+        tickvals: realReturnCdfXTicksTop.map((tick) => tick.value),
+        ticktext: realReturnCdfXTicksTop.map((tick) => `<span style="color:${tick.color};font-weight:700">${tick.label}</span>`),
         tickfont: { size: 9, family: "'JetBrains Mono', monospace", color: '#64748b' },
         tickangle: 0,
         range: [realReturnCdfMin - realReturnCdfSpan * 0.04, realReturnCdfMax + realReturnCdfSpan * 0.04],
@@ -1451,7 +1524,8 @@
           x1: 0,
           y0: 0,
           y1: 1,
-          line: { color: '#334155', width: 1, dash: '2px,3px' }
+          line: { color: '#334155', width: 1, dash: '2px,3px' },
+          layer: 'below'
         }
       ],
       font: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#475569' },
@@ -1520,6 +1594,8 @@
     {onStockBoundaryChange}
     {onBondBoundaryChange}
     {onInvestmentMetricChange}
+    {onInflationMetricChange}
+    {onSimulationSettingsChange}
     {resetAssumptionsToCurrencyDefaults}
     {resetStockMetricsToDefault}
     {resetBondMetricsToDefault}
