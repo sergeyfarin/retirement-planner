@@ -1667,7 +1667,8 @@
 			incomeSources
 				.map((s) => `${s.fromAge}:${s.toAge}:${s.yearlyAmount}:${s.inflationAdjusted ? 1 : 0}`)
 				.join('|'),
-			lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|')
+			lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|'),
+			input.simulations
 		].join('::')
 	);
 
