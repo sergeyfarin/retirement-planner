@@ -78,6 +78,12 @@ All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$d
 | **EUR** | 60% DAX TR + 40% CAC (adjusted +3% synthetic annual dividend) | Synthetic DE 10Y total return (`IRLTLT01DEM156N`), duration 7y | EZ 3m interbank stitched with DE pre-euro |
 | **WORLD** | 55% US + 15% EUR + 5% UK + 15% Japan (`^NKX`) + 10% Asia/EM (`^HSI`, backfilled 1960–69 with NKX). All converted to USD. | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
 
+> ⚠️ **Known data-quality issue (TODO 0.1):** `^SPX` and `^UKX` are *price* indices —
+> dividends are **not** included, understating US/GBP equity returns by roughly
+> 2.5–3.5%/yr, while the EUR proxy is approximately total-return (DAX TR + CAC with a
+> synthetic +3% yield). Until fixed, USD/GBP results are systematically pessimistic and
+> regions are not directly comparable. See `TODO.md` Priority 0.
+
 ### 3.2 Bond Total Return Synthesis
 
 Monthly bond returns are computed from yield changes using a duration + convexity model:
@@ -197,6 +203,9 @@ for each month m in [0 .. totalMonths):
 - **Spending periods**: `[fromAge, toAge)`, yearly amount, `inflationAdjusted` flag (default: true)
   - Inflation-adjusted: used at face value in real terms
   - Nominal: divided by $E[\text{inflation index}] = (1 + \mu_{inf})^{age - currentAge}$
+  - ⚠️ Nominal items are deflated by the **expected**, not the per-path realized,
+    inflation index — so a fixed nominal pension does not erode faster in a simulated
+    high-inflation path. See `TODO.md` 0.3.
 - **Income sources**: identical structure; default salary `[currentAge, retirementAge)`, default pension `[67, simulateUntilAge)`
 - **Lump-sum events**: one-time addition/subtraction at a specific age
 
@@ -206,6 +215,12 @@ for each month m in [0 .. totalMonths):
 |---|---|---|
 | `annualFeePercent` | 0.5% | Deducted monthly from AUM: $(1 - \text{fee}/12)$. Models TER + platform costs. |
 | `taxOnGainsPercent` | 15% | Applied only to positive monthly returns. Models capital gains tax. |
+
+> ⚠️ **Known modeling issue (TODO 0.2):** taxing only positive *months* with no loss
+> offset makes the effective drag ~3–4× the nominal rate for volatile portfolios
+> (≈4%/yr at the 15% default instead of the intended ≈1%/yr), and no real jurisdiction
+> taxes upside-only monthly mark-to-market. Planned fix: annual net-gain taxation and a
+> Dutch Box 3 wealth-tax mode. See `TODO.md` Priority 0.
 
 ### 5.3 Inflation Model
 
@@ -323,6 +338,10 @@ Each cell replays the stored growth factors (subsampled to 800 paths max) with r
 | Box-Muller cache | Per-instance, no global mutation | ✓ |
 | Regime gap-filling | Single non-crisis sandwiched → crisis | ✓ |
 
+The checklist above covers unit/formula consistency. For open **correctness issues**
+found in the 2026-07-07 review (dividend handling, tax model, inflation coupling), see
+§10 below and `TODO.md` Priority 0.
+
 ---
 
 ## 10. Key Assumptions & Known Simplifications
@@ -339,6 +358,13 @@ Each cell replays the stored growth factors (subsampled to 800 paths max) with r
 | Historical bootstrap for calibration | Good | Data-driven, adapts to region |
 | Variance-preserving regime decomposition | Good | Total σ is preserved exactly |
 | Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |
+| US/UK equity history is price-only (no dividends) | **Understates returns 2.5–3.5%/yr** | TODO 0.1 — fix in data pipeline |
+| Tax applied to positive months, no loss offset | **Overstates drag ~3–4×** | TODO 0.2 — move to annual net-gain taxation |
+| Nominal cashflows deflated by expected inflation | Removes inflation risk on nominal items | TODO 0.3 |
+| Inflation drawn independently of bootstrapped returns, i.i.d. monthly | Understates real-return tail risk (1970s-type paths); no inflation persistence | TODO 0.4 — joint (return, CPI) bootstrap |
+| Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
+| Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
+| Annual-mode bootstrap: constant monthly rate within year | Understates intra-year volatility (fallback mode only) | TODO 0.7 |
 
 ---
 
