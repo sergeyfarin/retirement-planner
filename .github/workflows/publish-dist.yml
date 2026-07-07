@@ -41,6 +41,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "ressim-benchmark-cache"
+          workspaces: rust-engine -> target
+
+      - name: Build wasm package
+        run: wasm-pack build --target web
+        working-directory: rust-engine
 
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
