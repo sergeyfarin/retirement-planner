@@ -1746,7 +1746,7 @@
 	let activeWorker: Worker | null = null;
 	let runningId: string | null = null;
 
-	async function runSimulation(simCountOverride?: number) {
+	async function runSimulation(simCountOverride: number | undefined = undefined) {
 		errorMessage = '';
 		const validated = validateSimulationInputs(input, spendingPeriods);
 		if (validated.error) {
