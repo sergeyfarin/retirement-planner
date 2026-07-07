@@ -1,0 +1,9 @@
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+overrides:
+  cookie: 0.7.2
+  uuid: 11.1.1
+minimumReleaseAgeExclude:
+  - '@sveltejs/vite-plugin-svelte@7.2.0'
+  - svelte-check@4.7.2

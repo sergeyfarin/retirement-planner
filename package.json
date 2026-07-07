@@ -1,10 +1,11 @@
 {
 	"name": "retirement-planner",
 	"version": "0.0.1",
+	"packageManager": "pnpm@11.10.0",
 	"scripts": {
 		"build:wasm": "cd rust-engine && wasm-pack build --target web",
-		"dev": "npm run build:wasm && vite dev",
-		"build": "npm run build:wasm && vite build && npm run prepack",
+		"dev": "pnpm run build:wasm && vite dev",
+		"build": "pnpm run build:wasm && vite build && pnpm run prepack",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"prepack": "svelte-kit sync && svelte-package && publint",
@@ -13,10 +14,10 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test:unit": "vitest",
-		"test": "npm run test:unit -- --run",
+		"test": "pnpm run test:unit -- --run",
 		"data:retirement:import": "node scripts/import-retirement-market-data.mjs",
 		"data:retirement:preprocess": "node scripts/preprocess-retirement-market-data.mjs",
-		"data:retirement:refresh": "npm run data:retirement:import && npm run data:retirement:preprocess"
+		"data:retirement:refresh": "pnpm run data:retirement:import && pnpm run data:retirement:preprocess"
 	},
 	"files": [
 		"dist",
@@ -76,9 +77,5 @@
 	],
 	"dependencies": {
 		"plotly.js-dist-min": "3.7.0"
-	},
-	"overrides": {
-		"cookie": "0.7.2",
-		"uuid": "11.1.1"
 	}
 }
