@@ -112,6 +112,29 @@
 		resetDragToDefault: () => void;
 		onAssumptionsToggle?: () => void;
 	} = $props();
+
+	const DEFAULT_WITHDRAWAL_STRATEGY = {
+		kind: 'fixed' as const,
+		guardrailBand: 0.2,
+		adjustment: 0.1,
+		withdrawalPercent: 0.04,
+		spendingFloor: 0.6,
+		spendingCeiling: 1.4
+	};
+
+	function setWithdrawalKind(kind: 'fixed' | 'guardrails' | 'percentOfPortfolio') {
+		input.withdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY, ...input.withdrawalStrategy, kind };
+		onSimulationSettingsChange();
+	}
+
+	function updateWithdrawalParam(
+		key: 'guardrailBand' | 'adjustment' | 'withdrawalPercent' | 'spendingFloor' | 'spendingCeiling',
+		value: number
+	) {
+		const current = input.withdrawalStrategy ?? { ...DEFAULT_WITHDRAWAL_STRATEGY };
+		input.withdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY, ...current, [key]: Math.max(0, value) };
+		onSimulationSettingsChange();
+	}
 </script>
 
 <section class="left-panel">
@@ -307,6 +330,106 @@
 				<button class="btn-add" onclick={addLumpSumEvent}>+ Add event</button>
 			</div>
 		</div>
+
+		<div class="section-split withdrawal-strategy-block">
+			<p class="section-label">
+				Spending in retirement
+				<span
+					class="strategy-hint"
+					title="How your retirement spending responds to how the portfolio actually performs."
+					>(?)</span
+				>
+			</p>
+			<div class="strategy-toggle-group" role="group" aria-label="Withdrawal strategy">
+				<button
+					type="button"
+					class="btn-mode strategy-btn"
+					class:active={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
+					onclick={() => setWithdrawalKind('fixed')}
+					aria-pressed={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
+					title="Spend the same amount every year, adjusted for inflation. Simple, but ignores market performance."
+				>
+					Fixed<br />(steady)
+				</button>
+				<button
+					type="button"
+					class="btn-mode strategy-btn"
+					class:active={input.withdrawalStrategy?.kind === 'guardrails'}
+					onclick={() => setWithdrawalKind('guardrails')}
+					aria-pressed={input.withdrawalStrategy?.kind === 'guardrails'}
+					title="Guyton-Klinger guardrails: trim spending after bad years, raise it after good years. Realistic and reduces the chance of running out."
+				>
+					Guardrails<br />(adaptive)
+				</button>
+				<button
+					type="button"
+					class="btn-mode strategy-btn"
+					class:active={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
+					onclick={() => setWithdrawalKind('percentOfPortfolio')}
+					aria-pressed={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
+					title="Spend a fixed percentage of the current balance each year. Never fully runs out, but income varies more."
+				>
+					% of portfolio
+				</button>
+			</div>
+
+			{#if input.withdrawalStrategy?.kind === 'guardrails'}
+				<div class="strategy-params">
+					<label>
+						Guardrail band
+						<input
+							type="text"
+							inputmode="decimal"
+							value={fmtPercentInputSig3(input.withdrawalStrategy.guardrailBand ?? 0.2)}
+							onchange={(e) => updateWithdrawalParam('guardrailBand', decimalFromPercentEvent(e))}
+						/>
+					</label>
+					<label>
+						Adjustment step
+						<input
+							type="text"
+							inputmode="decimal"
+							value={fmtPercentInputSig3(input.withdrawalStrategy.adjustment ?? 0.1)}
+							onchange={(e) => updateWithdrawalParam('adjustment', decimalFromPercentEvent(e))}
+						/>
+					</label>
+				</div>
+				<p class="note strategy-note">
+					Cuts or raises spending by the adjustment step whenever your withdrawal rate drifts
+					past the band from its starting level. Spending stays within {fmtPercentDisplay(
+						input.withdrawalStrategy.spendingFloor ?? 0.6,
+						0
+					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your
+					planned amount.
+				</p>
+			{:else if input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
+				<div class="strategy-params">
+					<label>
+						Withdraw each year
+						<input
+							type="text"
+							inputmode="decimal"
+							value={fmtPercentInputSig3(input.withdrawalStrategy.withdrawalPercent ?? 0.04)}
+							onchange={(e) =>
+								updateWithdrawalParam('withdrawalPercent', decimalFromPercentEvent(e))}
+						/>
+					</label>
+				</div>
+				<p class="note strategy-note">
+					Spends this share of the current balance each year, clamped to {fmtPercentDisplay(
+						input.withdrawalStrategy.spendingFloor ?? 0.6,
+						0
+					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your
+					planned amount so income never collapses or balloons.
+				</p>
+			{:else}
+				<p class="note strategy-note">
+					Spends your planned amounts every year regardless of market performance — the most
+					conservative and the usual default for the “4% rule”.
+				</p>
+			{/if}
+		</div>
+
 		<div class="allocation-control">
 			<label>
 				Portfolio ({selectedCurrency.symbol})

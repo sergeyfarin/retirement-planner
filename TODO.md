@@ -25,7 +25,7 @@ Item numbers refer to the detailed entries below.
 10. ✅ URL-shareable scenarios including the seed (4.1)
 
 **Phase 3 — Modeling upgrades:**
-11. Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
+11. ✅ Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
 12. Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
 13. "Current conditions" expected-return preset via moment targeting (yield-anchored means,
     historical shape)
@@ -254,14 +254,20 @@ archive if still referenced).
 
 ## Priority 2 — Enhanced Modeling Logic
 
-### 2.1 Dynamic Spending Strategies (M)
-**Current:** Spending is fixed in real terms across periods.
-**Gap:** Massively overstates ruin probability — humans adapt spending downward in bad markets.
-**Action:** Implement Guyton-Klinger guardrails:
-- Cut spending by 10% if portfolio drops below 80% of initial real value
-- Raise by 10% if above 120%
-- Alternative: Boglehead VPW (Variable Percentage Withdrawal)
-**Files:** `rust-engine/src/simulation.rs`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
+### 2.1 Dynamic Spending Strategies (M) — ✅ SHIPPED 2026-07-20
+**Shipped:** `withdrawalStrategy` on the input with three modes — `fixed` (default),
+`guardrails` (Guyton-Klinger, rate-based band with configurable band/step/floor/ceiling),
+and `percentOfPortfolio` (spend a % of balance yearly, clamped to a floor/ceiling of
+initial real spending). A shared `WithdrawalRunner` (Rust + TS, also used by the
+ruin-surface replay) applies the strategy only during retirement; pre-retirement spending
+is unchanged. UI selector with per-strategy params in the left panel; strategy is in the
+staleness fingerprint and the share link. Regression test asserts adaptive ≥ fixed on a
+stressed scenario. See README §5.1.1.
+**Follow-ups (open):** age-banded VPW percentage table; Guyton-Klinger's inflation-freeze
+and final-years no-cut refinements; a "spending path" visualization so users can see how
+much their income actually varies year to year under each strategy.
+**Files:** `rust-engine/src/{structs,engine2,simulation,stats}.rs`,
+`src/lib/retirementEngine.ts`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 2.2 Mortality-Weighted Ruin — DECLINED (product decision, 2026-07-20)
 **Considered:** integrating a life table so each simulation draws a random death age and
