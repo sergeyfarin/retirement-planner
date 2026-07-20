@@ -11,6 +11,12 @@ const MIN_START_YEAR = 1960;
 const BOND_DURATION_YEARS = 7;
 const MIN_REQUIRED_MONTHS = 480;
 
+// NOTE: ^SPX, ^UKX, ^NKX and ^HSI are PRICE indices; the preprocess script
+// (preprocess-retirement-market-data.mjs) adds decade-level synthetic dividend
+// yields for USD, GBP and WORLD. Only the CAC leg of the EUR proxy gets its
+// dividend adjustment here. If any source is switched to total-return, update
+// DIVIDEND_YIELD_SCHEDULES in the preprocess script to avoid double counting.
+
 function encodeStooqSymbol(symbol) {
   return encodeURIComponent(symbol.toLowerCase());
 }

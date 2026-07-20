@@ -488,7 +488,7 @@ function buildRuinSurface(
   const candidateAges = [input.retirementAge - 6, input.retirementAge - 3, input.retirementAge, input.retirementAge + 3, input.retirementAge + 6]
     .map((age) => Math.round(Math.min(input.simulateUntilAge - 1, Math.max(input.currentAge + 1, age))));
   const retirementAges = Array.from(new Set(candidateAges)).sort((a, b) => a - b);
-  const sampledScenarios = Math.min(simCount, 800);
+  const sampledScenarios = Math.min(simCount, 2000);
 
   const ruinProbabilities = spendingMultipliers.map((multiplier) => {
     const scaledSpending = spendingPeriods.map((period) => ({
@@ -588,17 +588,20 @@ export function buildCashflowArrays(
   return { monthlyNetFlow, lumpSumByMonth };
 }
 
+// `successFlags` must use the same definition as the headline success probability
+// (never depleted AND ending balance > 0), so the P95 FI target and the success rate
+// agree on what counts as a surviving path.
 export function findRetirementBalanceTarget(
   retirementBalances: number[],
-  endingBalances: number[],
+  successFlags: boolean[],
   targetSuccessProbability: number
 ): number {
-  const outcomeCount = Math.min(retirementBalances.length, endingBalances.length);
+  const outcomeCount = Math.min(retirementBalances.length, successFlags.length);
   if (outcomeCount === 0) return 0;
 
   const outcomes = Array.from({ length: outcomeCount }, (_, index) => ({
     retirementBalance: retirementBalances[index],
-    endingPositive: endingBalances[index] > 0
+    endingPositive: successFlags[index]
   })).sort((a, b) => a.retirementBalance - b.retirementBalance);
 
   const suffixSuccess = new Array(outcomeCount + 1).fill(0);
@@ -692,6 +695,7 @@ export function runMonteCarloSimulation(
   const shortfallTotals: number[] = [];
   const depletedYearsSeries: number[] = [];
   const depletedFlags: boolean[] = [];
+  const successFlags: boolean[] = [];
   const annualRealReturnsBySim: number[][] = [];
   const growthFactors: number[][] = Array.from({ length: simCount }, () => new Array(months).fill(1));
   let successCount = 0;
@@ -738,6 +742,7 @@ export function runMonteCarloSimulation(
 
     let annualAssetReturn = 0;
     let annualInflation = 0;
+    let yearlyPnl = 0;
 
     for (let m = 0; m < months; m++) {
       let regimeChanged = false;
@@ -766,6 +771,11 @@ export function runMonteCarloSimulation(
         const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
         const sampledAnnualReturn = regimePool[Math.floor(rng.random() * regimePool.length)];
         activeMonthlyAssetReturn = annualToMonthlyReturn(sampledAnnualReturn);
+      }
+
+      // Year-boundary reset must run in every mode (including monthly calibration),
+      // otherwise annualRealReturns accumulates since simulation start instead of per year.
+      if (m > 0 && m % 12 === 0) {
         annualAssetReturn = 0;
         annualInflation = 0;
       }
@@ -783,10 +793,7 @@ export function runMonteCarloSimulation(
             input.returnKurtosis,
             rng
           );
-      const monthlyAssetReturnAfterTax = monthlyAssetReturn > 0
-        ? monthlyAssetReturn * (1 - taxOnGainsRate)
-        : monthlyAssetReturn;
-      const monthlyPortfolioGrowthFactor = (1 + monthlyAssetReturnAfterTax) * monthlyFeeFactor;
+      const monthlyPortfolioGrowthFactor = (1 + monthlyAssetReturn) * monthlyFeeFactor;
       const monthlyPortfolioReturnAfterCosts = monthlyPortfolioGrowthFactor - 1;
 
       const effectiveInflationMean = regimeState === 0 ? growthInflationMean : crisisInflationMean;
@@ -801,9 +808,27 @@ export function runMonteCarloSimulation(
       annualInflation = (1 + annualInflation) * (1 + monthlyInflation) - 1;
 
       balance += monthlyNetFlow[m] + lumpSumByMonth[m];
+      const pnlMonth = Math.max(0, balance) * (monthlyPortfolioGrowthFactor - 1);
       balance *= monthlyPortfolioGrowthFactor;
       balance /= 1 + monthlyInflation;
+      // Track the year's investment P&L (net of fees, gross of inflation) in the same
+      // deflated units as the balance, so nominal gains are taxed in today's-money terms.
+      yearlyPnl = (yearlyPnl + pnlMonth) / (1 + monthlyInflation);
       growthFactors[sim][m] = monthlyPortfolioGrowthFactor / (1 + monthlyInflation);
+
+      // Annual net-gain taxation: tax positive net annual P&L at each year boundary
+      // (and the final partial year). Losses are untaxed and not carried forward.
+      // Applied as a multiplicative factor so ruin-surface replay carries the tax.
+      if (m % 12 === 11 || m === months - 1) {
+        if (balance > 0 && yearlyPnl > 0 && taxOnGainsRate > 0) {
+          const tax = Math.min(yearlyPnl * taxOnGainsRate, balance);
+          const taxFactor = (balance - tax) / balance;
+          balance -= tax;
+          growthFactors[sim][m] *= taxFactor;
+          annualAssetReturn = (1 + annualAssetReturn) * taxFactor - 1;
+        }
+        yearlyPnl = 0;
+      }
 
       if (balance <= 0) {
         cumulativeShortfall += Math.max(0, -balance);
@@ -827,10 +852,12 @@ export function runMonteCarloSimulation(
     depletedFlags.push(depleted);
     annualRealReturnsBySim.push(annualRealReturns);
 
-    if (!depleted && balance > 0) successCount++;
+    const success = !depleted && balance > 0;
+    successFlags.push(success);
+    if (success) successCount++;
   }
 
-  const targetFIP95 = findRetirementBalanceTarget(retireBalances, finalBalances, FI_TARGET_SUCCESS_PROBABILITY);
+  const targetFIP95 = findRetirementBalanceTarget(retireBalances, successFlags, FI_TARGET_SUCCESS_PROBABILITY);
   const targetFISWR = spendingAtRetirement / Math.max(0.01, input.safeWithdrawalRate);
   const fiCountP95 = retireBalances.filter((balance) => balance >= targetFIP95).length;
   const fiCountSWR = retireBalances.filter((balance) => balance >= targetFISWR).length;

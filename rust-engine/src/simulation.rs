@@ -267,8 +267,9 @@ pub fn run_monte_carlo_simulation(
         .map(|_| Vec::with_capacity(RESERVOIR_K.min(sim_count)))
         .collect();
 
-    // Cap growth_factors at 800 rows — build_ruin_surface only uses min(sim_count, 800)
-    const RUIN_SAMPLE_CAP: usize = 800;
+    // Cap growth_factors at 2000 rows — build_ruin_surface only uses min(sim_count, 2000).
+    // ~11.5 MB at 720 months; keeps tail-probability SE in the heatmap under ~±1%.
+    const RUIN_SAMPLE_CAP: usize = 2000;
     let growth_cap = sim_count.min(RUIN_SAMPLE_CAP);
     let mut growth_factors: Vec<Vec<f64>> = Vec::with_capacity(growth_cap);
 
@@ -277,6 +278,7 @@ pub fn run_monte_carlo_simulation(
     let mut shortfall_totals = Vec::with_capacity(sim_count);
     let mut depleted_years_series = Vec::with_capacity(sim_count);
     let mut depleted_flags = Vec::with_capacity(sim_count);
+    let mut success_flags = Vec::with_capacity(sim_count);
     let mut annual_real_returns_by_sim = Vec::with_capacity(sim_count);
     let mut success_count = 0;
 
@@ -330,6 +332,7 @@ pub fn run_monte_carlo_simulation(
 
         let mut annual_asset_return = 0.0;
         let mut annual_inflation = 0.0;
+        let mut yearly_pnl = 0.0;
 
         for m in 0..months as usize {
             let mut regime_changed = false;
@@ -375,6 +378,11 @@ pub fn run_monte_carlo_simulation(
                 let random_idx = (rng.random() * pool.len() as f64).floor() as usize;
                 let sampled_annual_return = pool[random_idx.min(pool.len().saturating_sub(1))];
                 active_monthly_asset_return = annual_to_monthly_return(sampled_annual_return);
+            }
+
+            // Year-boundary reset must run in every mode (including monthly calibration),
+            // otherwise annual_real_returns accumulates since simulation start instead of per year.
+            if m > 0 && m % 12 == 0 {
                 annual_asset_return = 0.0;
                 annual_inflation = 0.0;
             }
@@ -403,14 +411,8 @@ pub fn run_monte_carlo_simulation(
                     )
             };
 
-            let monthly_asset_return_after_tax = if monthly_asset_return > 0.0 {
-                monthly_asset_return * (1.0 - tax_on_gains_rate)
-            } else {
-                monthly_asset_return
-            };
-
             let monthly_portfolio_growth_factor =
-                (1.0 + monthly_asset_return_after_tax) * monthly_fee_factor;
+                (1.0 + monthly_asset_return) * monthly_fee_factor;
             let monthly_portfolio_return_after_costs = monthly_portfolio_growth_factor - 1.0;
 
             let effective_inflation_mean = if regime_state == 0 {
@@ -431,9 +433,29 @@ pub fn run_monte_carlo_simulation(
             annual_inflation = (1.0 + annual_inflation) * (1.0 + monthly_inflation) - 1.0;
 
             balance += monthly_net_flow[m] + lump_sum_by_month[m];
+            let pnl_month = balance.max(0.0) * (monthly_portfolio_growth_factor - 1.0);
             balance *= monthly_portfolio_growth_factor;
             balance /= 1.0 + monthly_inflation;
+            // Track the year's investment P&L (net of fees, gross of inflation) in the
+            // same deflated units as the balance, so nominal gains are taxed in
+            // today's-money terms at year end.
+            yearly_pnl = (yearly_pnl + pnl_month) / (1.0 + monthly_inflation);
             sim_growth[m] = monthly_portfolio_growth_factor / (1.0 + monthly_inflation);
+
+            // Annual net-gain taxation: at each year boundary (and the final partial
+            // year), tax the positive net annual P&L. Losses are untaxed and not
+            // carried forward. Applied as a multiplicative factor so the ruin-surface
+            // replay of sim_growth carries the tax correctly.
+            if m % 12 == 11 || m == months as usize - 1 {
+                if balance > 0.0 && yearly_pnl > 0.0 && tax_on_gains_rate > 0.0 {
+                    let tax = (yearly_pnl * tax_on_gains_rate).min(balance);
+                    let tax_factor = (balance - tax) / balance;
+                    balance -= tax;
+                    sim_growth[m] *= tax_factor;
+                    annual_asset_return = (1.0 + annual_asset_return) * tax_factor - 1.0;
+                }
+                yearly_pnl = 0.0;
+            }
 
             if balance <= 0.0 {
                 cumulative_shortfall += (0.0_f64).max(-balance);
@@ -480,7 +502,9 @@ pub fn run_monte_carlo_simulation(
             growth_factors.push(sim_growth);
         }
 
-        if !depleted && balance > 0.0 {
+        let success = !depleted && balance > 0.0;
+        success_flags.push(success);
+        if success {
             success_count += 1;
         }
 
@@ -498,7 +522,7 @@ pub fn run_monte_carlo_simulation(
         cb(0.90);
     }
 
-    let target_fi_p95 = find_retirement_balance_target(&retire_balances, &final_balances, 0.95);
+    let target_fi_p95 = find_retirement_balance_target(&retire_balances, &success_flags, 0.95);
     let target_fi_swr = spending_at_retirement / input.safe_withdrawal_rate.max(0.01);
     let fi_count_p95 = retire_balances
         .iter()

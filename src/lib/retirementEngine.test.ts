@@ -149,9 +149,74 @@ describe('retirementEngine stochastic helpers', () => {
 
   it('finds P95 retirement balance target from handcrafted outcomes', () => {
     const retirementBalances = [100, 120, 140, 160, 180, 200];
-    const endingBalances = [0, 0, 50, 80, 120, 160];
-    const target = findRetirementBalanceTarget(retirementBalances, endingBalances, 0.95);
+    const successFlags = [false, false, true, true, true, true];
+    const target = findRetirementBalanceTarget(retirementBalances, successFlags, 0.95);
     expect(target).toBe(140);
+  });
+});
+
+describe('annual net-gain taxation', () => {
+  // Regression guard for TODO 0.2: tax must apply annually to net gains, not to every
+  // positive month. With a volatile monthly history (+4%/−2% alternating, ~12%/yr
+  // pre-tax), upside-only monthly taxation at 15% produced ~3.5–4%/yr of drag; annual
+  // net-gain taxation should produce ~1.5–2%/yr. Same seed ⇒ identical return paths,
+  // so the drag measurement is exact per-path (the tax code consumes no RNG draws).
+  it('produces ~rate×gain drag per year, not the old monthly-upside drag', () => {
+    const monthlyPattern: number[] = [];
+    for (let i = 0; i < 120; i++) monthlyPattern.push(i % 2 === 0 ? 0.04 : -0.02);
+
+    const baseInput: RetirementInput = {
+      currentAge: 35,
+      retirementAge: 64,
+      simulateUntilAge: 65,
+      currentSavings: 1_000_000,
+      meanReturn: 0.12,
+      returnVariability: 0.1,
+      returnSkewness: 0,
+      returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      inflationMean: 0,
+      inflationVariability: 0,
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      annualFeePercent: 0,
+      taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04,
+      simulations: 500,
+      seed: 4242,
+      regimeModel: {
+        stayGrowth: 0.92,
+        stayCrisis: 0.68,
+        growthMean: 0.12,
+        growthStd: 0.1,
+        crisisMean: -0.1,
+        crisisStd: 0.2
+      },
+      historicalAnnualReturns: undefined,
+      historicalMonthlyReturns: monthlyPattern
+    };
+
+    const months = (baseInput.simulateUntilAge - baseInput.currentAge) * 12;
+    const retireMonth = (baseInput.retirementAge - baseInput.currentAge) * 12;
+    const years = months / 12;
+
+    const noTax = runMonteCarloSimulation({ ...baseInput }, [], [], [], months, retireMonth);
+    const withTax = runMonteCarloSimulation(
+      { ...baseInput, taxOnGainsPercent: 0.15 },
+      [],
+      [],
+      [],
+      months,
+      retireMonth
+    );
+
+    const medianNoTax = noTax.stats.finalMedian;
+    const medianWithTax = withTax.stats.finalMedian;
+    expect(medianWithTax).toBeLessThan(medianNoTax);
+
+    const effectiveAnnualDrag = 1 - Math.pow(medianWithTax / medianNoTax, 1 / years);
+    expect(effectiveAnnualDrag).toBeGreaterThan(0.008);
+    expect(effectiveAnnualDrag).toBeLessThan(0.025);
   });
 });
 

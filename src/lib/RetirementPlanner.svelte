@@ -507,6 +507,7 @@
 	let resultStage: string = $state('none');
 	let lastSimulatedFingerprint = $state('');
 	let lastSimulatedCount = $state(0);
+	let lastSimulatedSeed: number | null = $state<number | null>(null);
 	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
 	let previewReady = $state(false);
 
@@ -1019,10 +1020,22 @@
 			selectedCurrencyCode,
 			allocation
 		);
-		const effectiveMean = blended.mean;
-		const effectiveStd = blended.std;
-		const effectiveSkew = blended.skewness;
-		const effectiveKurt = blended.kurtosis;
+		// Single source of truth for effective moments (see TODO 0.10): when the
+		// simulation actually bootstraps the realized historical series (historical
+		// mode, no moment targeting), display/target the realized series' own moments;
+		// otherwise use the parametric blend. Must stay in sync with
+		// applyReferenceDefaults.
+		const useHistoricalMoments =
+			input.simulationMode === 'historical' &&
+			!input.historicalMomentTargeting &&
+			historicalAnnualReturns.length >= 10;
+		const dataMoments = useHistoricalMoments
+			? calcSummarizeSeriesDistribution(historicalAnnualReturns)
+			: null;
+		const effectiveMean = dataMoments ? dataMoments.mean : blended.mean;
+		const effectiveStd = dataMoments ? dataMoments.std : blended.std;
+		const effectiveSkew = dataMoments ? dataMoments.skewness : blended.skewness;
+		const effectiveKurt = dataMoments ? dataMoments.kurtosis : blended.kurtosis;
 		const regimeModel = calcBuildRegimeModelFromPortfolio(
 			effectiveMean,
 			effectiveStd,
@@ -1182,8 +1195,13 @@
 			currencyCode,
 			allocation
 		);
+		// Same effective-moments rule as applyInvestmentAllocationMetrics (TODO 0.10):
+		// realized-series moments only when the simulation actually bootstraps them.
+		const useHistoricalMoments =
+			input.simulationMode === 'historical' &&
+			!input.historicalMomentTargeting &&
+			historicalAnnualReturns.length >= 10;
 		const dataMoments = calcSummarizeSeriesDistribution(historicalAnnualReturns);
-		const useHistoricalMoments = historicalAnnualReturns.length >= 10;
 		const effectiveMean = useHistoricalMoments ? dataMoments.mean : blended.mean;
 		const effectiveStd = useHistoricalMoments ? dataMoments.std : blended.std;
 		const effectiveSkew = useHistoricalMoments ? dataMoments.skewness : blended.skewness;
@@ -1668,7 +1686,8 @@
 				.map((s) => `${s.fromAge}:${s.toAge}:${s.yearlyAmount}:${s.inflationAdjusted ? 1 : 0}`)
 				.join('|'),
 			lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|'),
-			input.simulations
+			input.simulations,
+			input.seed ?? ''
 		].join('::')
 	);
 
@@ -1705,6 +1724,183 @@
 
 	// ─── Lifecycle ────────────────────────────────────────────────────────────────
 
+	// ─── URL-shareable scenarios (TODO 4.1) ──────────────────────────────────────
+	// All user inputs + the seed serialize into a versioned `#s=` hash payload so a
+	// shared link reproduces the exact displayed result. Derived fields (regime model,
+	// effective moments, historical series) are rebuilt on restore, not serialized.
+
+	function toBase64Url(json: string): string {
+		const bytes = new TextEncoder().encode(json);
+		let bin = '';
+		for (const b of bytes) bin += String.fromCharCode(b);
+		return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+	}
+
+	function fromBase64Url(value: string): string {
+		const b64 = value.replaceAll('-', '+').replaceAll('_', '/');
+		const bin = atob(b64);
+		return new TextDecoder().decode(Uint8Array.from(bin, (ch) => ch.charCodeAt(0)));
+	}
+
+	const SHARE_INPUT_SCALARS = [
+		'currentAge',
+		'retirementAge',
+		'simulateUntilAge',
+		'currentSavings',
+		'equityBondCorrelation',
+		'annualFeePercent',
+		'taxOnGainsPercent',
+		'blockLength',
+		'inflationCrisisSpread',
+		'safeWithdrawalRate',
+		'simulations',
+		'seed'
+	] as const;
+
+	function buildShareState() {
+		const scalars: Record<string, number> = {};
+		for (const key of SHARE_INPUT_SCALARS) {
+			const value = (input as Record<string, unknown>)[key];
+			if (typeof value === 'number' && Number.isFinite(value)) scalars[key] = value;
+		}
+		// Share the seed of the displayed run so the link reproduces it exactly.
+		if (scalars.seed === undefined && lastSimulatedSeed !== null) {
+			scalars.seed = lastSimulatedSeed;
+		}
+		return {
+			v: 1,
+			c: selectedCurrencyCode,
+			m: input.simulationMode,
+			t: input.historicalMomentTargeting ? 1 : 0,
+			i: scalars,
+			sb: stockBoundaryPercent,
+			bb: bondBoundaryPercent,
+			pm: $state.snapshot(parametricMetrics),
+			pi: {
+				mean: parametricInflationMean,
+				std: parametricInflationVariability,
+				skew: parametricInflationSkewness,
+				kurt: parametricInflationKurtosis
+			},
+			sp: $state.snapshot(spendingPeriods),
+			is: $state.snapshot(incomeSources),
+			ls: $state.snapshot(lumpSumEvents)
+		};
+	}
+
+	function sanitizeCashflowRows<T extends { id?: unknown; label?: unknown }>(
+		rows: unknown,
+		numericKeys: string[]
+	): T[] | null {
+		if (!Array.isArray(rows)) return null;
+		const out: T[] = [];
+		for (const raw of rows) {
+			if (!raw || typeof raw !== 'object') return null;
+			const row = raw as Record<string, unknown>;
+			for (const key of numericKeys) {
+				if (typeof row[key] !== 'number' || !Number.isFinite(row[key])) return null;
+			}
+			out.push({
+				...row,
+				id: typeof row.id === 'string' ? row.id : crypto.randomUUID(),
+				label: typeof row.label === 'string' ? row.label : ''
+			} as T);
+		}
+		return out;
+	}
+
+	function applyShareState(state: Record<string, unknown>): boolean {
+		if (!state || state.v !== 1) return false;
+
+		if (
+			typeof state.c === 'string' &&
+			CURRENCIES.some((currency) => currency.code === state.c)
+		) {
+			selectedCurrencyCode = state.c as CurrencyCode;
+		}
+		if (state.m === 'historical' || state.m === 'parametric') {
+			input.simulationMode = state.m;
+		}
+		input.historicalMomentTargeting = state.t === 1;
+
+		// Load currency defaults + dataset series first, then overlay shared values.
+		lastAppliedReferenceCurrency = selectedCurrencyCode;
+		applyReferenceDefaults(selectedCurrencyCode);
+
+		if (typeof state.sb === 'number' && Number.isFinite(state.sb)) {
+			stockBoundaryPercent = clamp(Math.round(state.sb), 0, 100);
+		}
+		if (typeof state.bb === 'number' && Number.isFinite(state.bb)) {
+			bondBoundaryPercent = clamp(Math.round(state.bb), 0, 100);
+		}
+
+		if (state.pm && typeof state.pm === 'object') {
+			const restored: Record<string, number> = {};
+			for (const [key, value] of Object.entries(state.pm as Record<string, unknown>)) {
+				if (typeof value === 'number' && Number.isFinite(value)) restored[key] = value;
+			}
+			parametricMetrics = { ...parametricMetrics, ...restored };
+		}
+		if (state.pi && typeof state.pi === 'object') {
+			const pi = state.pi as Record<string, unknown>;
+			if (typeof pi.mean === 'number' && Number.isFinite(pi.mean)) parametricInflationMean = pi.mean;
+			if (typeof pi.std === 'number' && Number.isFinite(pi.std))
+				parametricInflationVariability = pi.std;
+			if (typeof pi.skew === 'number' && Number.isFinite(pi.skew))
+				parametricInflationSkewness = pi.skew;
+			if (typeof pi.kurt === 'number' && Number.isFinite(pi.kurt))
+				parametricInflationKurtosis = pi.kurt;
+		}
+
+		if (state.i && typeof state.i === 'object') {
+			const scalars = state.i as Record<string, unknown>;
+			for (const key of SHARE_INPUT_SCALARS) {
+				const value = scalars[key];
+				if (typeof value === 'number' && Number.isFinite(value)) {
+					(input as Record<string, unknown>)[key] = value;
+				}
+			}
+		}
+
+		const sp = sanitizeCashflowRows<SpendingPeriod>(state.sp, ['fromAge', 'toAge', 'yearlyAmount']);
+		if (sp && sp.length > 0) spendingPeriods = sp;
+		const is = sanitizeCashflowRows<IncomeSource>(state.is, ['fromAge', 'toAge', 'yearlyAmount']);
+		if (is && is.length > 0) incomeSources = is;
+		const ls = sanitizeCashflowRows<LumpSumEvent>(state.ls, ['age', 'amount']);
+		if (ls) lumpSumEvents = ls;
+
+		// Rebuild effective moments, regime model and historical series for the
+		// restored currency/allocation/mode.
+		applyInvestmentAllocationMetrics();
+		return true;
+	}
+
+	let shareLinkCopied = $state(false);
+
+	async function copyShareLink() {
+		const encoded = toBase64Url(JSON.stringify(buildShareState()));
+		const url = `${window.location.origin}${window.location.pathname}#s=${encoded}`;
+		history.replaceState(null, '', `#s=${encoded}`);
+		try {
+			await navigator.clipboard.writeText(url);
+			shareLinkCopied = true;
+			setTimeout(() => (shareLinkCopied = false), 2000);
+		} catch {
+			window.prompt('Copy this link:', url);
+		}
+	}
+
+	function restoreFromShareHash() {
+		try {
+			const match = window.location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
+			if (!match) return;
+			const decoded = JSON.parse(fromBase64Url(match[1])) as Record<string, unknown>;
+			applyShareState(decoded);
+		} catch (err) {
+			console.warn('Ignoring invalid share-link payload', err);
+		}
+	}
+
 	onMount(async () => {
 		const module = await import('plotly.js-dist-min');
 		Plotly = module.default ?? module;
@@ -1726,6 +1922,8 @@
 			historicalDataLoadError =
 				'Historical market dataset could not be loaded; using fallback assumptions.';
 		}
+
+		restoreFromShareHash();
 
 		plotReady = true;
 		previewReady = true;
@@ -1776,13 +1974,15 @@
 		activeWorker = createSimulationWorker();
 		runningId = crypto.randomUUID();
 
+		const seedForThisRun = input.seed ?? Math.floor(Math.random() * 1000000);
+
 		try {
 			const workerResult = await new Promise<WorkerResultMessage['payload']>((resolve, reject) => {
 				const payload: WorkerInputMessage['payload'] = $state.snapshot({
 					input: {
 						...input,
 						simulations: requestedSimulations,
-						seed: input.seed || Math.floor(Math.random() * 1000000)
+						seed: seedForThisRun
 					},
 					spendingPeriods,
 					incomeSources,
@@ -1830,6 +2030,7 @@
 			resultStage = 'final';
 			lastSimulatedFingerprint = fingerprintForThisRun;
 			lastSimulatedCount = workerResult.simCount;
+			lastSimulatedSeed = seedForThisRun;
 			runStatusMessage = `${fmtNum(workerResult.simCount)} Monte Carlo simulations completed.`;
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
@@ -2039,6 +2240,7 @@
 		{resetBankMetricsToDefault}
 		{resetInflationToDefault}
 		{resetDragToDefault}
+		onAssumptionsToggle={() => drawRealReturnCdfChart()}
 	/>
 
 	<section class="right-panel">
@@ -2063,7 +2265,9 @@
 							Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
 							results below.
 						{:else if resultStage === 'final'}
-							Showing results for {fmtNum(lastSimulatedCount)} simulations.
+							Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}{' '}Seed:
+								{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this
+								exact result).{/if}
 						{:else}
 							Click "Run Monte Carlo" to generate your retirement forecast.
 						{/if}
@@ -2090,12 +2294,25 @@
 					>
 						{running ? 'Running…' : 'Run Monte Carlo'}
 					</button>
+					{#if resultStage === 'final' && !running}
+						<button
+							class="btn-share"
+							onclick={() => void copyShareLink()}
+							title="Copies a link that restores these exact inputs and seed."
+						>
+							{shareLinkCopied ? 'Link copied ✓' : 'Copy share link'}
+						</button>
+					{/if}
 				</div>
 			</div>
 		</div>
 
 		{#if stats}
 			<div class="outputs-wrapper" class:stale-results={inputsChangedSinceLastRun}>
+				<p class="headline-result">
+					In <strong>{Math.round(stats.successProbability * 100)} of 100</strong> simulated futures,
+					your money lasts beyond age {fmtNum(input.simulateUntilAge)}.
+				</p>
 				<PlannerOutputCards
 					{stats}
 					{input}
@@ -2104,6 +2321,7 @@
 					{FI_TARGET_SUCCESS_PROBABILITY}
 					{percentFormatter}
 					{fmtNum}
+					simCount={lastSimulatedCount}
 				/>
 
 				<div class="chart-row">
@@ -2135,6 +2353,13 @@
 	</section>
 </div>
 
+<p class="disclaimer-footer">
+	This tool is for education and planning exploration only — it is not financial, tax, or
+	retirement advice, and its projections are not guarantees of future performance. Historical
+	market data does not predict future returns. Consult a qualified financial advisor before
+	making retirement decisions.
+</p>
+
 <style>
 	.stale-results {
 		filter: grayscale(100%);
@@ -2147,5 +2372,35 @@
 	.status-banner.attention {
 		border-left: 4px solid var(--color-warning, #f59e0b);
 		background-color: var(--bg-warning-light, rgba(245, 158, 11, 0.05));
+	}
+	.disclaimer-footer {
+		max-width: 60rem;
+		margin: 1.5rem auto 0;
+		padding: 0 0.5rem;
+		font-size: 0.8rem;
+		line-height: 1.4;
+		color: var(--color-text-muted, #6b7280);
+		text-align: center;
+	}
+	.headline-result {
+		font-size: 1.05rem;
+		margin: 0 0 0.75rem;
+		color: var(--color-text, #1f2937);
+	}
+	.headline-result strong {
+		color: var(--color-accent, #0f766e);
+	}
+	.btn-share {
+		font-size: 0.78rem;
+		padding: 0.35rem 0.7rem;
+		border: 1px solid var(--color-border, #cbd5e1);
+		border-radius: 6px;
+		background: transparent;
+		color: var(--color-text-muted, #475569);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.btn-share:hover {
+		background: var(--bg-hover, rgba(148, 163, 184, 0.12));
 	}
 </style>

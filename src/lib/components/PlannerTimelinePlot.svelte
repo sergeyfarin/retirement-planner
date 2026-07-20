@@ -466,6 +466,9 @@
 		Fan shows middle 50% and 80% of outcomes. Dotted line is target year to achieve FI. Red dashed
 		line is FI target (P95) and orange dotted line is FI target (SWR). Shaded bands indicate
 		spending periods. Engine uses bootstrapped annual returns with regime detection to model
-		sequence risk and clustered drawdowns.
+		sequence risk and clustered drawdowns. Each percentile line is computed independently for
+		that month across all simulations — it is not a single continuous scenario, so reading
+		"recovery time" off the gap between bands will overstate how fast any one path actually
+		recovers.
 	</p>
 </div>

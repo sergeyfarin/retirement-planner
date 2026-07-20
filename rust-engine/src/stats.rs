@@ -146,7 +146,8 @@ pub fn build_ruin_surface(
     retirement_ages.sort_unstable();
     retirement_ages.dedup();
 
-    let sampled_scenarios = sim_count.min(800);
+    // Must stay in sync with RUIN_SAMPLE_CAP in simulation.rs.
+    let sampled_scenarios = sim_count.min(2000);
 
     let ruin_probabilities: Vec<Vec<f64>> = spending_multipliers
         .iter()
@@ -207,12 +208,15 @@ pub fn build_ruin_surface(
     }
 }
 
+// `success_flags` must use the same definition as the headline success probability
+// (never depleted AND ending balance > 0), so the P95 FI target and the success rate
+// agree on what counts as a surviving path.
 pub fn find_retirement_balance_target(
     retirement_balances: &[f64],
-    ending_balances: &[f64],
+    success_flags: &[bool],
     target_success_probability: f64,
 ) -> f64 {
-    let outcome_count = retirement_balances.len().min(ending_balances.len());
+    let outcome_count = retirement_balances.len().min(success_flags.len());
     if outcome_count == 0 {
         return 0.0;
     }
@@ -225,7 +229,7 @@ pub fn find_retirement_balance_target(
     let mut outcomes: Vec<Outcome> = (0..outcome_count)
         .map(|index| Outcome {
             retirement_balance: retirement_balances[index],
-            ending_positive: ending_balances[index] > 0.0,
+            ending_positive: success_flags[index],
         })
         .collect();
 

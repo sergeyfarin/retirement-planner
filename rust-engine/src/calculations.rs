@@ -35,13 +35,8 @@ impl RandomSource {
 
     pub fn random(&mut self) -> f64 {
         if let Some(state) = &mut self.state {
-            // Mulberry32
+            // Mulberry32, mirroring JS Math.imul semantics exactly (wrapping 32-bit multiply).
             *state = state.wrapping_add(0x6D2B79F5);
-            let mut t = *state ^ (*state >> 15);
-            t = t.wrapping_mul(1 | *state);
-            let _ = t.wrapping_add(t.wrapping_mul(t ^ (t >> 7)) & (61 | t)); // Approximation of JS Math.imul (value unused)
-
-            // Following exact JS imul steps:
             let js_imul1 = (*state ^ (*state >> 15)).wrapping_mul(1 | *state);
             let js_imul2 = (js_imul1 ^ (js_imul1 >> 7)).wrapping_mul(61 | js_imul1);
             let t_val = js_imul1 ^ js_imul1.wrapping_add(js_imul2);
