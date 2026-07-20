@@ -220,6 +220,76 @@ describe('annual net-gain taxation', () => {
   });
 });
 
+describe('withdrawal strategies', () => {
+  // Guardrails and percent-of-portfolio adapt spending downward in bad markets, so both
+  // should yield a higher success probability than fixed real spending on an otherwise
+  // identical, stressed scenario (same seed ⇒ identical return paths).
+  function stressedInput(strategy?: RetirementInput['withdrawalStrategy']): RetirementInput {
+    // ~5.4%/yr nominal with a periodic -9% crash month for volatility; at 900k savings
+    // and 40k spend the fixed strategy succeeds ~50% of the time, leaving headroom for
+    // the adaptive strategies to demonstrably improve on it.
+    const monthlyPattern: number[] = [];
+    for (let i = 0; i < 240; i++) monthlyPattern.push(i % 12 === 0 ? -0.09 : 0.013);
+    return {
+      currentAge: 60,
+      retirementAge: 60,
+      simulateUntilAge: 90,
+      currentSavings: 900_000,
+      meanReturn: 0.054,
+      returnVariability: 0.14,
+      returnSkewness: 0,
+      returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      inflationMean: 0.02,
+      inflationVariability: 0.01,
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      annualFeePercent: 0,
+      taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04,
+      simulations: 2000,
+      seed: 777,
+      withdrawalStrategy: strategy,
+      regimeModel: {
+        stayGrowth: 0.92,
+        stayCrisis: 0.68,
+        growthMean: 0.054,
+        growthStd: 0.12,
+        crisisMean: -0.1,
+        crisisStd: 0.22
+      },
+      historicalMonthlyReturns: monthlyPattern
+    };
+  }
+
+  const spending: SpendingPeriod[] = [
+    { id: 'sp-default', label: 'Living', fromAge: 60, toAge: 90, yearlyAmount: 40000, inflationAdjusted: true }
+  ];
+  const months = 360;
+  const retireMonth = 0;
+
+  it('guardrails and percent-of-portfolio reduce ruin vs fixed spending', () => {
+    const fixed = runMonteCarloSimulation(stressedInput({ kind: 'fixed' }), spending, [], [], months, retireMonth);
+    const guardrails = runMonteCarloSimulation(
+      stressedInput({ kind: 'guardrails', guardrailBand: 0.2, adjustment: 0.1, spendingFloor: 0.6, spendingCeiling: 1.4 }),
+      spending, [], [], months, retireMonth
+    );
+    const percent = runMonteCarloSimulation(
+      stressedInput({ kind: 'percentOfPortfolio', withdrawalPercent: 0.045, spendingFloor: 0.5, spendingCeiling: 1.5 }),
+      spending, [], [], months, retireMonth
+    );
+
+    expect(guardrails.stats.successProbability).toBeGreaterThan(fixed.stats.successProbability);
+    expect(percent.stats.successProbability).toBeGreaterThanOrEqual(fixed.stats.successProbability);
+  });
+
+  it('omitting the strategy behaves like fixed spending', () => {
+    const noStrategy = runMonteCarloSimulation(stressedInput(undefined), spending, [], [], months, retireMonth);
+    const fixed = runMonteCarloSimulation(stressedInput({ kind: 'fixed' }), spending, [], [], months, retireMonth);
+    expect(noStrategy.stats.finalMedian).toBeCloseTo(fixed.stats.finalMedian, 6);
+  });
+});
+
 describe('runMonteCarloSimulation smoke', () => {
   it('returns stable output shape and sane median with seed', async () => {
     const input: RetirementInput = {

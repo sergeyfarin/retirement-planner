@@ -1,7 +1,9 @@
 use crate::calculations::summarize;
 use crate::engine::{RuinSurface, SequenceRiskBucket};
-use crate::engine2::build_cashflow_arrays;
-use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
+use crate::engine2::{build_cashflow_arrays, WithdrawalRunner};
+use crate::structs::{
+    IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
+};
 
 pub fn build_sequence_risk_summary(
     annual_real_returns_by_sim: &[Vec<f64>],
@@ -90,22 +92,30 @@ pub fn build_sequence_risk_summary(
     buckets
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn replay_ruin_probability(
     growth_factors: &[Vec<f64>],
-    monthly_net_flow: &[f64],
+    monthly_income_flow: &[f64],
+    monthly_spending_flow: &[f64],
     lump_sum_by_month: &[f64],
     current_savings: f64,
     sample_count: usize,
     months: u32,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
 ) -> f64 {
     let mut ruin_count = 0;
 
     for sim in 0..sample_count {
         let mut balance = current_savings;
         let mut ruined = false;
+        // Re-run the withdrawal strategy against the stored growth path so dynamic
+        // spending in the ruin surface stays consistent with the main simulation.
+        let mut runner = WithdrawalRunner::new(strategy, monthly_spending_flow, retire_month);
 
         for month in 0..months as usize {
-            balance += monthly_net_flow[month] + lump_sum_by_month[month];
+            let effective_spending = runner.monthly_spending(month, balance);
+            balance += monthly_income_flow[month] - effective_spending + lump_sum_by_month[month];
             balance *= growth_factors[sim][month];
             if balance <= 0.0 {
                 balance = 0.0;
@@ -121,6 +131,7 @@ pub fn replay_ruin_probability(
     (ruin_count as f64) / (sample_count.max(1) as f64)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_ruin_surface(
     input: &RetirementInput,
     spending_periods: &[SpendingPeriod],
@@ -129,6 +140,7 @@ pub fn build_ruin_surface(
     growth_factors: &[Vec<f64>],
     months: u32,
     sim_count: usize,
+    strategy: &WithdrawalStrategy,
 ) -> RuinSurface {
     let spending_multipliers = vec![0.8, 0.9, 1.0, 1.1, 1.2];
 
@@ -188,13 +200,21 @@ pub fn build_ruin_surface(
                         months,
                     );
 
+                    let cell_retire_month = (((ret_age as f64 - input.current_age) * 12.0)
+                        .round()
+                        .max(0.0) as usize)
+                        .min(months as usize);
+
                     replay_ruin_probability(
                         growth_factors,
-                        &arrays.monthly_net_flow,
+                        &arrays.monthly_income_flow,
+                        &arrays.monthly_spending_flow,
                         &arrays.lump_sum_by_month,
                         input.current_savings,
                         sampled_scenarios,
                         months,
+                        strategy,
+                        cell_retire_month,
                     )
                 })
                 .collect()

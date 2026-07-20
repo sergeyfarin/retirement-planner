@@ -9,6 +9,7 @@ use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
     build_cashflow_arrays, detect_regimes, detect_regimes_monthly,
     estimate_markov_stay_probabilities, monthly_returns_to_annual_series, spending_at_age,
+    WithdrawalRunner,
 };
 use crate::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_retirement_balance_target,
@@ -122,8 +123,11 @@ pub fn run_monte_carlo_simulation(
         lump_sum_events,
         months,
     );
-    let monthly_net_flow = arrays.monthly_net_flow;
+    let monthly_income_flow = arrays.monthly_income_flow;
+    let monthly_spending_flow = arrays.monthly_spending_flow;
     let lump_sum_by_month = arrays.lump_sum_by_month;
+    let withdrawal_strategy = input.withdrawal_strategy.clone().unwrap_or_default();
+    let retire_month_usize = (retire_month as usize).min(months as usize);
 
     let stay_growth = crate::engine::clamp_transition_probability(input.regime_model.stay_growth);
     let stay_crisis = crate::engine::clamp_transition_probability(input.regime_model.stay_crisis);
@@ -333,6 +337,8 @@ pub fn run_monte_carlo_simulation(
         let mut annual_asset_return = 0.0;
         let mut annual_inflation = 0.0;
         let mut yearly_pnl = 0.0;
+        let mut withdrawal_runner =
+            WithdrawalRunner::new(&withdrawal_strategy, &monthly_spending_flow, retire_month_usize);
 
         for m in 0..months as usize {
             let mut regime_changed = false;
@@ -432,7 +438,8 @@ pub fn run_monte_carlo_simulation(
                 (1.0 + annual_asset_return) * (1.0 + monthly_portfolio_return_after_costs) - 1.0;
             annual_inflation = (1.0 + annual_inflation) * (1.0 + monthly_inflation) - 1.0;
 
-            balance += monthly_net_flow[m] + lump_sum_by_month[m];
+            let effective_spending = withdrawal_runner.monthly_spending(m, balance);
+            balance += monthly_income_flow[m] - effective_spending + lump_sum_by_month[m];
             let pnl_month = balance.max(0.0) * (monthly_portfolio_growth_factor - 1.0);
             balance *= monthly_portfolio_growth_factor;
             balance /= 1.0 + monthly_inflation;
@@ -589,6 +596,7 @@ pub fn run_monte_carlo_simulation(
         &growth_factors,
         months,
         growth_cap,
+        &withdrawal_strategy,
     );
 
     let stats = SummaryStats {

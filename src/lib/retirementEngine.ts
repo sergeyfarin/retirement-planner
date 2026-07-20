@@ -33,6 +33,93 @@ export type LumpSumEvent = {
   amount: number;
 };
 
+export type WithdrawalStrategyKind = 'fixed' | 'guardrails' | 'percentOfPortfolio';
+
+export type WithdrawalStrategy = {
+  kind: WithdrawalStrategyKind;
+  guardrailBand?: number;
+  adjustment?: number;
+  withdrawalPercent?: number;
+  spendingFloor?: number;
+  spendingCeiling?: number;
+};
+
+export const DEFAULT_WITHDRAWAL_STRATEGY: Required<WithdrawalStrategy> = {
+  kind: 'fixed',
+  guardrailBand: 0.2,
+  adjustment: 0.1,
+  withdrawalPercent: 0.04,
+  spendingFloor: 0.6,
+  spendingCeiling: 1.4
+};
+
+// Stateful evaluator mirroring the Rust WithdrawalRunner. See that struct for the
+// per-strategy semantics; the two must stay in sync.
+class WithdrawalRunner {
+  private readonly kind: number; // 0 fixed, 1 guardrails, 2 percent
+  private readonly guardrailBand: number;
+  private readonly adjustment: number;
+  private readonly withdrawalPercent: number;
+  private readonly spendingFloor: number;
+  private readonly spendingCeiling: number;
+  private initialized = false;
+  private multiplier = 1;
+  private initialRate = 0;
+  private initialAnnualSpending = 0;
+  private heldMonthlySpending = 0;
+
+  constructor(
+    strategy: WithdrawalStrategy,
+    private readonly baseSpending: Float64Array,
+    private readonly retireMonth: number
+  ) {
+    this.kind = strategy.kind === 'guardrails' ? 1 : strategy.kind === 'percentOfPortfolio' ? 2 : 0;
+    this.guardrailBand = Math.max(0.01, strategy.guardrailBand ?? 0.2);
+    this.adjustment = Math.min(0.9, Math.max(0, strategy.adjustment ?? 0.1));
+    this.withdrawalPercent = Math.max(0, strategy.withdrawalPercent ?? 0.04);
+    this.spendingFloor = Math.max(0, strategy.spendingFloor ?? 0.6);
+    this.spendingCeiling = Math.max(0, strategy.spendingCeiling ?? 1.4);
+  }
+
+  monthlySpending(m: number, balance: number): number {
+    const base = this.baseSpending[m];
+    if (this.kind === 0 || m < this.retireMonth) return base;
+
+    const isYearStart = (m - this.retireMonth) % 12 === 0;
+    if (!this.initialized) {
+      this.initialAnnualSpending = base * 12;
+      this.initialRate = balance > 0 ? this.initialAnnualSpending / balance : 0;
+      this.multiplier = 1;
+      this.heldMonthlySpending = base;
+      this.initialized = true;
+    }
+
+    const floorAnnual = this.spendingFloor * this.initialAnnualSpending;
+    const ceilingAnnual = this.spendingCeiling * this.initialAnnualSpending;
+
+    if (this.kind === 1) {
+      if (isYearStart && balance > 0 && this.initialRate > 0) {
+        const currentAnnual = base * 12 * this.multiplier;
+        const currentRate = currentAnnual / balance;
+        if (currentRate > this.initialRate * (1 + this.guardrailBand)) {
+          this.multiplier *= 1 - this.adjustment;
+        } else if (currentRate < this.initialRate * (1 - this.guardrailBand)) {
+          this.multiplier *= 1 + this.adjustment;
+        }
+        this.multiplier = Math.min(this.spendingCeiling, Math.max(this.spendingFloor, this.multiplier));
+      }
+      return base * this.multiplier;
+    }
+
+    if (isYearStart) {
+      const targetAnnual = this.withdrawalPercent * Math.max(0, balance);
+      const clamped = Math.min(ceilingAnnual, Math.max(floorAnnual, targetAnnual));
+      this.heldMonthlySpending = clamped / 12;
+    }
+    return this.heldMonthlySpending;
+  }
+}
+
 export type RetirementInput = {
   simulationMode?: 'historical' | 'parametric';
   historicalMomentTargeting?: boolean;
@@ -56,6 +143,7 @@ export type RetirementInput = {
   annualDrag?: number;
   seed?: number;
   safeWithdrawalRate: number;
+  withdrawalStrategy?: WithdrawalStrategy;
   simulations: number;
   regimeModel: {
     stayGrowth: number;
@@ -448,20 +536,25 @@ function buildSequenceRiskSummary(
 
 function replayRuinProbability(
   growthFactors: number[][],
-  monthlyNetFlow: Float64Array,
+  monthlyIncomeFlow: Float64Array,
+  monthlySpendingFlow: Float64Array,
   lumpSumByMonth: Float64Array,
   currentSavings: number,
   sampleCount: number,
-  months: number
+  months: number,
+  strategy: WithdrawalStrategy,
+  retireMonth: number
 ): number {
   let ruinCount = 0;
 
   for (let sim = 0; sim < sampleCount; sim++) {
     let balance = currentSavings;
     let ruined = false;
+    const runner = new WithdrawalRunner(strategy, monthlySpendingFlow, retireMonth);
 
     for (let month = 0; month < months; month++) {
-      balance += monthlyNetFlow[month] + lumpSumByMonth[month];
+      const effectiveSpending = runner.monthlySpending(month, balance);
+      balance += monthlyIncomeFlow[month] - effectiveSpending + lumpSumByMonth[month];
       balance *= growthFactors[sim][month];
       if (balance <= 0) {
         balance = 0;
@@ -482,7 +575,8 @@ function buildRuinSurface(
   lumpSumEvents: LumpSumEvent[],
   growthFactors: number[][],
   months: number,
-  simCount: number
+  simCount: number,
+  strategy: WithdrawalStrategy
 ): SummaryStats['ruinSurface'] {
   const spendingMultipliers = [0.8, 0.9, 1.0, 1.1, 1.2];
   const candidateAges = [input.retirementAge - 6, input.retirementAge - 3, input.retirementAge, input.retirementAge + 3, input.retirementAge + 6]
@@ -505,7 +599,7 @@ function buildRuinSurface(
         return { ...source };
       });
 
-      const { monthlyNetFlow, lumpSumByMonth } = buildCashflowArrays(
+      const { monthlyIncomeFlow, monthlySpendingFlow, lumpSumByMonth } = buildCashflowArrays(
         adjustedInput,
         scaledSpending,
         adjustedIncome,
@@ -513,7 +607,22 @@ function buildRuinSurface(
         months
       );
 
-      return replayRuinProbability(growthFactors, monthlyNetFlow, lumpSumByMonth, input.currentSavings, sampledScenarios, months);
+      const cellRetireMonth = Math.min(
+        months,
+        Math.max(0, Math.round((retAge - input.currentAge) * 12))
+      );
+
+      return replayRuinProbability(
+        growthFactors,
+        monthlyIncomeFlow,
+        monthlySpendingFlow,
+        lumpSumByMonth,
+        input.currentSavings,
+        sampledScenarios,
+        months,
+        strategy,
+        cellRetireMonth
+      );
     });
   });
 
@@ -568,14 +677,25 @@ export function buildCashflowArrays(
   incomeSources: IncomeSource[],
   lumpSumEvents: LumpSumEvent[],
   months: number
-): { monthlyNetFlow: Float64Array; lumpSumByMonth: Float64Array } {
+): {
+  monthlyNetFlow: Float64Array;
+  monthlyIncomeFlow: Float64Array;
+  monthlySpendingFlow: Float64Array;
+  lumpSumByMonth: Float64Array;
+} {
   const monthlyNetFlow = new Float64Array(months);
+  const monthlyIncomeFlow = new Float64Array(months);
+  const monthlySpendingFlow = new Float64Array(months);
   const lumpSumByMonth = new Float64Array(months);
 
   for (let m = 0; m < months; m++) {
     const age = input.currentAge + m / 12;
     const inflationIndex = expectedInflationIndexAtAge(input, age);
-    monthlyNetFlow[m] = (incomeAtAge(age, incomeSources, inflationIndex) - spendingAtAge(age, spendingPeriods, inflationIndex)) / 12;
+    const income = incomeAtAge(age, incomeSources, inflationIndex) / 12;
+    const spending = spendingAtAge(age, spendingPeriods, inflationIndex) / 12;
+    monthlyIncomeFlow[m] = income;
+    monthlySpendingFlow[m] = spending;
+    monthlyNetFlow[m] = income - spending;
   }
 
   for (const event of lumpSumEvents) {
@@ -585,7 +705,7 @@ export function buildCashflowArrays(
     }
   }
 
-  return { monthlyNetFlow, lumpSumByMonth };
+  return { monthlyNetFlow, monthlyIncomeFlow, monthlySpendingFlow, lumpSumByMonth };
 }
 
 // `successFlags` must use the same definition as the headline success probability
@@ -638,7 +758,9 @@ export function runMonteCarloSimulation(
   const targetAnnualStd = Math.max(0, input.returnVariability);
   const targetMonthlyMean = targetAnnualMean / 12;
   const targetMonthlyStd = targetAnnualStd / Math.sqrt(12);
-  const { monthlyNetFlow, lumpSumByMonth } = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
+  const { monthlyIncomeFlow, monthlySpendingFlow, lumpSumByMonth } = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
+  const withdrawalStrategy: WithdrawalStrategy = input.withdrawalStrategy ?? DEFAULT_WITHDRAWAL_STRATEGY;
+  const retireMonthClamped = Math.min(months, Math.max(0, retireMonth));
   const stayGrowth = clampTransitionProbability(input.regimeModel.stayGrowth);
   const stayCrisis = clampTransitionProbability(input.regimeModel.stayCrisis);
   const growthMean = input.regimeModel.growthMean;
@@ -743,6 +865,7 @@ export function runMonteCarloSimulation(
     let annualAssetReturn = 0;
     let annualInflation = 0;
     let yearlyPnl = 0;
+    const withdrawalRunner = new WithdrawalRunner(withdrawalStrategy, monthlySpendingFlow, retireMonthClamped);
 
     for (let m = 0; m < months; m++) {
       let regimeChanged = false;
@@ -807,7 +930,8 @@ export function runMonteCarloSimulation(
       annualAssetReturn = (1 + annualAssetReturn) * (1 + monthlyPortfolioReturnAfterCosts) - 1;
       annualInflation = (1 + annualInflation) * (1 + monthlyInflation) - 1;
 
-      balance += monthlyNetFlow[m] + lumpSumByMonth[m];
+      const effectiveSpending = withdrawalRunner.monthlySpending(m, balance);
+      balance += monthlyIncomeFlow[m] - effectiveSpending + lumpSumByMonth[m];
       const pnlMonth = Math.max(0, balance) * (monthlyPortfolioGrowthFactor - 1);
       balance *= monthlyPortfolioGrowthFactor;
       balance /= 1 + monthlyInflation;
@@ -893,7 +1017,8 @@ export function runMonteCarloSimulation(
     lumpSumEvents,
     growthFactors,
     months,
-    simCount
+    simCount,
+    withdrawalStrategy
   );
 
   const stats: SummaryStats = {

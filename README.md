@@ -232,6 +232,25 @@ for each month m in [0 .. totalMonths):
 - **Income sources**: identical structure; default salary `[currentAge, retirementAge)`, default pension `[67, simulateUntilAge)`
 - **Lump-sum events**: one-time addition/subtraction at a specific age
 
+### 5.1.1 Withdrawal Strategies
+
+During the retirement phase (`age ≥ retirementAge`), spending can respond to the running
+balance. A stateful `WithdrawalRunner` (identical logic in the Rust and TS engines, and
+re-applied in the ruin-surface replay so the surface stays consistent) evaluates one of:
+
+| Strategy (`withdrawalStrategy.kind`) | Behaviour |
+|---|---|
+| `fixed` (default) | Planned real-terms spending, unchanged. The classic "4% rule" assumption. |
+| `guardrails` | Guyton-Klinger. Once per retirement year, if the current withdrawal rate (spending ÷ balance) has drifted above `initialRate × (1 + guardrailBand)`, spending is cut by `adjustment`; below `initialRate × (1 − guardrailBand)`, raised by `adjustment`. Clamped to `[spendingFloor, spendingCeiling] ×` planned. Defaults: band 0.2, step 0.1, floor 0.6, ceiling 1.4. |
+| `percentOfPortfolio` | Each retirement year spend `withdrawalPercent ×` current balance, clamped to `[spendingFloor, spendingCeiling] ×` initial real spending so income neither collapses nor balloons. Default `withdrawalPercent` 0.04. |
+
+Both adaptive strategies raise success probability versus fixed spending on stressed
+scenarios (they cut spending in bad markets), matching the well-documented behaviour of
+guardrail/variable-percentage withdrawal in the retirement-research literature. A
+regression test (`retirementEngine.test.ts`, "withdrawal strategies") asserts
+`guardrails ≥ fixed` and `percentOfPortfolio ≥ fixed` on a calibrated stressed scenario.
+Pre-retirement spending is always the planned amount regardless of strategy.
+
 ### 5.2 Drag Model
 
 | Parameter | Default | Application |
@@ -374,7 +393,7 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 | Block bootstrap within regime (block = 6 months) | Preserves short-run autocorrelation | Much better than i.i.d. sampling |
 | Equity-bond correlation configurable; cash correlation = 0 | Partial | Improves portfolio σ realism |
 | Regime-conditioned inflation (crisis spread) | Captures main channel | Not full multivariate inflation model |
-| Fixed spending in real terms | Overstates ruin probability | Humans adapt spending downward |
+| Spending strategy (fixed / guardrails / percent-of-portfolio) | Fixed default is conservative | Adaptive strategies available (§5.1.1), added 2026-07-20 |
 | Split fee/tax costs | Improved | More interpretable than single drag |
 | Monthly time step | Good | Sufficient for retirement horizon |
 | Two regimes (Growth/Crisis) | Good | Captures main market dynamics |

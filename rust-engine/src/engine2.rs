@@ -1,4 +1,111 @@
-use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
+use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy};
+
+/// Stateful evaluator for dynamic withdrawal strategies. Shared by the main simulation
+/// loop and the ruin-surface replay so the two never diverge. Returns the effective
+/// monthly spending (a positive outflow) given the running balance.
+///
+/// - `fixed`: spending follows the planned real-terms schedule unchanged.
+/// - `guardrails`: Guyton-Klinger — during retirement, if the current withdrawal rate
+///   drifts above/below the initial rate by `guardrail_band`, spending is cut/raised by
+///   `adjustment`, clamped to [floor, ceiling] × initial real spending. Decisions are
+///   made once per retirement year.
+/// - `percentOfPortfolio`: during retirement, spend `withdrawal_percent` of the current
+///   balance each year (recomputed annually), clamped to [floor, ceiling] × initial real
+///   spending so it never collapses to near-zero or explodes.
+pub struct WithdrawalRunner<'a> {
+    kind: u8, // 0 fixed, 1 guardrails, 2 percent
+    retire_month: usize,
+    base_spending: &'a [f64],
+    guardrail_band: f64,
+    adjustment: f64,
+    withdrawal_percent: f64,
+    spending_floor: f64,
+    spending_ceiling: f64,
+    // state
+    initialized: bool,
+    multiplier: f64,
+    initial_rate: f64,
+    initial_annual_spending: f64,
+    held_monthly_spending: f64,
+}
+
+impl<'a> WithdrawalRunner<'a> {
+    pub fn new(
+        strategy: &WithdrawalStrategy,
+        base_spending: &'a [f64],
+        retire_month: usize,
+    ) -> Self {
+        let kind = match strategy.kind.as_str() {
+            "guardrails" => 1,
+            "percentOfPortfolio" => 2,
+            _ => 0,
+        };
+        WithdrawalRunner {
+            kind,
+            retire_month,
+            base_spending,
+            guardrail_band: strategy.guardrail_band.unwrap_or(0.2).max(0.01),
+            adjustment: strategy.adjustment.unwrap_or(0.1).clamp(0.0, 0.9),
+            withdrawal_percent: strategy.withdrawal_percent.unwrap_or(0.04).max(0.0),
+            spending_floor: strategy.spending_floor.unwrap_or(0.6).max(0.0),
+            spending_ceiling: strategy.spending_ceiling.unwrap_or(1.4).max(0.0),
+            initialized: false,
+            multiplier: 1.0,
+            initial_rate: 0.0,
+            initial_annual_spending: 0.0,
+            held_monthly_spending: 0.0,
+        }
+    }
+
+    pub fn monthly_spending(&mut self, m: usize, balance: f64) -> f64 {
+        let base = self.base_spending[m];
+        // Accumulation phase, or the fixed strategy: follow the planned schedule.
+        if self.kind == 0 || m < self.retire_month {
+            return base;
+        }
+        let is_year_start = (m - self.retire_month) % 12 == 0;
+
+        if !self.initialized {
+            self.initial_annual_spending = base * 12.0;
+            self.initial_rate = if balance > 0.0 {
+                self.initial_annual_spending / balance
+            } else {
+                0.0
+            };
+            self.multiplier = 1.0;
+            self.held_monthly_spending = base;
+            self.initialized = true;
+        }
+
+        let floor_annual = self.spending_floor * self.initial_annual_spending;
+        let ceiling_annual = self.spending_ceiling * self.initial_annual_spending;
+
+        if self.kind == 1 {
+            // Guyton-Klinger guardrails.
+            if is_year_start && balance > 0.0 && self.initial_rate > 0.0 {
+                let current_annual = base * 12.0 * self.multiplier;
+                let current_rate = current_annual / balance;
+                if current_rate > self.initial_rate * (1.0 + self.guardrail_band) {
+                    self.multiplier *= 1.0 - self.adjustment;
+                } else if current_rate < self.initial_rate * (1.0 - self.guardrail_band) {
+                    self.multiplier *= 1.0 + self.adjustment;
+                }
+                let min_mult = self.spending_floor;
+                let max_mult = self.spending_ceiling;
+                self.multiplier = self.multiplier.clamp(min_mult, max_mult);
+            }
+            base * self.multiplier
+        } else {
+            // Percent-of-portfolio (recomputed annually, held for the year).
+            if is_year_start {
+                let target_annual = self.withdrawal_percent * balance.max(0.0);
+                let clamped = target_annual.clamp(floor_annual, ceiling_annual);
+                self.held_monthly_spending = clamped / 12.0;
+            }
+            self.held_monthly_spending
+        }
+    }
+}
 
 pub fn apply_moment_targeting(
     value: f64,
@@ -246,7 +353,12 @@ pub fn monthly_returns_to_annual_series(monthly_returns: &[f64]) -> Vec<f64> {
 }
 
 pub struct CashflowArrays {
+    /// income − base spending, per month (the fixed-strategy net flow).
     pub monthly_net_flow: Vec<f64>,
+    /// income only, per month (positive = inflow).
+    pub monthly_income_flow: Vec<f64>,
+    /// base planned spending, per month (positive = outflow).
+    pub monthly_spending_flow: Vec<f64>,
     pub lump_sum_by_month: Vec<f64>,
 }
 
@@ -291,14 +403,18 @@ pub fn build_cashflow_arrays(
     months: u32,
 ) -> CashflowArrays {
     let mut monthly_net_flow = vec![0.0; months as usize];
+    let mut monthly_income_flow = vec![0.0; months as usize];
+    let mut monthly_spending_flow = vec![0.0; months as usize];
     let mut lump_sum_by_month = vec![0.0; months as usize];
 
     for m in 0..months {
         let age = input.current_age + (m as f64) / 12.0;
         let inflation_index = expected_inflation_index_at_age(input, age);
-        let income = income_at_age(age, income_sources, inflation_index);
-        let spending = spending_at_age(age, spending_periods, inflation_index);
-        monthly_net_flow[m as usize] = (income - spending) / 12.0;
+        let income = income_at_age(age, income_sources, inflation_index) / 12.0;
+        let spending = spending_at_age(age, spending_periods, inflation_index) / 12.0;
+        monthly_income_flow[m as usize] = income;
+        monthly_spending_flow[m as usize] = spending;
+        monthly_net_flow[m as usize] = income - spending;
     }
 
     for event in lump_sum_events {
@@ -310,6 +426,8 @@ pub fn build_cashflow_arrays(
 
     CashflowArrays {
         monthly_net_flow,
+        monthly_income_flow,
+        monthly_spending_flow,
         lump_sum_by_month,
     }
 }

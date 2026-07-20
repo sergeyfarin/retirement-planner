@@ -12,12 +12,15 @@
 		runMonteCarloSimulation,
 		spendingAtAge,
 		validateSimulationInputs,
+		DEFAULT_WITHDRAWAL_STRATEGY,
 		type IncomeSource,
 		type LumpSumEvent,
 		type RetirementInput,
 		type SimulationResult,
 		type SpendingPeriod,
-		type SummaryStats
+		type SummaryStats,
+		type WithdrawalStrategy,
+		type WithdrawalStrategyKind
 	} from './retirementEngine';
 	import {
 		blendPortfolioMetrics as calcBlendPortfolioMetrics,
@@ -582,6 +585,7 @@
 		blockLength: 6,
 		inflationCrisisSpread: 0.015,
 		safeWithdrawalRate: 0.04,
+		withdrawalStrategy: { ...DEFAULT_WITHDRAWAL_STRATEGY },
 		simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
 		regimeModel: buildRegimeModelFromPortfolio(
 			blendPortfolioMetrics(
@@ -1671,6 +1675,12 @@
 			input.annualFeePercent,
 			input.taxOnGainsPercent,
 			input.safeWithdrawalRate,
+			input.withdrawalStrategy?.kind ?? 'fixed',
+			input.withdrawalStrategy?.guardrailBand ?? '',
+			input.withdrawalStrategy?.adjustment ?? '',
+			input.withdrawalStrategy?.withdrawalPercent ?? '',
+			input.withdrawalStrategy?.spendingFloor ?? '',
+			input.withdrawalStrategy?.spendingCeiling ?? '',
 			stockBoundaryPercent,
 			bondBoundaryPercent,
 			activeMetrics.stockMean,
@@ -1772,6 +1782,7 @@
 			c: selectedCurrencyCode,
 			m: input.simulationMode,
 			t: input.historicalMomentTargeting ? 1 : 0,
+			ws: $state.snapshot(input.withdrawalStrategy) ?? { ...DEFAULT_WITHDRAWAL_STRATEGY },
 			i: scalars,
 			sb: stockBoundaryPercent,
 			bb: bondBoundaryPercent,
@@ -1822,6 +1833,26 @@
 			input.simulationMode = state.m;
 		}
 		input.historicalMomentTargeting = state.t === 1;
+
+		if (state.ws && typeof state.ws === 'object') {
+			const ws = state.ws as Record<string, unknown>;
+			const kind = ws.kind;
+			const restored: WithdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY };
+			if (kind === 'fixed' || kind === 'guardrails' || kind === 'percentOfPortfolio') {
+				restored.kind = kind;
+			}
+			for (const key of [
+				'guardrailBand',
+				'adjustment',
+				'withdrawalPercent',
+				'spendingFloor',
+				'spendingCeiling'
+			] as const) {
+				const value = ws[key];
+				if (typeof value === 'number' && Number.isFinite(value)) restored[key] = value;
+			}
+			input.withdrawalStrategy = restored;
+		}
 
 		// Load currency defaults + dataset series first, then overlay shared values.
 		lastAppliedReferenceCurrency = selectedCurrencyCode;

@@ -41,6 +41,40 @@ pub struct LumpSumEvent {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WithdrawalStrategy {
+    /// "fixed" | "guardrails" | "percentOfPortfolio"
+    pub kind: String,
+    /// Guyton-Klinger guardrail band as a fraction of the initial withdrawal rate
+    /// (e.g. 0.2 → adjust when the rate drifts ±20% from its starting value).
+    #[serde(rename = "guardrailBand")]
+    pub guardrail_band: Option<f64>,
+    /// Fractional spending change applied when a guardrail is breached (e.g. 0.1 → ±10%).
+    pub adjustment: Option<f64>,
+    /// Annual withdrawal fraction for the percent-of-portfolio strategy (e.g. 0.04).
+    #[serde(rename = "withdrawalPercent")]
+    pub withdrawal_percent: Option<f64>,
+    /// Lower bound on dynamic spending as a fraction of initial real spending.
+    #[serde(rename = "spendingFloor")]
+    pub spending_floor: Option<f64>,
+    /// Upper bound on dynamic spending as a fraction of initial real spending.
+    #[serde(rename = "spendingCeiling")]
+    pub spending_ceiling: Option<f64>,
+}
+
+impl Default for WithdrawalStrategy {
+    fn default() -> Self {
+        WithdrawalStrategy {
+            kind: "fixed".to_string(),
+            guardrail_band: Some(0.2),
+            adjustment: Some(0.1),
+            withdrawal_percent: Some(0.04),
+            spending_floor: Some(0.6),
+            spending_ceiling: Some(1.4),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RegimeModelInput {
     #[serde(rename = "stayGrowth")]
     pub stay_growth: f64,
@@ -106,6 +140,8 @@ pub struct RetirementInput {
     pub seed: Option<f64>,
     #[serde(rename = "safeWithdrawalRate")]
     pub safe_withdrawal_rate: f64,
+    #[serde(rename = "withdrawalStrategy")]
+    pub withdrawal_strategy: Option<WithdrawalStrategy>,
     pub simulations: f64,
 
     #[serde(rename = "regimeModel")]
