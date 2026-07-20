@@ -53,7 +53,8 @@
 		resetBondMetricsToDefault,
 		resetBankMetricsToDefault,
 		resetInflationToDefault,
-		resetDragToDefault
+		resetDragToDefault,
+		onAssumptionsToggle = undefined
 	}: {
 		CURRENCIES?: any[];
 		selectedCurrencyCode: any;
@@ -109,6 +110,7 @@
 		resetBankMetricsToDefault: () => void;
 		resetInflationToDefault: () => void;
 		resetDragToDefault: () => void;
+		onAssumptionsToggle?: () => void;
 	} = $props();
 </script>
 
@@ -133,15 +135,15 @@
 	<div class="card mt-2">
 		<div class="form-grid">
 			<label>
-				Age
+				Current age
 				<input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
 			</label>
 			<label>
-				FI Target year
+				Retire at age
 				<input type="number" min="25" max="80" step="1" bind:value={input.retirementAge} />
 			</label>
-			<label>
-				Until year
+			<label title="Planning to age 90–95 is a conservative, commonly recommended choice.">
+				Plan until age
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
 		</div>
@@ -168,11 +170,11 @@
 							{/if}
 
 							{#if src.id === 'is-default'}
-								<div class="readonly-age-cell" aria-label="Salary ends at FI target year">
+								<div class="readonly-age-cell" aria-label="Salary ends at retirement age">
 									{fmtNum(input.retirementAge)}
 								</div>
 							{:else if src.id === 'is-pension'}
-								<div class="readonly-age-cell" aria-label="Pension ends at simulation end year">
+								<div class="readonly-age-cell" aria-label="Pension ends at plan-until age">
 									{fmtNum(input.simulateUntilAge)}
 								</div>
 							{:else}
@@ -237,7 +239,7 @@
 							{#if period.id === 'sp-default'}
 								<div
 									class="readonly-age-cell"
-									aria-label="Living expenses ends at simulation end year"
+									aria-label="Living expenses end at plan-until age"
 								>
 									{fmtNum(input.simulateUntilAge)}
 								</div>
@@ -361,18 +363,33 @@
 		</div>
 	</div>
 
-	<div class="card">
-		<!-- <div class="assumptions-titlebar">
-			<h3>Assumptions</h3>
-			<button
-				class="assumptions-reset-btn"
-				type="button"
-				onclick={resetAssumptionsToCurrencyDefaults}>Reset to currency defaults</button
-			>
-		</div> -->
+	<details
+		class="card assumptions-details"
+		ontoggle={(e) => {
+			if ((e.target as HTMLDetailsElement).open) onAssumptionsToggle?.();
+		}}
+	>
+		<summary class="font-semibold cursor-pointer select-none" style="outline: none;">
+			Assumptions
+			<span class="assumptions-summary-line">
+				{#if input.simulationMode === 'parametric'}
+					parametric (user inputs)
+				{:else if selectedHistoricalRegion}
+					{selectedHistoricalRegion.label} history {selectedHistoricalRegion.coverage}{input.historicalMomentTargeting
+						? ' (adjusted)'
+						: ''}
+				{:else}
+					fallback assumptions
+				{/if}
+				· {fmtPercentDisplay(input.annualFeePercent, 1)} fees · {fmtPercentDisplay(
+					input.taxOnGainsPercent,
+					0
+				)} tax — customize
+			</span>
+		</summary>
 
 		<div>
-			<div class="simulation-mode-wrap mb-4">
+			<div class="simulation-mode-wrap mb-4 mt-3">
 				<div class="block mb-2 font-semibold">Simulation mode and assumptions</div>
 				<div class="mode-toggle-group" role="group" aria-label="Simulation mode selection">
 					<button
@@ -842,7 +859,9 @@
 					</tr>
 
 					<tr>
-						<td>Tax on gains</td>
+						<td title="Applied once a year to the year's net investment gains (losses untaxed). At 15% this costs roughly 1.5–2% of returns per year."
+							>Tax on gains</td
+						>
 						<td
 							><input
 								type="text"
@@ -898,7 +917,7 @@
 				aria-label="Real return cumulative probability plot"
 			></div>
 		</div>
-	</div>
+	</details>
 	<details class="card mt-4 mb-2">
 		<summary class="font-semibold cursor-pointer select-none" style="outline: none;"
 			>Advanced tuning</summary
@@ -946,6 +965,31 @@
 					/>
 					<span class="text-xs text-slate-500 opacity-80 leading-tight"
 						>Absolute percentage jump applied to inflation baseline during an economic Crisis.</span
+					>
+				</div>
+			</div>
+			<div class="mt-3">
+				<label
+					for="adv-seed"
+					class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"
+					>Random Seed</label
+				>
+				<div class="flex items-center gap-2">
+					<input
+						id="adv-seed"
+						type="number"
+						step="1"
+						placeholder="auto"
+						value={input.seed ?? ''}
+						oninput={(e) => {
+							const raw = (e.target as HTMLInputElement).value;
+							input.seed = raw === '' ? undefined : Number(raw);
+						}}
+						class="w-24 text-center"
+					/>
+					<span class="text-xs text-slate-500 opacity-80 leading-tight"
+						>Leave blank for a fresh random seed each run. Set a value to reproduce an exact
+						result — the seed actually used is shown after each run completes.</span
 					>
 				</div>
 			</div>

@@ -16,6 +16,61 @@ const REGIONS = {
   EUR: { file: 'eur.csv', label: 'Euro area' }
 };
 
+// ─── Synthetic dividend adjustment ────────────────────────────────────────────
+// The raw equity closes for USD (^SPX), GBP (^UKX) and the non-EUR components of
+// WORLD (^SPX/^UKX/^NKX/^HSI) are PRICE indices — dividends are not included.
+// The EUR proxy is already ~total-return at import time (DAX is TR by construction;
+// CAC gets +3%/yr synthetic dividends in import-retirement-market-data.mjs), so it
+// gets no adjustment here. If the import script is ever switched to total-return
+// sources, remove the corresponding schedule below to avoid double counting.
+//
+// Decade-level average dividend yields (annual %), rounded approximations from:
+//   US — Shiller S&P 500 data (multpl.com/s-p-500-dividend-yield)
+//   UK — Barclays Equity Gilt Study ranges for FT All-Share / FTSE 100
+//   WORLD — component-weighted blend of US(55%)/UK(5%)/JP(15%)/HK-EM(10%) yields;
+//           the EUR 15% share contributes 0 because it is already total-return.
+//           (JP: ~4% in the 1960s falling below 1% in the bubble era, recovering to
+//            ~2% by the 2020s; HK: ~3.3–4% throughout.)
+const DIVIDEND_YIELD_SCHEDULES = {
+  USD: { 1960: 3.1, 1970: 4.1, 1980: 4.3, 1990: 2.5, 2000: 1.8, 2010: 2.0, 2020: 1.5 },
+  GBP: { 1960: 5.0, 1970: 5.5, 1980: 4.5, 1990: 3.8, 2000: 3.3, 2010: 3.8, 2020: 3.7 },
+  WORLD: { 1960: 2.9, 1970: 3.2, 1980: 3.1, 1990: 2.0, 2000: 1.7, 2010: 1.9, 2020: 1.7 },
+  EUR: null
+};
+
+function syntheticMonthlyDividend(regionCode, dateStr) {
+  const schedule = DIVIDEND_YIELD_SCHEDULES[regionCode];
+  if (!schedule) return 0;
+  const year = Number(dateStr.slice(0, 4));
+  if (!Number.isFinite(year)) return 0;
+  const decade = Math.min(2020, Math.max(1960, Math.floor(year / 10) * 10));
+  const annualYieldPct = schedule[decade];
+  if (!Number.isFinite(annualYieldPct)) return 0;
+  return Math.pow(1 + annualYieldPct / 100, 1 / 12) - 1;
+}
+
+// Fail loud on mid-series gaps: a missing month would silently shift every
+// downstream 12-month aggregation window (different start dates across regions
+// are fine; holes are not).
+function assertContiguousMonths(rows, regionCode) {
+  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+  for (let index = 1; index < sorted.length; index++) {
+    const prev = sorted[index - 1].date;
+    const curr = sorted[index].date;
+    const prevYear = Number(prev.slice(0, 4));
+    const prevMonth = Number(prev.slice(5, 7));
+    const expected =
+      prevMonth === 12
+        ? `${prevYear + 1}-01`
+        : `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
+    if (curr !== expected) {
+      throw new Error(
+        `[retirement-preprocess] ${regionCode}: month gap between ${prev} and ${curr} (expected ${expected})`
+      );
+    }
+  }
+}
+
 function parseRawCsv(filePath) {
   const text = readFileSync(filePath, 'utf8');
   const lines = text.split(/\r?\n/).filter(Boolean);
@@ -91,27 +146,32 @@ function monthlyCashReturn(cashRatePct) {
   return cashRatePct / 1200;
 }
 
-function aggregateAnnualSeries(rows) {
+function buildMonthlyReturnRows(rows, regionCode) {
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
   const monthly = [];
   for (let index = 1; index < sorted.length; index++) {
     const prev = sorted[index - 1];
     const curr = sorted[index];
-    const eq = monthlyReturnFromCloses(prev.equityClose, curr.equityClose);
+    const priceReturn = monthlyReturnFromCloses(prev.equityClose, curr.equityClose);
     const bond = monthlyReturnFromCloses(prev.bondClose, curr.bondClose);
     const cash = monthlyCashReturn(curr.cashRatePct);
-    if (eq == null || bond == null || cash == null) continue;
+    if (priceReturn == null || bond == null || cash == null) continue;
 
     monthly.push({
+      month: curr.date,
       year: Number(curr.date.slice(0, 4)),
-      equity: eq,
+      equity: priceReturn + syntheticMonthlyDividend(regionCode, curr.date),
       bond,
       cash
     });
   }
 
+  return monthly;
+}
+
+function aggregateAnnualSeries(monthlyRows) {
   const byYear = new Map();
-  for (const row of monthly) {
+  for (const row of monthlyRows) {
     if (!byYear.has(row.year)) byYear.set(row.year, []);
     byYear.get(row.year).push(row);
   }
@@ -127,28 +187,6 @@ function aggregateAnnualSeries(rows) {
   }
 
   return annual;
-}
-
-function buildMonthlySeries(rows) {
-  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-  const monthly = [];
-  for (let index = 1; index < sorted.length; index++) {
-    const prev = sorted[index - 1];
-    const curr = sorted[index];
-    const eq = monthlyReturnFromCloses(prev.equityClose, curr.equityClose);
-    const bond = monthlyReturnFromCloses(prev.bondClose, curr.bondClose);
-    const cash = monthlyCashReturn(curr.cashRatePct);
-    if (eq == null || bond == null || cash == null) continue;
-
-    monthly.push({
-      month: curr.date,
-      equity: eq,
-      bond,
-      cash
-    });
-  }
-
-  return monthly;
 }
 
 function summarizeRegion(annualSeries) {
@@ -198,7 +236,9 @@ function main() {
     methodology: {
       frequency: 'monthly -> annual',
       annualization: 'compound monthly returns within year',
-      cash: 'monthly short-rate / 12'
+      cash: 'monthly short-rate / 12',
+      dividends:
+        'price-only equity series (USD, GBP, WORLD non-EUR components) adjusted with decade-level synthetic dividend yields; EUR proxy already total-return at import'
     },
     regions: {}
   };
@@ -206,8 +246,10 @@ function main() {
   for (const [code, config] of Object.entries(REGIONS)) {
     const filePath = path.join(RAW_DIR, config.file);
     const rows = parseRawCsv(filePath);
-    const annualSeries = aggregateAnnualSeries(rows);
-    const monthlySeries = buildMonthlySeries(rows);
+    assertContiguousMonths(rows, code);
+    const monthlyRows = buildMonthlyReturnRows(rows, code);
+    const annualSeries = aggregateAnnualSeries(monthlyRows);
+    const monthlySeries = monthlyRows;
     const summary = summarizeRegion(annualSeries);
 
     output.regions[code] = {

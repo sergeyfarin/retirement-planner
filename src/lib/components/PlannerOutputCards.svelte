@@ -6,8 +6,20 @@
 		retirementYearlySpending = 0,
 		FI_TARGET_SUCCESS_PROBABILITY = 0.95,
 		percentFormatter,
-		fmtNum
+		fmtNum,
+		simCount = 0
 	} = $props();
+
+	// Monte Carlo standard error of a proportion: SE = sqrt(p(1-p)/N).
+	// The ±1.96·SE band is the 95%-confidence margin on the success probability itself,
+	// i.e. how much this number would wobble across repeated runs at this sample size.
+	const successProbabilitySE = $derived(
+		simCount > 0 && stats
+			? Math.sqrt(
+					(stats.successProbability * (1 - stats.successProbability)) / simCount
+				)
+			: 0
+	);
 </script>
 
 {#if stats}
@@ -76,32 +88,48 @@
 			>
 				{percentFormatter.format(stats.successProbability)}
 			</div>
-			<div class="note mono-value">
+			{#if simCount > 0}
+				<div
+					class="note mono-value"
+					title="Standard error of the success probability estimate: sqrt(p(1-p)/N). A narrower band means more simulations were run and the number is more precise."
+				>
+					±{(successProbabilitySE * 1.96 * 100).toFixed(1)}% at 95% confidence ({fmtNum(
+						simCount
+					)} simulations)
+				</div>
+			{/if}
+			<div
+				class="note mono-value"
+				title="Percentiles of simulated outcomes, worst to best — not percentiles of the shortfall amount itself"
+			>
 				Cumulative shortfall —
 				<span class:amount-negative={stats.shortfallHigh > 0}
-					>P10: {fmtCompactCurrency(stats.shortfallHigh)}</span
+					>Worst 10%: {fmtCompactCurrency(stats.shortfallHigh)}</span
 				>
 				·
 				<span class:amount-negative={stats.shortfallMedian > 0}
-					>P50: {fmtCompactCurrency(stats.shortfallMedian)}</span
+					>Median: {fmtCompactCurrency(stats.shortfallMedian)}</span
 				>
 				·
 				<span class:amount-negative={stats.shortfallLow > 0}
-					>P90: {fmtCompactCurrency(stats.shortfallLow)}</span
+					>Best 10%: {fmtCompactCurrency(stats.shortfallLow)}</span
 				>
 			</div>
-			<div class="note mono-value">
+			<div
+				class="note mono-value"
+				title="Percentiles of simulated outcomes, worst to best — not percentiles of years-depleted itself"
+			>
 				Years at zero balance —
 				<span class:amount-negative={stats.depletedYearsHigh > 0}
-					>P10: {fmtNum(stats.depletedYearsHigh, 1)}</span
+					>Worst 10%: {fmtNum(stats.depletedYearsHigh, 1)}</span
 				>
 				·
 				<span class:amount-negative={stats.depletedYearsMedian > 0}
-					>P50: {fmtNum(stats.depletedYearsMedian, 1)}</span
+					>Median: {fmtNum(stats.depletedYearsMedian, 1)}</span
 				>
 				·
 				<span class:amount-negative={stats.depletedYearsLow > 0}
-					>P90: {fmtNum(stats.depletedYearsLow, 1)}</span
+					>Best 10%: {fmtNum(stats.depletedYearsLow, 1)}</span
 				>
 			</div>
 		</div>

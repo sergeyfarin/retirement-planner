@@ -1,7 +1,40 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-07-07 (full engine + data-pipeline review; new Priority 0 added).
-Completed phases are summarized at the bottom. Items ordered by strategic priority.
+**Updated:** 2026-07-20 (launch plan agreed; mortality-weighted ruin declined as a product
+decision — see 2.2). Completed phases are summarized at the bottom.
+
+---
+
+## Launch Plan (agreed 2026-07-20)
+
+Phased implementation order for making the planner shareable with a wider audience.
+Item numbers refer to the detailed entries below.
+
+**Phase 1 — Correctness (engine & data): ✅ COMPLETED 2026-07-20**
+1. ✅ Dividend adjustment for US/UK/World equity series (0.1)
+2. ✅ Annual net-gain taxation replacing monthly upside-only tax (0.2)
+3. ✅ Unify effective-moments source between UI code paths (0.10)
+4. ✅ Align success definition in FI-P95 target with headline success probability (1.4)
+5. ✅ Month-contiguity assertion in preprocessing (0.9)
+6. ✅ Raise ruin-surface sample cap 800 → 2000 (6.2)
+
+**Phase 2 — UX for a wider audience: ✅ COMPLETED 2026-07-20**
+7. ✅ Age field labels: "Current age" / "Retire at age" / "Plan until age"
+8. ✅ Plain-language headline sentence above output cards ("In 99 of 100 simulated futures…")
+9. ✅ Progressive disclosure: assumptions card collapsed by default behind a one-line summary
+10. ✅ URL-shareable scenarios including the seed (4.1)
+
+**Phase 3 — Modeling upgrades:**
+11. Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
+12. Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
+13. "Current conditions" expected-return preset via moment targeting (yield-anchored means,
+    historical shape)
+
+**Phase 4 — Engineering health:**
+14. Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
+15. De-duplicate planner-local math / decide TS engine's fate (1.2 / 1.3)
+
+**Explicitly declined:** mortality-weighted ruin (2.2) — see rationale there.
 
 ---
 
@@ -9,7 +42,15 @@ Completed phases are summarized at the bottom. Items ordered by strategic priori
 
 These bias current results **materially pessimistic** and should land before new features.
 
-### 0.1 US and UK equity series exclude dividends (M) — biggest wrong-answer fix
+### 0.1 US and UK equity series exclude dividends (M) — ✅ FIXED 2026-07-20
+**Fix applied:** decade-level synthetic dividend yield schedules added in
+`preprocess-retirement-market-data.mjs` for USD, GBP and WORLD (EUR already
+total-return); dataset regenerated. US equity now 12.0% arithmetic / 10.6% geometric
+nominal 1961–2025 (was 8.9/7.6), GBP 11.3/9.6 (was 6.8/5.2), WORLD 12.1/10.7 (was
+9.5/8.2), EUR unchanged. README §3.1.1 documents schedules and sources. Original issue
+kept below for context.
+
+**Original issue:**
 **Current:** `scripts/import-retirement-market-data.mjs` builds equity returns from Stooq
 `^SPX` and `^UKX` monthly *price* closes. The EUR proxy uses `^DAX` (total-return by
 construction) + `^CAC` with a synthetic +3%/yr dividend yield — but SPX and UKX get no
@@ -24,7 +65,16 @@ time-varying (US: ~3.5% pre-1990, ~2% post-2000) — or switch to total-return s
 components (`^NKX`, `^HSI`) for the same issue. Update README §3.1 when fixed.
 **Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
-### 0.2 Tax-on-gains model overstates drag ~3–4× (M)
+### 0.2 Tax-on-gains model overstates drag ~3–4× (M) — ✅ FIXED 2026-07-20
+**Fix applied:** both engines now accumulate the year's investment P&L (net of fees,
+tracked in deflated units) and tax `rate × max(0, yearly_pnl)` at each year boundary and
+the final partial year, applied as a multiplicative factor so ruin-surface replay carries
+it. Measured effective drag at the 15% default: ≈1.6%/yr on a ≈12%/yr portfolio (was
+≈3.5–4%/yr). Regression test added (`retirementEngine.test.ts`, "annual net-gain
+taxation"). No loss carryforward v1; Box 3 wealth-tax mode remains 2.3. Original issue
+kept below for context.
+
+**Original issue:**
 **Current:** every *month* with a positive return is taxed at `taxOnGainsPercent`
 (default 15%) with no loss offset (`simulation.rs` ~line 406; same in TS engine).
 **Impact:** for a portfolio at ~4.6% monthly σ / ~0.6% monthly mean, the expected
@@ -79,6 +129,69 @@ monthly rate for 12 months — understates monthly-granularity ruin and interact
 tax asymmetry (0.2). Rarely triggered since all four regions ship monthly data; document
 in README §4.3 Mode B and revisit only if the parametric mode gains users.
 
+### 0.8 Sequence-risk annual accumulator never resets in monthly-bootstrap mode (S) — found 2026-07-19
+**Current:** `annual_asset_return`/`annual_inflation` are reset to 0 only inside the
+`else if m % 12 == 0` branch (`simulation.rs` ~line 369), which is the *annual*-bootstrap
+path. Monthly calibration (`use_monthly_calibration`) takes an `if` branch above it and
+never resets these accumulators, yet all four shipped regions have ≥791 months of history
+so monthly mode is the actual production path. The TS mirror has the identical bug
+(`retirementEngine.ts` ~line 765).
+**Impact:** the values pushed into `annual_real_returns` at each year boundary
+(`simulation.rs` line 444) are cumulative-since-simulation-start returns, not single-year
+returns, for every real run. This feeds `build_sequence_risk_summary` directly — the
+"early years mean return" per quintile bucket is wrong (inflated, and increasingly so for
+later "years"), and bucket ranking is distorted because year-1 return is baked into every
+subsequent "annual" value. A same-engine parity test (1.1) would not catch this since both
+engines share the bug.
+**Action:** move the reset so it fires at every 12-month boundary regardless of
+`use_monthly_calibration`.
+**Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`
+
+### 0.9 GBP raw series starts one month later than the other regions — ✅ CLOSED 2026-07-20
+Contiguity assertion added to `preprocess-retirement-market-data.mjs` (fails loud on any
+mid-series month gap; differing start dates remain allowed). Investigation details below.
+**Investigated:** `historical-market-data.json` has 792 monthly rows for WORLD/USD/EUR
+but 791 for GBP. Root cause confirmed: `data/retirement/raw/gbp.csv` genuinely starts at
+`1960-02` while `usd.csv`/`eur.csv`/`world.csv` start at `1960-01` — one raw row shorter
+at the source, not a mid-series gap or preprocessing bug (likely the underlying UK FRED
+series, `IRLTLT01GBM156N` and/or `IR3TIB01GBM156N`, has no observation before Feb 1960).
+After the standard "drop first row, no prior price to compute a return from" step, GBP's
+processed series runs `1960-03..2026-01` (791 months) vs `1960-02..2026-01` (792 months)
+for the others.
+**Impact:** none on simulation correctness — `monthly_returns_to_annual_series` groups
+each region's own series independently in contiguous 12-month chunks from its own start;
+no code path compares calendar months *across* regions. The only effect is that GBP's
+internal year-boundaries for regime detection/annual-return moments fall one calendar
+month later than the other three regions' — a cosmetic data-provenance footnote, not a
+correctness bug.
+**Action:** none required. Optionally note the one-month-shorter GBP coverage window
+next to the "coverage" string already shown in the UI (`selectedHistoricalRegion.coverage`)
+for full transparency, and add a preprocessing assertion that *would* fail loud if a
+future refresh introduces a genuine mid-series gap (not just a different start date).
+**Files:** `data/retirement/raw/gbp.csv` (informational only)
+
+### 0.10 Effective mean/std come from two different methods depending on last-touched control — ✅ FIXED 2026-07-20
+**Fix applied:** both `applyReferenceDefaults` and `applyInvestmentAllocationMetrics` now
+use the same rule — realized blended-series moments only when the simulation actually
+bootstraps that series (historical mode, moment targeting off, ≥10 annual returns);
+parametric blend otherwise. Original issue kept below for context.
+
+**Original issue:**
+**Current:** `applyReferenceDefaults` (currency switch) sets `input.meanReturn` /
+`returnVariability` from the moments of the *realized blended historical annual series*
+(`RetirementPlanner.svelte` ~line 1185). `applyInvestmentAllocationMetrics` (allocation
+slider drag, or any input-panel edit that calls it) instead sets them from the
+*parametric* blend of per-asset moments plus `input.equityBondCorrelation`
+(~line 1005). These do not agree — the parametric path uses the assumed correlation input
+while the realized series embeds the true historical stock/bond co-movement — so two
+users with identical final settings can get different simulation targets depending on
+which control they touched last. This matters most when `historicalMomentTargeting` is on,
+since these become the actual moment-targeting destination.
+**Action:** pick one source of truth for "effective" moments in historical mode (the
+realized historical series is the more honest one) and have both entry points call the
+same function.
+**Files:** `RetirementPlanner.svelte` (`applyReferenceDefaults`, `applyInvestmentAllocationMetrics`)
+
 ---
 
 ## Priority 1 — Engineering Health
@@ -104,6 +217,39 @@ simulation path (keeping only `validateSimulationInputs`, `spendingAtAge`, types
 keep it explicitly as the reference implementation guarded by the parity test (1.1).
 Don't leave it ambiguous.
 
+### 1.4 "Success" is defined two different ways in the same result set — ✅ FIXED 2026-07-20
+**Fix applied:** `find_retirement_balance_target` (both engines) now takes explicit
+success flags computed with the same never-depleted definition as the headline success
+probability. Original issue kept below for context.
+
+**Original issue:**
+**Current:** `success_probability` requires the path to have *never* depleted
+(`simulation.rs` line 483 — ruin is sticky, matching the documented behavior in 2.7). The
+P95 FI target's implied success count instead only checks `ending_balance > 0`
+(`find_retirement_balance_target`, `stats.rs` line 228). A path that hits zero at 66 and
+is later revived by pension income counts as a failure in the headline success
+probability and a success in the FI-target derivation.
+**Action:** align both to the same ruin definition, or — better — resolve alongside 2.7
+by picking one definition and exposing the other as an explicit secondary stat ("X% of
+depleted paths recover by the end").
+**Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/stats.rs`
+
+### 1.5 Dead pseudo-`imul` computation in the RNG (S) — found 2026-07-19
+`calculations.rs` line 42 computes an unused approximation of `Math.imul` immediately
+before the real, JS-accurate computation on the following lines. Harmless but confusing
+for anyone auditing the RNG for correctness. Delete the dead line.
+**Files:** `rust-engine/src/calculations.rs`
+
+### 1.6 Repo hygiene before making the repo/link public (S) — found 2026-07-19
+Windows `*:Zone.Identifier` files are committed under `data/retirement/raw/`,
+`scripts/`, and `static/assets/flags/`; `fix-runes.mjs` / `fix-runes2.mjs` (one-off
+migration scripts) and `.build-log` sit at the repo root. None of this belongs in a repo
+meant for a wider audience.
+**Action:** `git rm` the stray files, add `*:Zone.Identifier`, `.build-log` to
+`.gitignore`, delete the one-off `fix-runes*.mjs` scripts (or move to a `scripts/migrations/`
+archive if still referenced).
+**Files:** repo root, `data/retirement/raw/`, `scripts/`, `static/assets/flags/`, `.gitignore`
+
 ---
 
 ## Priority 2 — Enhanced Modeling Logic
@@ -117,11 +263,18 @@ Don't leave it ambiguous.
 - Alternative: Boglehead VPW (Variable Percentage Withdrawal)
 **Files:** `rust-engine/src/simulation.rs`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
-### 2.2 Mortality-Weighted Ruin (M)
-**Current:** Ruin is calculated against a fixed `simulateUntilAge` (default 90).
-**Gap:** Ignores longevity risk variation.
-**Action:** Integrate a WHO actuarial life table. Each simulation draws a random death age. Report "probability of ruin before death" instead of "ruin by age 90."
-**Files:** `rust-engine/src/simulation.rs`, new `mortality.rs` or `mortalityTable.ts`
+### 2.2 Mortality-Weighted Ruin — DECLINED (product decision, 2026-07-20)
+**Considered:** integrating a life table so each simulation draws a random death age and
+ruin is reported as "probability of ruin before death" (the actuarially standard framing;
+a fixed age-90 horizon overstates lived risk since many people don't reach it).
+**Declined because:** this is a personal planning tool, not an institutional model.
+Showing a user "you have a ~35% chance of reaching 90" is emotionally corrosive and
+undermines the tool's purpose, regardless of statistical correctness. The fixed
+"plan until age" horizon is deliberately conservative and lets the user own that choice.
+**Instead:** keep the user-selected horizon. Optionally add neutral helper text near
+"Plan until age" noting that planning to 90–95+ is a conservative, commonly recommended
+choice — no survival probabilities shown anywhere. Do not resurrect this item without an
+explicit opt-in design that keeps death statistics out of the default experience.
 
 ### 2.3 Three-Bucket Tax Model (M)
 **Current:** Flat `taxOnGainsPercent` on positive monthly returns (see 0.2 — that formula must change first).
@@ -167,7 +320,14 @@ after pension starts") or offer a "broke ever / broke at end" toggle.
 
 ## Priority 4 — Product, Visualizations & UI
 
-### 4.1 URL-Shareable Scenarios + A/B Compare (M) — cheapest growth feature
+### 4.1 URL-Shareable Scenarios + A/B Compare (M) — ✅ sharing SHIPPED 2026-07-20; A/B compare still open
+**Shipped:** all inputs (scalars, mode, allocation, parametric metrics, cashflow rows)
+plus the displayed run's seed serialize to a versioned base64url `#s=` hash; "Copy share
+link" button appears after each run; the hash is parsed, validated and restored on load,
+then auto-runs. Verified end-to-end: a shared link reproduces the exact seed and results.
+Side-by-side A/B scenario comparison remains open.
+
+**Original item:**
 Encode all inputs in the URL hash (the input object is flat; `previewTriggerKey` is 90%
 of the serialization work). Enables bookmark/share and side-by-side scenario comparison
 ("retire at 60 vs 64"). Every shared link is distribution.
@@ -201,6 +361,25 @@ NL-first localization (AOW start age, Box 3 terminology, jaarruimte) — the one
 where no good free tool does this properly. Coordinate the i18n approach with the
 heat-pump calculator in rekenraam-web.
 
+### 4.8 Shortfall/depleted-years cards show P90-of-metric under a "P10" label (S) — found 2026-07-19
+**Current:** `PlannerOutputCards.svelte` shows `stats.shortfallHigh` /
+`stats.depletedYearsHigh` (the **P90** of the underlying shortfall/depleted-years
+distribution) under a "P10" heading. The intent is defensible — a bad (P90) shortfall
+corresponds to a bad (P10) *outcome* — but with no explanation it reads as a labeling bug
+to a numerate audience.
+**Action:** relabel as "worst 10% of outcomes" / "best 10% of outcomes" rather than raw
+percentile numbers that don't match the underlying stat's own percentile.
+**Files:** `src/lib/components/PlannerOutputCards.svelte`
+
+### 4.9 Fan chart bands can be misread as individual paths (S) — found 2026-07-19
+**Current:** the timeline fan chart's P10/P50/P90 lines are computed pointwise per month
+across all simulations (reservoir sampling), not traced from any single simulated
+household. No simulated path actually follows the P10 line — reading "time to recover"
+off the band gap is a common and incorrect interpretation of fan charts in general.
+**Action:** add a one-line caption/tooltip clarifying this ("each line shows the Nth
+percentile outcome for that specific month, not one continuous scenario").
+**Files:** `src/lib/components/PlannerTimelinePlot.svelte`
+
 ---
 
 ## Priority 5 — Data Quality & Coverage
@@ -224,7 +403,11 @@ Monthly CPI per region from FRED, stored alongside returns in
 ### 6.1 Advanced Dual-Mode Controls (M)
 Expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior.
 
-### 6.2 Ruin Surface Accuracy (S)
+### 6.2 Ruin Surface Accuracy (S) — ✅ sample cap raised 800→2000, 2026-07-20
+Cap raised in both engines (~11.5 MB growth-factor memory at 720 months; tail SE now
+under ~±1%). The `is-default`-only income adjustment noted below still stands.
+
+**Original issue:**
 The 800-path subsampling in `build_ruin_surface` (and the matching `RUIN_SAMPLE_CAP` in `simulation.rs`) is aggressive for tail probabilities. Consider increasing or making it proportional to `simCount`. Also, only income source `is-default` has `toAge` adjusted per cell — document or fix this limitation.
 
 ---

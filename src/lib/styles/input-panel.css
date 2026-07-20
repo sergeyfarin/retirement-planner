@@ -357,3 +357,25 @@ button.assumptions-reset-btn:hover:not(:disabled) {
   gap: 0.28rem 0.5rem;
   font-size: 0.6rem;
 }
+
+/* Collapsed-by-default assumptions card (progressive disclosure) */
+.assumptions-details > summary {
+  list-style: none;
+}
+.assumptions-details > summary::-webkit-details-marker {
+  display: none;
+}
+.assumptions-details > summary::before {
+  content: '▸ ';
+  font-size: 0.8em;
+}
+.assumptions-details[open] > summary::before {
+  content: '▾ ';
+}
+.assumptions-summary-line {
+  display: block;
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #6b7280);
+  margin-top: 0.15rem;
+}

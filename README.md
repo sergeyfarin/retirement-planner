@@ -78,11 +78,29 @@ All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$d
 | **EUR** | 60% DAX TR + 40% CAC (adjusted +3% synthetic annual dividend) | Synthetic DE 10Y total return (`IRLTLT01DEM156N`), duration 7y | EZ 3m interbank stitched with DE pre-euro |
 | **WORLD** | 55% US + 15% EUR + 5% UK + 15% Japan (`^NKX`) + 10% Asia/EM (`^HSI`, backfilled 1960–69 with NKX). All converted to USD. | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
 
-> ⚠️ **Known data-quality issue (TODO 0.1):** `^SPX` and `^UKX` are *price* indices —
-> dividends are **not** included, understating US/GBP equity returns by roughly
-> 2.5–3.5%/yr, while the EUR proxy is approximately total-return (DAX TR + CAC with a
-> synthetic +3% yield). Until fixed, USD/GBP results are systematically pessimistic and
-> regions are not directly comparable. See `TODO.md` Priority 0.
+### 3.1.1 Synthetic Dividend Adjustment
+
+`^SPX`, `^UKX`, `^NKX` and `^HSI` are *price* indices. To approximate total returns,
+the preprocessing step adds decade-level synthetic dividend yields to the price-only
+equity series (geometric monthly convention, $(1+y)^{1/12}-1$):
+
+| Decade | USD | GBP | WORLD (blended) |
+|---|---|---|---|
+| 1960s | 3.1% | 5.0% | 2.9% |
+| 1970s | 4.1% | 5.5% | 3.2% |
+| 1980s | 4.3% | 4.5% | 3.1% |
+| 1990s | 2.5% | 3.8% | 2.0% |
+| 2000s | 1.8% | 3.3% | 1.7% |
+| 2010s | 2.0% | 3.8% | 1.9% |
+| 2020s | 1.5% | 3.7% | 1.7% |
+
+Sources: Shiller S&P 500 dividend data (US), Barclays Equity Gilt Study ranges (UK).
+The WORLD schedule is the component-weighted blend of US/UK/JP/HK yields; its EUR share
+contributes zero because the EUR proxy is already total-return at import time (DAX is TR
+by construction; CAC receives +3%/yr in the import script). The EUR region therefore
+receives **no** adjustment in preprocessing. Resulting nominal equity moments (1961–2025):
+US 12.0% arithmetic / 10.6% geometric — consistent with published S&P 500 total-return
+figures for that window.
 
 ### 3.2 Bond Total Return Synthesis
 
@@ -94,10 +112,11 @@ where $D = 7$ years (modified duration) and $\Delta y = y_t - y_{t-1}$.
 
 ### 3.3 Preprocessing
 
-- Monthly price returns: $P_t / P_{t-1} - 1$
+- Monthly equity returns: $P_t / P_{t-1} - 1$ plus the synthetic dividend yield (§3.1.1)
 - Annual returns: compound product of 12 monthly returns within each calendar year
 - Cash: monthly return = annual rate / 1200
 - All series anchored to 1960+
+- Month contiguity is asserted per region — a mid-series gap aborts preprocessing
 - Statistical moments (mean, σ, skewness, kurtosis) computed with **population** formulas
 
 ---
@@ -187,15 +206,19 @@ balance = currentSavings
 for each month m in [0 .. totalMonths):
     1. Regime transition (monthly Markov chain)
     2. Sample monthly asset return (block bootstrap or parametric)
-    3. Apply tax on gains:  r_after_tax = r > 0 ? r × (1 − taxOnGainsPercent) : r
-    4. Apply AUM fee:       growth = (1 + r_after_tax) × (1 − annualFeePercent / 12)
-    5. Sample monthly inflation (regime-conditioned Cornish-Fisher draw)
-    6. Net flow = (income_at_age − spending_at_age) / 12 + lump_sums
-    7. balance += net_flow
+    3. Apply AUM fee:       growth = (1 + r) × (1 − annualFeePercent / 12)
+    4. Sample monthly inflation (regime-conditioned Cornish-Fisher draw)
+    5. Net flow = (income_at_age − spending_at_age) / 12 + lump_sums
+    6. balance += net_flow
+    7. yearly_pnl += balance × (growth − 1)      ← investment P&L, net of fees
     8. balance *= growth
-    9. balance /= (1 + monthly_inflation)
-   10. if balance ≤ 0: balance = 0, mark depleted
-   11. Record balance and growth factor
+    9. balance /= (1 + monthly_inflation);  yearly_pnl /= (1 + monthly_inflation)
+   10. At each year boundary (and final partial year):
+          tax = taxOnGainsPercent × max(0, yearly_pnl)
+          balance −= tax  (also folded into that month's growth factor for replay)
+          yearly_pnl = 0
+   11. if balance ≤ 0: balance = 0, mark depleted
+   12. Record balance and growth factor
 ```
 
 ### 5.1 Cash Flow Model
@@ -214,13 +237,13 @@ for each month m in [0 .. totalMonths):
 | Parameter | Default | Application |
 |---|---|---|
 | `annualFeePercent` | 0.5% | Deducted monthly from AUM: $(1 - \text{fee}/12)$. Models TER + platform costs. |
-| `taxOnGainsPercent` | 15% | Applied only to positive monthly returns. Models capital gains tax. |
+| `taxOnGainsPercent` | 15% | Applied **annually to the year's net investment P&L** (net of fees); losses are untaxed and not carried forward. Models capital gains tax. |
 
-> ⚠️ **Known modeling issue (TODO 0.2):** taxing only positive *months* with no loss
-> offset makes the effective drag ~3–4× the nominal rate for volatile portfolios
-> (≈4%/yr at the 15% default instead of the intended ≈1%/yr), and no real jurisdiction
-> taxes upside-only monthly mark-to-market. Planned fix: annual net-gain taxation and a
-> Dutch Box 3 wealth-tax mode. See `TODO.md` Priority 0.
+The annual P&L is tracked in the same deflated units as the balance, so the tax models
+nominal-gains taxation expressed in today's money. At the 15% default the effective drag
+is ≈1.6%/yr on a ≈12%/yr portfolio (rate × mean gain), verified by a regression test in
+`retirementEngine.test.ts`. Loss carryforward and jurisdiction-specific modes (e.g. Dutch
+Box 3 wealth tax) are future work — see `TODO.md` 2.3.
 
 ### 5.3 Inflation Model
 
@@ -245,7 +268,7 @@ For large simulation counts (10,000+), storing all balances per month per simula
 
 This guarantees a uniform random sample per month, capped at ~24 MB total regardless of simulation count. Percentile accuracy at K=5,000 is excellent (±0.5% for P10–P90).
 
-Growth factors for the ruin surface replay are capped at 800 rows (~4 MB), matching the 800-path subsampling already used by `build_ruin_surface`.
+Growth factors for the ruin surface replay are capped at 2000 rows (~11.5 MB), matching the 2000-path subsampling used by `build_ruin_surface` (raised from 800 in 2026-07 to keep heatmap tail-probability SE under ~±1%).
 
 ---
 
@@ -310,7 +333,7 @@ A 5×5 grid of ruin probabilities across:
 - **Retirement ages**: `[retAge−6, retAge−3, retAge, retAge+3, retAge+6]`
 - **Spending multipliers**: `[0.8, 0.9, 1.0, 1.1, 1.2]`
 
-Each cell replays the stored growth factors (subsampled to 800 paths max) with recomputed cashflow arrays. Note: income source `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged. This is a documented fast approximation.
+Each cell replays the stored growth factors (subsampled to 2000 paths max) with recomputed cashflow arrays. Note: income source `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged. This is a documented fast approximation.
 
 ---
 
@@ -358,8 +381,8 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 | Historical bootstrap for calibration | Good | Data-driven, adapts to region |
 | Variance-preserving regime decomposition | Good | Total σ is preserved exactly |
 | Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |
-| US/UK equity history is price-only (no dividends) | **Understates returns 2.5–3.5%/yr** | TODO 0.1 — fix in data pipeline |
-| Tax applied to positive months, no loss offset | **Overstates drag ~3–4×** | TODO 0.2 — move to annual net-gain taxation |
+| Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
+| Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
 | Nominal cashflows deflated by expected inflation | Removes inflation risk on nominal items | TODO 0.3 |
 | Inflation drawn independently of bootstrapped returns, i.i.d. monthly | Understates real-return tail risk (1970s-type paths); no inflation persistence | TODO 0.4 — joint (return, CPI) bootstrap |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
