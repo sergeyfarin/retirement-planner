@@ -1,6 +1,6 @@
 use crate::calculations::{percentile, summarize, PercentileSeries, RandomSource};
 use crate::engine::{
-    annual_to_monthly_return, clamp_annual_return, clamp_monthly_return,
+    clamp_annual_return, clamp_monthly_return, spread_annual_return_across_months,
     draw_monthly_return_shaped, draw_student_t, initial_regime_state,
     student_t_degrees_from_kurtosis, transition_regime_state, ReturnMoments, SimulationResult,
     SummaryStats,
@@ -330,8 +330,13 @@ pub fn run_monte_carlo_simulation(
 
         let mut block_remaining = 0;
         let mut current_history_index = 0;
-        let mut active_monthly_asset_return = 0.0;
+        // Always assigned before use: monthly calibration reads the bootstrap block,
+        // annual mode reads the current year's spread.
+        let mut active_monthly_asset_return;
 
+        // Annual mode: the 12 monthly returns for the current year, compounding to the
+        // sampled annual return (see spread_annual_return_across_months).
+        let mut annual_mode_months = [0.0_f64; 12];
         if !use_monthly_calibration {
             let pool = if regime_state == 0 {
                 &annual_regime_bootstrap_pool.growth
@@ -339,8 +344,13 @@ pub fn run_monte_carlo_simulation(
                 &annual_regime_bootstrap_pool.crisis
             };
             let random_idx = (rng.random() * pool.len() as f64).floor() as usize;
-            active_monthly_asset_return =
-                annual_to_monthly_return(pool[random_idx.min(pool.len().saturating_sub(1))]);
+            annual_mode_months = spread_annual_return_across_months(
+                pool[random_idx.min(pool.len().saturating_sub(1))],
+                target_monthly_std,
+                input.return_skewness,
+                input.return_kurtosis,
+                &mut rng,
+            );
         }
 
         let mut annual_asset_return = 0.0;
@@ -384,15 +394,24 @@ pub fn run_monte_carlo_simulation(
                 }
                 active_monthly_asset_return = effective_monthly_history[current_history_index];
                 block_remaining -= 1;
-            } else if m > 0 && m % 12 == 0 {
-                let pool = if regime_state == 0 {
-                    &annual_regime_bootstrap_pool.growth
-                } else {
-                    &annual_regime_bootstrap_pool.crisis
-                };
-                let random_idx = (rng.random() * pool.len() as f64).floor() as usize;
-                let sampled_annual_return = pool[random_idx.min(pool.len().saturating_sub(1))];
-                active_monthly_asset_return = annual_to_monthly_return(sampled_annual_return);
+            } else {
+                if m > 0 && m % 12 == 0 {
+                    let pool = if regime_state == 0 {
+                        &annual_regime_bootstrap_pool.growth
+                    } else {
+                        &annual_regime_bootstrap_pool.crisis
+                    };
+                    let random_idx = (rng.random() * pool.len() as f64).floor() as usize;
+                    annual_mode_months = spread_annual_return_across_months(
+                        pool[random_idx.min(pool.len().saturating_sub(1))],
+                        target_monthly_std,
+                        input.return_skewness,
+                        input.return_kurtosis,
+                        &mut rng,
+                    );
+                }
+                // Walk through the current year's months instead of repeating one rate.
+                active_monthly_asset_return = annual_mode_months[m % 12];
             }
 
             // Year-boundary reset must run in every mode (including monthly calibration),

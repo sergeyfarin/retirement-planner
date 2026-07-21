@@ -161,11 +161,28 @@ The seed also rides along in the share link (4.1), so a shared URL reproduces th
 run.
 **Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
-### 0.7 Annual-mode bootstrap flattens intra-year volatility (S, documented limitation)
-When monthly history is unavailable, one sampled annual return becomes a constant
-monthly rate for 12 months — understates monthly-granularity ruin and interacts with the
-tax asymmetry (0.2). Rarely triggered since all four regions ship monthly data; document
-in README §4.3 Mode B and revisit only if the parametric mode gains users.
+### 0.7 Annual-mode bootstrap flattens intra-year volatility (S) — ✅ FIXED 2026-07-21
+**Fix applied:** annual mode no longer repeats one constant monthly rate for twelve
+months. Each month draws a Cornish-Fisher shaped multiplicative shock and the twelve
+shocks are renormalised to unit geometric mean, so the year compounds to **exactly** the
+annual return that was bootstrapped — annual moments and the bootstrap's fidelity to
+history are untouched — while the path within the year actually moves.
+
+**Measured effect** (25-year drawdown, 6% withdrawal rate, annual-only history): success
+77.3% → 76.5% at 42k spend and 62.1% → 61.3% at 50k, i.e. roughly 0.8pp of previously
+hidden *within-year* ruin, with the simulated annual mean return identical to four decimal
+places (4.2000% both ways), confirming the renormalisation preserves the draw.
+
+**Tests:** two in `retirementEngine.test.ts` — annual return moments are unchanged to 10
+decimal places when intra-year spread is switched on, and measured ruin can only rise.
+The parity suite's existing "annual bootstrap fallback" scenario covers it too, which is
+what verifies the two engines consume the RNG in the same order (12 extra draws per year).
+
+**Reachability, unchanged:** all four shipped regions carry ≥ 781 monthly observations, so
+the app always takes Mode A. Mode B is reachable through the library with annual-only
+data, and would become reachable if a short-monthly-history region were added (5.2) — the
+mode is now trustworthy rather than a documented trap.
+**Files:** `rust-engine/src/{engine,simulation}.rs`, `src/lib/retirementEngine.ts`, README §4.3
 
 ### 0.8 Sequence-risk annual accumulator never resets in monthly-bootstrap mode — ✅ FIXED 2026-07-20
 **Fix applied:** the year-boundary reset now runs unconditionally at every 12-month

@@ -225,6 +225,73 @@ describe('annual net-gain taxation', () => {
   });
 });
 
+describe('annual-mode intra-year variation', () => {
+  // TODO 0.7: annual-mode bootstrapping used to hold one constant monthly rate for the
+  // whole year, so a path that dipped below zero mid-year and recovered by December was
+  // invisible to monthly-granularity ruin. Spreading the year adds that variation while
+  // preserving the drawn annual return exactly.
+  function annualOnlyInput(overrides: Partial<RetirementInput> = {}): RetirementInput {
+    return {
+      simulationMode: 'historical',
+      currentAge: 60,
+      retirementAge: 60,
+      simulateUntilAge: 85,
+      currentSavings: 700_000,
+      meanReturn: 0.07,
+      returnVariability: 0.18,
+      returnSkewness: 0,
+      returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      inflationMean: 0.02,
+      inflationVariability: 0.005,
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      inflationCrisisSpread: 0,
+      annualFeePercent: 0,
+      taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04,
+      simulations: 1500,
+      seed: 5150,
+      regimeModel: {
+        stayGrowth: 0.92, stayCrisis: 0.68,
+        growthMean: 0.09, growthStd: 0.14, crisisMean: -0.12, crisisStd: 0.24
+      },
+      // 30 annual observations, no monthly history => Mode B.
+      historicalAnnualReturns: [
+        0.14, 0.1, 0.08, 0.18, -0.22, 0.07, 0.03, -0.15, 0.12, 0.11, 0.06, 0.09, -0.2, 0.16,
+        0.05, 0.04, 0.13, -0.12, 0.1, 0.08, 0.09, 0.07, -0.18, 0.15, 0.1, 0.02, -0.05, 0.19,
+        0.11, -0.09
+      ],
+      historicalMonthlyReturns: undefined,
+      ...overrides
+    };
+  }
+
+  const spending: SpendingPeriod[] = [
+    { id: 'sp', label: 'Living', fromAge: 60, toAge: 85, yearlyAmount: 42000, inflationAdjusted: true }
+  ];
+  const months = 300;
+
+  it('leaves annual return distribution intact (returnVariability drives only intra-year spread)', () => {
+    // The annual series is bootstrapped identically either way, so the summary annual
+    // return moments must not shift when intra-year variation is switched on.
+    const flat = runMonteCarloSimulation(annualOnlyInput({ returnVariability: 0 }), spending, [], [], months, 0);
+    const spread = runMonteCarloSimulation(annualOnlyInput(), spending, [], [], months, 0);
+    expect(spread.stats.returnMoments.arithmeticMean).toBeCloseTo(
+      flat.stats.returnMoments.arithmeticMean, 10
+    );
+    expect(spread.stats.returnMoments.stdDev).toBeCloseTo(flat.stats.returnMoments.stdDev, 10);
+  });
+
+  it('exposes within-year ruin that a constant monthly rate would hide', () => {
+    // Same annual returns, but months now move; a drawdown portfolio can touch zero
+    // mid-year, so ruin can only rise.
+    const flat = runMonteCarloSimulation(annualOnlyInput({ returnVariability: 0 }), spending, [], [], months, 0);
+    const spread = runMonteCarloSimulation(annualOnlyInput(), spending, [], [], months, 0);
+    expect(spread.stats.successProbability).toBeLessThanOrEqual(flat.stats.successProbability);
+  });
+});
+
 describe('portfolio kurtosis blending', () => {
   // The fourth moment of a sum is dominated by its cross terms. Omitting them made a
   // blend of normals report kurtosis 1.5 — thinner than normal — which told the

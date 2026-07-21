@@ -287,6 +287,43 @@ function annualToMonthlyReturn(annualReturn: number): number {
   return Math.pow(1 + capped, 1 / 12) - 1;
 }
 
+/**
+ * Spreads one bootstrapped annual return across 12 months with realistic intra-year
+ * variation, while preserving the sampled annual return exactly. Mirrors the Rust
+ * `spread_annual_return_across_months`; the two must draw from the RNG identically.
+ *
+ * Annual-mode bootstrapping previously held a constant monthly rate for the whole year,
+ * which understated monthly-granularity ruin: a path that dips below zero mid-year and
+ * recovers by December was invisible. Each month gets a multiplicative shock, and the 12
+ * shocks are renormalised to unit geometric mean so their product is 1 — the year still
+ * compounds to exactly the return that was drawn, leaving annual moments untouched.
+ */
+function spreadAnnualReturnAcrossMonths(
+  annualReturn: number,
+  monthlyStd: number,
+  skewness: number,
+  kurtosis: number,
+  rng: RandomSource
+): number[] {
+  const baseFactor = 1 + annualToMonthlyReturn(annualReturn);
+  if (!(monthlyStd > 0) || !Number.isFinite(monthlyStd)) {
+    return new Array(12).fill(baseFactor - 1);
+  }
+
+  const factors: number[] = new Array(12);
+  let logSum = 0;
+  for (let index = 0; index < 12; index++) {
+    const shock = drawCornishFisherScore(skewness, kurtosis, rng);
+    // Floor keeps the factor strictly positive so the log below is defined.
+    const factor = Math.max(0.05, 1 + monthlyStd * shock);
+    factors[index] = factor;
+    logSum += Math.log(factor);
+  }
+  const geometricMean = Math.exp(logSum / 12);
+
+  return factors.map((factor) => clampMonthlyReturn((baseFactor * factor) / geometricMean - 1));
+}
+
 function summarizeMeanStd(values: number[]): { mean: number; std: number } {
   if (values.length === 0) return { mean: 0, std: 0 };
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -866,12 +903,17 @@ export function runMonteCarloSimulation(
     let currentHistoryIndex = 0;
     let activeMonthlyAssetReturn = 0;
 
-    // Fallback parametric start
+    // Annual mode: the 12 monthly returns for the current year, compounding to the
+    // sampled annual return (see spreadAnnualReturnAcrossMonths).
+    let annualModeMonths: number[] = new Array(12).fill(0);
     if (!useMonthlyCalibration) {
-      activeMonthlyAssetReturn = annualToMonthlyReturn(
-        regimeState === 0
-          ? annualRegimeBootstrapPool.growth[Math.floor(rng.random() * annualRegimeBootstrapPool.growth.length)]
-          : annualRegimeBootstrapPool.crisis[Math.floor(rng.random() * annualRegimeBootstrapPool.crisis.length)]
+      const startPool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
+      annualModeMonths = spreadAnnualReturnAcrossMonths(
+        startPool[Math.floor(rng.random() * startPool.length)],
+        targetMonthlyStd,
+        input.returnSkewness,
+        input.returnKurtosis,
+        rng
       );
     }
 
@@ -903,10 +945,19 @@ export function runMonteCarloSimulation(
         }
         activeMonthlyAssetReturn = effectiveMonthlyHistory[currentHistoryIndex];
         blockRemaining--;
-      } else if (m > 0 && m % 12 === 0) {
-        const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
-        const sampledAnnualReturn = regimePool[Math.floor(rng.random() * regimePool.length)];
-        activeMonthlyAssetReturn = annualToMonthlyReturn(sampledAnnualReturn);
+      } else {
+        if (m > 0 && m % 12 === 0) {
+          const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
+          annualModeMonths = spreadAnnualReturnAcrossMonths(
+            regimePool[Math.floor(rng.random() * regimePool.length)],
+            targetMonthlyStd,
+            input.returnSkewness,
+            input.returnKurtosis,
+            rng
+          );
+        }
+        // Walk through the current year's months instead of repeating one rate.
+        activeMonthlyAssetReturn = annualModeMonths[m % 12];
       }
 
       // Year-boundary reset must run in every mode (including monthly calibration),

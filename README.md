@@ -167,11 +167,31 @@ After detection, returns are partitioned into growth and crisis pools for **bloc
 - Sequential months within the block preserve autocorrelation, momentum, and volatility clustering
 - On regime change, a new random block start is drawn
 
-**Mode B — Annual Bootstrap + Parametric Noise (fallback when monthly data unavailable):**
-- Every 12 months, a historical annual return is drawn from the regime pool
-- Converted to monthly: $r_m = (1 + r_a)^{1/12} - 1$
-- Per-month parametric noise is added via Cornish-Fisher shaped draws
+**Mode B — Annual Bootstrap with Intra-Year Spread (fallback when monthly data unavailable):**
+- Every 12 months, a historical annual return $r_a$ is drawn from the regime pool
+- The year is then **spread across its 12 months** rather than held at one constant rate.
+  Each month draws a Cornish-Fisher shaped multiplicative shock $f_i = 1 + \sigma_m z'_i$,
+  and the twelve shocks are renormalised to unit geometric mean:
+
+  $$r_{m,i} = (1 + r_a)^{1/12} \cdot \frac{f_i}{\left(\prod_j f_j\right)^{1/12}} - 1
+  \qquad\Longrightarrow\qquad \prod_{i=1}^{12}(1 + r_{m,i}) = 1 + r_a$$
+
+  so the year still compounds to **exactly** the return that was drawn — the bootstrap's
+  fidelity to history and all annual moments are untouched — while the path within the
+  year moves.
 - Regime transitions use annualized-to-monthly probabilities: $p_m = p_a^{1/12}$
+
+> **Fixed 2026-07-21 (TODO 0.7).** Mode B previously repeated one constant monthly rate
+> for all twelve months, so a path that dipped below zero mid-year and recovered by
+> December was invisible to monthly-granularity ruin. On a 25-year drawdown at a 6%
+> withdrawal rate, restoring the intra-year path lifts measured ruin by roughly 0.8pp
+> (success 77.3% → 76.5%) while the simulated annual mean return is unchanged to four
+> decimal places, confirming the renormalisation preserves the annual draw exactly.
+>
+> Mode B is not reachable from the shipped app — all four regions carry ≥ 781 monthly
+> observations, comfortably past the 120-month threshold for Mode A — but it is reachable
+> through the library with annual-only data, and would become reachable if a region with
+> short monthly history were added (see `TODO.md` 5.2).
 
 **Mode C — Parametric (no historical data / parametric mode selected):**
 - `buildBootstrapHistory()` generates a synthetic 120-year annual return series using:
@@ -506,7 +526,7 @@ simplifications.
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
-| Annual-mode bootstrap: constant monthly rate within year | Understates intra-year volatility (fallback mode only) | TODO 0.7 |
+| Annual-mode bootstrap spreads the year across 12 months, preserving the annual draw exactly | Intra-year path restored; shape of the spread is parametric, not historical | Fixed 2026-07-21 (§4.3 Mode B); fallback mode only, unreachable from the shipped app |
 | **Fixed planning horizon; no mortality weighting** | Measures "ruin by your chosen age", not ruin-before-death, so it is conservative relative to a lifetime measure | **Deliberate product decision**, not an omission — survival statistics are the wrong register for a personal tool. TODO 2.2 (declined) |
 | Allocation is fixed for life; no glide path | Cannot model de-risking into retirement | TODO 2.5 |
 | Single-person model | No second person's age, income or pension start | TODO 2.6 |

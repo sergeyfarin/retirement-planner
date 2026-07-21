@@ -175,6 +175,44 @@ pub fn student_t_degrees_from_kurtosis(kurtosis: f64) -> f64 {
     implied_df.clamp(5.0, 60.0)
 }
 
+/// Spreads one bootstrapped annual return across 12 months with realistic intra-year
+/// variation, while preserving the sampled annual return exactly.
+///
+/// Annual-mode bootstrapping previously held a constant monthly rate for the whole year,
+/// which understated monthly-granularity ruin: a path that dips below zero mid-year and
+/// recovers by December was invisible. Here each month gets a multiplicative shock, and
+/// the 12 shocks are renormalised to unit geometric mean so their product is 1 —
+/// the year still compounds to exactly the return that was drawn, so annual moments and
+/// the bootstrap's fidelity to history are untouched.
+pub fn spread_annual_return_across_months(
+    annual_return: f64,
+    monthly_std: f64,
+    skewness: f64,
+    kurtosis: f64,
+    rng: &mut RandomSource,
+) -> [f64; 12] {
+    let base_factor = 1.0 + annual_to_monthly_return(annual_return);
+    if monthly_std <= 0.0 || !monthly_std.is_finite() {
+        return [base_factor - 1.0; 12];
+    }
+
+    let mut factors = [0.0_f64; 12];
+    let mut log_sum = 0.0;
+    for factor in factors.iter_mut() {
+        let shock = draw_cornish_fisher_score(skewness, kurtosis, rng);
+        // Floor keeps the factor strictly positive so the log below is defined.
+        *factor = (1.0 + monthly_std * shock).max(0.05);
+        log_sum += factor.ln();
+    }
+    let geometric_mean = (log_sum / 12.0).exp();
+
+    let mut monthly = [0.0_f64; 12];
+    for (index, factor) in factors.iter().enumerate() {
+        monthly[index] = clamp_monthly_return(base_factor * factor / geometric_mean - 1.0);
+    }
+    monthly
+}
+
 pub fn clamp_annual_return(value: f64) -> f64 {
     clamp(value, -0.95, 1.2)
 }
