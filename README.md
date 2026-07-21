@@ -287,9 +287,15 @@ for each month m in [0 .. totalMonths):
 - **Spending periods**: `[fromAge, toAge)`, yearly amount, `inflationAdjusted` flag (default: true)
   - Inflation-adjusted: used at face value in real terms
   - Nominal: divided by $E[\text{inflation index}] = (1 + \mu_{inf})^{age - currentAge}$
-  - ⚠️ Nominal items are deflated by the **expected**, not the per-path realized,
-    inflation index — so a fixed nominal pension does not erode faster in a simulated
-    high-inflation path. See `TODO.md` 0.3.
+  - Nominal items are divided by that path's **realized** cumulative inflation index, so
+    a fixed annuity or nominal pension really does lose purchasing power faster on a
+    high-inflation path. The index is taken through month $m-1$, since the flow is applied
+    before that month's deflation. Balances and nominal flows therefore share one price
+    index; previously the flows used $(1+\mu)^{m/12}$ while balances compounded the
+    monthly draws.
+  - The ruin-surface and Coast-FIRE **replays** still use the expected index for nominal
+    items: the stored growth factors bake inflation into a single number, so per-path
+    realized inflation cannot be recovered during a replay (§7).
 - **Income sources**: identical structure; default salary `[currentAge, retirementAge)`, default pension `[67, simulateUntilAge)`
 - **Lump-sum events**: one-time addition/subtraction at a specific age
 
@@ -539,7 +545,8 @@ simplifications.
 | Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |
 | Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
 | Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
-| Nominal cashflows deflated by expected inflation | Removes inflation risk on nominal items | TODO 0.3 |
+| Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed 2026-07-21 (§5.1); replays still use the expected index (§7) |
+| Regime block bootstrap returns ~0.85pp/yr below the source series | Every headline number is biased pessimistic | **Open — TODO 0.11**, measured on EUR: source 4.20%/yr real vs engine 3.35%/yr |
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |

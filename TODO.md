@@ -87,16 +87,36 @@ carried forward), or fold into the three-bucket model (2.3). For NL users add a 
 wealth-tax mode (% of balance above threshold per year) instead of a gains tax.
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`, `PlannerInputPanel.svelte`, README §5.2
 
-### 0.3 Nominal cashflows deflated by *expected*, not realized, inflation (M)
-**Current:** `build_cashflow_arrays` precomputes flows using the deterministic index
-`(1+inflationMean)^years`, while balances are deflated by the *stochastic* per-path
-inflation. `inflationAdjusted: false` items (fixed annuities, nominal pensions,
-fixed-rate mortgage payments) therefore never feel a high-inflation path — exactly the
-risk they carry in reality.
-**Action:** track the realized inflation index per simulation and deflate nominal items
-by it. Implementation: split net flow into `realFlow` + `nominalFlowAtToday` arrays;
-each month apply `nominalFlowAtToday[m] * expectedIndex[m] / realizedIndex[m]`.
-**Files:** `rust-engine/src/engine2.rs` (cashflow arrays), `simulation.rs` loop, TS mirror
+### 0.3 Nominal cashflows deflated by *expected*, not realized, inflation (M) — ✅ FIXED 2026-07-21
+**Observation confirmed before fixing:** `build_cashflow_arrays` divided nominal items by
+`(1+inflationMean)^years`, computed once outside the per-path loop, while balances were
+deflated by the stochastic per-path inflation. A fixed annuity therefore never lost
+purchasing power faster on a high-inflation path.
+
+**Fix applied:** cash flows are now split into a real part (inflation-adjusted items,
+constant in real terms) and the *face value* of nominal items. Each simulated month
+divides the nominal part by that path's realized cumulative inflation index. The index is
+taken through month m−1, because the flow is applied before that month's deflation and so
+enters in pre-month-m money — the same convention the old expected index encoded.
+
+**It also removed an internal inconsistency:** nominal flows used `(1+μ)^(m/12)` while
+balances were deflated by the compounding monthly draws, i.e. the two sides of the ledger
+were on different price indices. Both now use the same one.
+
+**Verified by exact computation.** With inflation volatility set to zero the whole path is
+deterministic, so a test reproduces the engine's accounting by hand and matches
+`finalMedian` to 6 decimal places. A before/after run on an inflation-adjusted-income
+scenario is byte-identical, confirming the real-terms path is untouched.
+
+**Withdrawal strategies:** `WithdrawalRunner` no longer reads base spending from a
+precomputed array — with nominal items it is path-dependent — and instead receives the
+month's real-terms spending from the caller.
+
+**Known limitation, unchanged:** the ruin-surface and Coast-FIRE replays still use the
+expected index for nominal items. Stored growth factors bake inflation into a single
+number, so per-path realized inflation cannot be recovered during a replay. This is part
+of the documented replay approximation (README §7).
+**Files:** `rust-engine/src/{engine2,simulation,stats}.rs`, `src/lib/retirementEngine.ts`
 
 ### 0.4 Historical bootstrap severs the return–inflation correlation — ✅ FIXED 2026-07-21
 **Fix applied:** regional monthly CPI is now stored per month alongside returns and the
@@ -257,6 +277,48 @@ same function.
 **Files:** `RetirementPlanner.svelte` (`applyReferenceDefaults`, `applyInvestmentAllocationMetrics`)
 
 ---
+
+### 0.11 Regime block bootstrap delivers ~0.85pp/yr less than the source series (M/L) — found 2026-07-21
+**Found while validating 0.3**, unrelated to it, and pre-existing.
+
+**Measurement, on the shipped EUR data at the default 60/30/10 allocation**, pure growth
+with no cash flows, fees or tax, joint inflation on:
+
+| | geometric real return |
+|---|---|
+| source monthly series | **4.20%/yr** |
+| engine, median path over 55y | **3.35%/yr** |
+
+A 0.85pp/yr gap compounds to roughly 35% less terminal wealth over 50 years, so it moves
+every headline number in the pessimistic direction.
+
+**Likely mechanism (hypothesis, needs confirming):** crisis months are drawn twice over.
+The chain spends π_C of its time in the crisis regime, where every block *starts* from the
+crisis pool; but growth blocks then walk forward with
+`current_history_index = (current_history_index + 1) % len` through the **unfiltered**
+series, picking up crisis months again at their natural base rate. Total crisis exposure
+lands near `π_C + π_G·π_C > π_C`. On a synthetic series with a −3% month every 7 months
+the effect is extreme (real CAGR 0.57% against ~5.9% implied), because every growth block
+is guaranteed to walk into a crash.
+
+**Why it may be intended:** entering a regime, sampling a block that starts there and
+letting it play out naturally is a normal way to do regime-conditioned resampling, and
+walking the raw series is what preserves autocorrelation and volatility clustering — the
+stated point of the block bootstrap (README §4.3 Mode A). The unconditional distribution
+of a regime-switching resampler is not required to match the source.
+
+**But it is undocumented and unbounded.** Users are shown a "Real return" assumption in
+the panel (3.9% for the EUR default) that the simulation then does not deliver. Either the
+sampler should be corrected to be mean-preserving, or the displayed assumption should be
+the one the engine actually produces, or the gap should be documented — but the current
+silent mismatch is the one option that is clearly wrong.
+
+**Suggested next step:** measure the realized return distribution the engine produces
+versus the source across all four regions and several allocations, confirm the mechanism
+by instrumenting crisis-month frequency in the sampled paths, then decide between
+correcting the sampler and re-labelling the displayed assumption. Worth doing before any
+further calibration work, since it confounds every comparison against history.
+**Files:** `rust-engine/src/simulation.rs` (block sampling), `src/lib/retirementEngine.ts` mirror
 
 ## Priority 1 — Engineering Health
 

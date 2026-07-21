@@ -70,7 +70,6 @@ class WithdrawalRunner {
 
   constructor(
     strategy: WithdrawalStrategy,
-    private readonly baseSpending: Float64Array,
     private readonly retireMonth: number
   ) {
     this.kind = strategy.kind === 'guardrails' ? 1 : strategy.kind === 'percentOfPortfolio' ? 2 : 0;
@@ -81,8 +80,12 @@ class WithdrawalRunner {
     this.spendingCeiling = Math.max(0, strategy.spendingCeiling ?? 1.4);
   }
 
-  monthlySpending(m: number, balance: number): number {
-    const base = this.baseSpending[m];
+  /**
+   * `base` is the month's planned spending already expressed in real terms. With nominal
+   * items deflated by that path's realized inflation it is path-dependent, so it can no
+   * longer be read from a precomputed array.
+   */
+  monthlySpending(m: number, balance: number, base: number): number {
     if (this.kind === 0 || m < this.retireMonth) return base;
 
     const isYearStart = (m - this.retireMonth) % 12 === 0;
@@ -597,10 +600,13 @@ function replayRuinProbability(
   for (let sim = 0; sim < sampleCount; sim++) {
     let balance = currentSavings;
     let ruined = false;
-    const runner = new WithdrawalRunner(strategy, monthlySpendingFlow, retireMonth);
+    // Nominal items here are deflated by the *expected* index: stored growth factors bake
+    // inflation into one number, so per-path realized inflation cannot be recovered during
+    // a replay. Part of the documented ruin-surface approximation (README section 7).
+    const runner = new WithdrawalRunner(strategy, retireMonth);
 
     for (let month = 0; month < months; month++) {
-      const effectiveSpending = runner.monthlySpending(month, balance);
+      const effectiveSpending = runner.monthlySpending(month, balance, monthlySpendingFlow[month]);
       balance += monthlyIncomeFlow[month] - effectiveSpending + lumpSumByMonth[month];
       balance *= growthFactors[sim][month];
       if (balance <= 0) {
@@ -749,6 +755,34 @@ function expectedInflationIndexAtAge(input: RetirementInput, age: number): numbe
   return Math.max(1e-9, (1 + input.inflationMean) ** yearsFromNow);
 }
 
+/**
+ * Splits spending at `age` into the part constant in real terms and the face value of the
+ * part fixed in nominal terms. The nominal part must be deflated by the *realized*
+ * inflation index of the path being simulated, which is only known inside the loop.
+ */
+function splitSpendingAtAge(age: number, spendingPeriods: SpendingPeriod[]): [number, number] {
+  let real = 0;
+  let nominalFace = 0;
+  for (const period of spendingPeriods) {
+    if (!(period.fromAge <= age && period.toAge > age)) continue;
+    if (period.inflationAdjusted ?? true) real += period.yearlyAmount;
+    else nominalFace += period.yearlyAmount;
+  }
+  return [real, nominalFace];
+}
+
+/** Income counterpart of {@link splitSpendingAtAge}. */
+function splitIncomeAtAge(age: number, incomeSources: IncomeSource[]): [number, number] {
+  let real = 0;
+  let nominalFace = 0;
+  for (const source of incomeSources) {
+    if (!(source.fromAge <= age && source.toAge > age)) continue;
+    if (source.inflationAdjusted ?? true) real += source.yearlyAmount;
+    else nominalFace += source.yearlyAmount;
+  }
+  return [real, nominalFace];
+}
+
 export function spendingAtAge(age: number, spendingPeriods: SpendingPeriod[], inflationIndex = 1): number {
   return spendingPeriods
     .filter((period) => period.fromAge <= age && period.toAge > age)
@@ -796,16 +830,33 @@ export function buildCashflowArrays(
   monthlyNetFlow: Float64Array;
   monthlyIncomeFlow: Float64Array;
   monthlySpendingFlow: Float64Array;
+  monthlyRealIncomeFlow: Float64Array;
+  monthlyNominalIncomeFlow: Float64Array;
+  monthlyRealSpendingFlow: Float64Array;
+  monthlyNominalSpendingFlow: Float64Array;
   lumpSumByMonth: Float64Array;
 } {
   const monthlyNetFlow = new Float64Array(months);
   const monthlyIncomeFlow = new Float64Array(months);
   const monthlySpendingFlow = new Float64Array(months);
+  const monthlyRealIncomeFlow = new Float64Array(months);
+  const monthlyNominalIncomeFlow = new Float64Array(months);
+  const monthlyRealSpendingFlow = new Float64Array(months);
+  const monthlyNominalSpendingFlow = new Float64Array(months);
   const lumpSumByMonth = new Float64Array(months);
 
   for (let m = 0; m < months; m++) {
     const age = input.currentAge + m / 12;
     const inflationIndex = expectedInflationIndexAtAge(input, age);
+
+    const [realIncome, nominalIncome] = splitIncomeAtAge(age, incomeSources);
+    const [realSpending, nominalSpending] = splitSpendingAtAge(age, spendingPeriods);
+    monthlyRealIncomeFlow[m] = realIncome / 12;
+    monthlyNominalIncomeFlow[m] = nominalIncome / 12;
+    monthlyRealSpendingFlow[m] = realSpending / 12;
+    monthlyNominalSpendingFlow[m] = nominalSpending / 12;
+
+    // Expected-index versions, retained for the replay paths.
     const income = incomeAtAge(age, incomeSources, inflationIndex) / 12;
     const spending = spendingAtAge(age, spendingPeriods, inflationIndex) / 12;
     monthlyIncomeFlow[m] = income;
@@ -820,7 +871,16 @@ export function buildCashflowArrays(
     }
   }
 
-  return { monthlyNetFlow, monthlyIncomeFlow, monthlySpendingFlow, lumpSumByMonth };
+  return {
+    monthlyNetFlow,
+    monthlyIncomeFlow,
+    monthlySpendingFlow,
+    monthlyRealIncomeFlow,
+    monthlyNominalIncomeFlow,
+    monthlyRealSpendingFlow,
+    monthlyNominalSpendingFlow,
+    lumpSumByMonth
+  };
 }
 
 // `successFlags` must use the same definition as the headline success probability
@@ -873,7 +933,13 @@ export function runMonteCarloSimulation(
   const targetAnnualStd = Math.max(0, input.returnVariability);
   const targetMonthlyMean = targetAnnualMean / 12;
   const targetMonthlyStd = targetAnnualStd / Math.sqrt(12);
-  const { monthlyIncomeFlow, monthlySpendingFlow, lumpSumByMonth } = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
+  const {
+    monthlyRealIncomeFlow,
+    monthlyNominalIncomeFlow,
+    monthlyRealSpendingFlow,
+    monthlyNominalSpendingFlow,
+    lumpSumByMonth
+  } = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
   const withdrawalStrategy: WithdrawalStrategy = input.withdrawalStrategy ?? DEFAULT_WITHDRAWAL_STRATEGY;
   const retireMonthClamped = Math.min(months, Math.max(0, retireMonth));
   const stayGrowth = clampTransitionProbability(input.regimeModel.stayGrowth);
@@ -994,7 +1060,11 @@ export function runMonteCarloSimulation(
     let annualAssetReturn = 0;
     let annualInflation = 0;
     let yearlyPnl = 0;
-    const withdrawalRunner = new WithdrawalRunner(withdrawalStrategy, monthlySpendingFlow, retireMonthClamped);
+    const withdrawalRunner = new WithdrawalRunner(withdrawalStrategy, retireMonthClamped);
+    // Cumulative realized inflation through month m-1. Nominal cash flows are fixed in
+    // face value, so they are deflated by this rather than by the expected index — a fixed
+    // annuity really does lose purchasing power faster on a high-inflation path.
+    let realizedInflationIndex = 1;
 
     for (let m = 0; m < months; m++) {
       let regimeChanged = false;
@@ -1073,11 +1143,18 @@ export function runMonteCarloSimulation(
       annualAssetReturn = (1 + annualAssetReturn) * (1 + monthlyPortfolioReturnAfterCosts) - 1;
       annualInflation = (1 + annualInflation) * (1 + monthlyInflation) - 1;
 
-      const effectiveSpending = withdrawalRunner.monthlySpending(m, balance);
-      balance += monthlyIncomeFlow[m] - effectiveSpending + lumpSumByMonth[m];
+      // Nominal items divide by the index accumulated through month m-1: the flow is
+      // applied before this month's deflation below, so it enters in pre-month-m money.
+      const incomeThisMonth =
+        monthlyRealIncomeFlow[m] + monthlyNominalIncomeFlow[m] / realizedInflationIndex;
+      const baseSpendingThisMonth =
+        monthlyRealSpendingFlow[m] + monthlyNominalSpendingFlow[m] / realizedInflationIndex;
+      const effectiveSpending = withdrawalRunner.monthlySpending(m, balance, baseSpendingThisMonth);
+      balance += incomeThisMonth - effectiveSpending + lumpSumByMonth[m];
       const pnlMonth = Math.max(0, balance) * (monthlyPortfolioGrowthFactor - 1);
       balance *= monthlyPortfolioGrowthFactor;
       balance /= 1 + monthlyInflation;
+      realizedInflationIndex *= 1 + monthlyInflation;
       // Track the year's investment P&L (net of fees, gross of inflation) in the same
       // deflated units as the balance, so nominal gains are taxed in today's-money terms.
       yearlyPnl = (yearlyPnl + pnlMonth) / (1 + monthlyInflation);

@@ -225,6 +225,89 @@ describe('annual net-gain taxation', () => {
   });
 });
 
+describe('nominal cashflows deflated by realized inflation', () => {
+  // TODO 0.3. Nominal (non-inflation-adjusted) items used to be divided by a deterministic
+  // (1+inflationMean)^years index computed once outside the simulation, while balances were
+  // deflated by the per-path stochastic inflation. A fixed annuity therefore never lost
+  // purchasing power faster on a high-inflation path — exactly the risk of holding one —
+  // and the two sides of the ledger were using different price indices.
+  //
+  // With inflation volatility set to zero the whole thing is deterministic, so the engine's
+  // answer can be checked against an exact hand computation.
+  const flatReturns = new Array(240).fill(0); // 0% market return every month
+  const ANNUAL_INFLATION = 0.12; // => exactly 1% per month, since monthlyMean = annual/12
+  const MONTHLY_INFLATION = ANNUAL_INFLATION / 12;
+  const MONTHS = 24;
+
+  function nominalIncomeInput(): RetirementInput {
+    return {
+      simulationMode: 'historical',
+      currentAge: 60, retirementAge: 60, simulateUntilAge: 62,
+      currentSavings: 0,
+      meanReturn: 0, returnVariability: 0, returnSkewness: 0, returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      inflationMean: ANNUAL_INFLATION,
+      inflationVariability: 0, inflationSkewness: 0, inflationKurtosis: 3,
+      inflationCrisisSpread: 0,
+      annualFeePercent: 0, taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04, simulations: 400, seed: 777,
+      regimeModel: {
+        stayGrowth: 0.92, stayCrisis: 0.68,
+        growthMean: 0, growthStd: 0, crisisMean: 0, crisisStd: 0
+      },
+      historicalMonthlyReturns: flatReturns
+    };
+  }
+
+  const nominalIncome: IncomeSource[] = [
+    { id: 'is-nominal', label: 'Fixed annuity', fromAge: 60, toAge: 62, yearlyAmount: 12000, inflationAdjusted: false }
+  ];
+
+  it('deflates a fixed annuity by the same index the balance is deflated by', () => {
+    const result = runMonteCarloSimulation(nominalIncomeInput(), [], nominalIncome, [], MONTHS, 0);
+
+    // Reproduce the engine's accounting exactly: the flow enters in pre-month-m money, so
+    // the nominal face value is divided by the index accumulated through month m-1, and
+    // the balance is then deflated by month m's inflation.
+    let expected = 0;
+    let index = 1;
+    for (let m = 0; m < MONTHS; m++) {
+      expected += 1000 / index; // 12000/yr = 1000/month, face value
+      expected /= 1 + MONTHLY_INFLATION;
+      index *= 1 + MONTHLY_INFLATION;
+    }
+
+    expect(result.stats.finalMedian).toBeCloseTo(expected, 6);
+  });
+
+  it('erodes a nominal annuity more than an inflation-adjusted one of the same size', () => {
+    const nominal = runMonteCarloSimulation(nominalIncomeInput(), [], nominalIncome, [], MONTHS, 0);
+    const realTerms = runMonteCarloSimulation(
+      nominalIncomeInput(),
+      [],
+      [{ ...nominalIncome[0], inflationAdjusted: true }],
+      [],
+      MONTHS,
+      0
+    );
+    expect(nominal.stats.finalMedian).toBeLessThan(realTerms.stats.finalMedian);
+  });
+
+  it('makes outcomes path-dependent once inflation is volatile', () => {
+    // With the old deterministic index the annuity's real value was identical on every
+    // path; now it tracks each path's own realized inflation, so outcomes disperse.
+    const volatile = runMonteCarloSimulation(
+      { ...nominalIncomeInput(), inflationVariability: 0.05, simulations: 2000 },
+      [],
+      nominalIncome,
+      [],
+      MONTHS,
+      0
+    );
+    expect(volatile.stats.finalHigh).toBeGreaterThan(volatile.stats.finalLow);
+  });
+});
+
 describe('coast FIRE age', () => {
   // "Stop contributing" is modelled as net-zero cash flow from the coast age until
   // retirement: you still cover spending from work, but the portfolio neither grows by

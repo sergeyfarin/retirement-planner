@@ -12,10 +12,9 @@ use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod
 /// - `percentOfPortfolio`: during retirement, spend `withdrawal_percent` of the current
 ///   balance each year (recomputed annually), clamped to [floor, ceiling] × initial real
 ///   spending so it never collapses to near-zero or explodes.
-pub struct WithdrawalRunner<'a> {
+pub struct WithdrawalRunner {
     kind: u8, // 0 fixed, 1 guardrails, 2 percent
     retire_month: usize,
-    base_spending: &'a [f64],
     guardrail_band: f64,
     adjustment: f64,
     withdrawal_percent: f64,
@@ -29,12 +28,8 @@ pub struct WithdrawalRunner<'a> {
     held_monthly_spending: f64,
 }
 
-impl<'a> WithdrawalRunner<'a> {
-    pub fn new(
-        strategy: &WithdrawalStrategy,
-        base_spending: &'a [f64],
-        retire_month: usize,
-    ) -> Self {
+impl WithdrawalRunner {
+    pub fn new(strategy: &WithdrawalStrategy, retire_month: usize) -> Self {
         let kind = match strategy.kind.as_str() {
             "guardrails" => 1,
             "percentOfPortfolio" => 2,
@@ -43,7 +38,6 @@ impl<'a> WithdrawalRunner<'a> {
         WithdrawalRunner {
             kind,
             retire_month,
-            base_spending,
             guardrail_band: strategy.guardrail_band.unwrap_or(0.2).max(0.01),
             adjustment: strategy.adjustment.unwrap_or(0.1).clamp(0.0, 0.9),
             withdrawal_percent: strategy.withdrawal_percent.unwrap_or(0.04).max(0.0),
@@ -57,8 +51,10 @@ impl<'a> WithdrawalRunner<'a> {
         }
     }
 
-    pub fn monthly_spending(&mut self, m: usize, balance: f64) -> f64 {
-        let base = self.base_spending[m];
+    /// `base` is the month's planned spending already expressed in real terms, which the
+    /// caller computes — with nominal items deflated by that path's realized inflation, it
+    /// is path-dependent and can no longer be read from a precomputed array.
+    pub fn monthly_spending(&mut self, m: usize, balance: f64, base: f64) -> f64 {
         // Accumulation phase, or the fixed strategy: follow the planned schedule.
         if self.kind == 0 || m < self.retire_month {
             return base;
@@ -355,10 +351,20 @@ pub fn monthly_returns_to_annual_series(monthly_returns: &[f64]) -> Vec<f64> {
 pub struct CashflowArrays {
     /// income − base spending, per month (the fixed-strategy net flow).
     pub monthly_net_flow: Vec<f64>,
-    /// income only, per month (positive = inflow).
+    /// income only, per month (positive = inflow), nominal items deflated by the
+    /// *expected* inflation index. Used by the ruin-surface/coast replay, which cannot
+    /// recover per-path realized inflation from the stored growth factors.
     pub monthly_income_flow: Vec<f64>,
-    /// base planned spending, per month (positive = outflow).
+    /// base planned spending, per month (positive = outflow), same expected-index caveat.
     pub monthly_spending_flow: Vec<f64>,
+    /// Inflation-adjusted income, constant in real terms — no deflation needed.
+    pub monthly_real_income_flow: Vec<f64>,
+    /// Face value of nominal income; divide by the path's realized inflation index.
+    pub monthly_nominal_income_flow: Vec<f64>,
+    /// Inflation-adjusted spending, constant in real terms.
+    pub monthly_real_spending_flow: Vec<f64>,
+    /// Face value of nominal spending; divide by the path's realized inflation index.
+    pub monthly_nominal_spending_flow: Vec<f64>,
     pub lump_sum_by_month: Vec<f64>,
 }
 
@@ -379,6 +385,43 @@ pub fn spending_at_age(age: f64, spending_periods: &[SpendingPeriod], inflation_
                 period.yearly_amount / inflation_index
             }
         })
+}
+
+/// Splits spending at `age` into the part that is constant in real terms and the face
+/// value of the part that is fixed in nominal terms. The nominal part must be deflated by
+/// the *realized* inflation index of the path it is simulated on, which is only known
+/// inside the simulation loop.
+pub fn split_spending_at_age(age: f64, spending_periods: &[SpendingPeriod]) -> (f64, f64) {
+    let mut real = 0.0;
+    let mut nominal_face = 0.0;
+    for period in spending_periods
+        .iter()
+        .filter(|period| period.from_age <= age && period.to_age > age)
+    {
+        if period.inflation_adjusted.unwrap_or(true) {
+            real += period.yearly_amount;
+        } else {
+            nominal_face += period.yearly_amount;
+        }
+    }
+    (real, nominal_face)
+}
+
+/// Income counterpart of [`split_spending_at_age`].
+pub fn split_income_at_age(age: f64, income_sources: &[IncomeSource]) -> (f64, f64) {
+    let mut real = 0.0;
+    let mut nominal_face = 0.0;
+    for source in income_sources
+        .iter()
+        .filter(|source| source.from_age <= age && source.to_age > age)
+    {
+        if source.inflation_adjusted.unwrap_or(true) {
+            real += source.yearly_amount;
+        } else {
+            nominal_face += source.yearly_amount;
+        }
+    }
+    (real, nominal_face)
 }
 
 pub fn income_at_age(age: f64, income_sources: &[IncomeSource], inflation_index: f64) -> f64 {
@@ -405,11 +448,24 @@ pub fn build_cashflow_arrays(
     let mut monthly_net_flow = vec![0.0; months as usize];
     let mut monthly_income_flow = vec![0.0; months as usize];
     let mut monthly_spending_flow = vec![0.0; months as usize];
+    let mut monthly_real_income_flow = vec![0.0; months as usize];
+    let mut monthly_nominal_income_flow = vec![0.0; months as usize];
+    let mut monthly_real_spending_flow = vec![0.0; months as usize];
+    let mut monthly_nominal_spending_flow = vec![0.0; months as usize];
     let mut lump_sum_by_month = vec![0.0; months as usize];
 
     for m in 0..months {
         let age = input.current_age + (m as f64) / 12.0;
         let inflation_index = expected_inflation_index_at_age(input, age);
+
+        let (real_income, nominal_income) = split_income_at_age(age, income_sources);
+        let (real_spending, nominal_spending) = split_spending_at_age(age, spending_periods);
+        monthly_real_income_flow[m as usize] = real_income / 12.0;
+        monthly_nominal_income_flow[m as usize] = nominal_income / 12.0;
+        monthly_real_spending_flow[m as usize] = real_spending / 12.0;
+        monthly_nominal_spending_flow[m as usize] = nominal_spending / 12.0;
+
+        // Expected-index versions, retained for the replay paths.
         let income = income_at_age(age, income_sources, inflation_index) / 12.0;
         let spending = spending_at_age(age, spending_periods, inflation_index) / 12.0;
         monthly_income_flow[m as usize] = income;
@@ -428,6 +484,10 @@ pub fn build_cashflow_arrays(
         monthly_net_flow,
         monthly_income_flow,
         monthly_spending_flow,
+        monthly_real_income_flow,
+        monthly_nominal_income_flow,
+        monthly_real_spending_flow,
+        monthly_nominal_spending_flow,
         lump_sum_by_month,
     }
 }

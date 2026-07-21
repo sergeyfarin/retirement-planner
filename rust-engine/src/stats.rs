@@ -111,10 +111,16 @@ pub fn replay_ruin_probability(
         let mut ruined = false;
         // Re-run the withdrawal strategy against the stored growth path so dynamic
         // spending in the ruin surface stays consistent with the main simulation.
-        let mut runner = WithdrawalRunner::new(strategy, monthly_spending_flow, retire_month);
+        //
+        // Note: the flows passed in here have nominal items deflated by the *expected*
+        // inflation index, not the realized one. The stored growth factors bake inflation
+        // into a single number, so per-path realized inflation cannot be recovered during
+        // a replay. Documented as part of the ruin-surface approximation (README §7).
+        let mut runner = WithdrawalRunner::new(strategy, retire_month);
 
         for month in 0..months as usize {
-            let effective_spending = runner.monthly_spending(month, balance);
+            let effective_spending =
+                runner.monthly_spending(month, balance, monthly_spending_flow[month]);
             balance += monthly_income_flow[month] - effective_spending + lump_sum_by_month[month];
             balance *= growth_factors[sim][month];
             if balance <= 0.0 {

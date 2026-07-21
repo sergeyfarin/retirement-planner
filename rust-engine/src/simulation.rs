@@ -123,8 +123,10 @@ pub fn run_monte_carlo_simulation(
         lump_sum_events,
         months,
     );
-    let monthly_income_flow = arrays.monthly_income_flow;
-    let monthly_spending_flow = arrays.monthly_spending_flow;
+    let monthly_real_income_flow = arrays.monthly_real_income_flow;
+    let monthly_nominal_income_flow = arrays.monthly_nominal_income_flow;
+    let monthly_real_spending_flow = arrays.monthly_real_spending_flow;
+    let monthly_nominal_spending_flow = arrays.monthly_nominal_spending_flow;
     let lump_sum_by_month = arrays.lump_sum_by_month;
     let withdrawal_strategy = input.withdrawal_strategy.clone().unwrap_or_default();
     let retire_month_usize = (retire_month as usize).min(months as usize);
@@ -356,8 +358,12 @@ pub fn run_monte_carlo_simulation(
         let mut annual_asset_return = 0.0;
         let mut annual_inflation = 0.0;
         let mut yearly_pnl = 0.0;
-        let mut withdrawal_runner =
-            WithdrawalRunner::new(&withdrawal_strategy, &monthly_spending_flow, retire_month_usize);
+        let mut withdrawal_runner = WithdrawalRunner::new(&withdrawal_strategy, retire_month_usize);
+        // Cumulative realized inflation through month m−1. Nominal cash flows are fixed in
+        // face value, so they are deflated by *this* rather than by the expected index —
+        // a fixed annuity really does lose purchasing power faster on a high-inflation
+        // path, which is the whole risk of holding one.
+        let mut realized_inflation_index = 1.0_f64;
 
         for m in 0..months as usize {
             let mut regime_changed = false;
@@ -474,11 +480,20 @@ pub fn run_monte_carlo_simulation(
                 (1.0 + annual_asset_return) * (1.0 + monthly_portfolio_return_after_costs) - 1.0;
             annual_inflation = (1.0 + annual_inflation) * (1.0 + monthly_inflation) - 1.0;
 
-            let effective_spending = withdrawal_runner.monthly_spending(m, balance);
-            balance += monthly_income_flow[m] - effective_spending + lump_sum_by_month[m];
+            // Nominal items are divided by the index accumulated through month m−1: the
+            // flow is applied before this month's deflation below, so it enters in
+            // pre-month-m money.
+            let income_this_month = monthly_real_income_flow[m]
+                + monthly_nominal_income_flow[m] / realized_inflation_index;
+            let base_spending_this_month = monthly_real_spending_flow[m]
+                + monthly_nominal_spending_flow[m] / realized_inflation_index;
+            let effective_spending =
+                withdrawal_runner.monthly_spending(m, balance, base_spending_this_month);
+            balance += income_this_month - effective_spending + lump_sum_by_month[m];
             let pnl_month = balance.max(0.0) * (monthly_portfolio_growth_factor - 1.0);
             balance *= monthly_portfolio_growth_factor;
             balance /= 1.0 + monthly_inflation;
+            realized_inflation_index *= 1.0 + monthly_inflation;
             // Track the year's investment P&L (net of fees, gross of inflation) in the
             // same deflated units as the balance, so nominal gains are taxed in
             // today's-money terms at year end.
