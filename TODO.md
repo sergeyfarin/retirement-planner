@@ -120,13 +120,37 @@ pairs from the same historical months**. Bootstrapped CPI carries its own
 autocorrelation, fixing both problems at once. Keep the parametric path as fallback.
 **Files:** data scripts, `structs.rs`, `simulation.rs`, planner wiring
 
-### 0.5 Kurtosis blending biased low (S)
-`blendPortfolioMetrics` omits the `6·σᵢ²σⱼ²` cross-terms in the fourth moment of a sum:
-a blend of two independent normals comes out with kurtosis < 3, so the Student-t df
-mapping sees no excess kurtosis and generates thinner tails than intended.
-**Action:** add cross-terms for the independent case (and the equity–bond correlation
-term if feasible), or blend excess kurtosis on variance weights as an approximation.
-**Files:** `src/lib/calculations.ts`, `RetirementPlanner.svelte` local copy (see 1.2)
+### 0.5 Kurtosis blending biased low (S) — ✅ FIXED 2026-07-21
+**Fix applied:** `blendPortfolioMetrics` now includes the cross terms of the fourth
+moment of a sum — `12ρ(a_s³a_b + a_s a_b³) + 6a_s²a_b²(1+2ρ²) + 6a_c²·Var(equity+bond)`
+on top of `Σaᵢ⁴κᵢ`, where `aᵢ = wᵢσᵢ`. Exact for jointly normal components (checked
+against Monte Carlo: formula 3.0000 vs MC 3.0001) and exact for independent components of
+any marginal shape, since the cross moments then factor; a normal-theory approximation
+only when correlation and non-normal marginals combine.
+
+**Why it mattered more than the one-line description suggests.** The old formula returned
+kurtosis **1.5 for a blend of independent normals** — thinner than normal — so
+`student_t_degrees_from_kurtosis` saw zero excess kurtosis and produced thin tails. The
+error scales with how balanced the portfolio is, so it hit conservative allocations
+hardest, i.e. precisely the people near or in retirement:
+
+| EUR allocation | old κ | fixed κ |
+|---|---|---|
+| 100 / 0 / 0 | 2.719 | 2.719 (unchanged — no cross terms) |
+| 60 / 30 / 10 | 2.750 | 2.717 (−1%; equity term dominates) |
+| 30 / 60 / 10 | 1.975 | 2.881 (+46%) |
+| 20 / 40 / 40 | 1.738 | 2.896 (+67%) |
+| 0 / 50 / 50 | 2.398 | 3.276 (+37%) |
+
+**Tests:** four cases in `retirementEngine.test.ts` — any blend of uncorrelated normals
+returns exactly 3, correlated normals also return exactly 3 (ρ from −0.5 to 0.9), a
+100%-single-asset portfolio preserves that asset's kurtosis, and a fat-tailed component
+raises portfolio kurtosis above 3.
+
+**Note on skewness:** the third moment has the same structural issue, but its cross terms
+vanish for independent components, so the existing formula is exact when uncorrelated and
+only mildly approximate under correlation. Left as is; documented in README §6.2.
+**Files:** `src/lib/calculations.ts`, README §6.2
 
 ### 0.6 Seed & fingerprint nits (S) — ✅ FIXED 2026-07-20
 All three addressed: `input.seed ?? Math.floor(random)` so an explicit seed of `0` is

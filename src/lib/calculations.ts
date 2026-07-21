@@ -185,15 +185,39 @@ export function blendPortfolioMetrics(
     return { mean, std: 0, skewness: defaultSkewness, kurtosis: defaultKurtosis };
   }
 
-  const stockThird = (allocation.stocks * metrics.stockStd) ** 3 * metrics.stockSkew;
-  const bondThird = (allocation.bonds * metrics.bondStd) ** 3 * metrics.bondSkew;
-  const bankThird = (allocation.bank * metrics.bankStd) ** 3 * metrics.bankSkew;
-  const skewness = (stockThird + bondThird + bankThird) / std ** 3;
+  // Contribution standard deviations: aᵢ = wᵢ·σᵢ.
+  const aStock = allocation.stocks * metrics.stockStd;
+  const aBond = allocation.bonds * metrics.bondStd;
+  const aBank = allocation.bank * metrics.bankStd;
 
-  const stockFourth = (allocation.stocks * metrics.stockStd) ** 4 * metrics.stockKurt;
-  const bondFourth = (allocation.bonds * metrics.bondStd) ** 4 * metrics.bondKurt;
-  const bankFourth = (allocation.bank * metrics.bankStd) ** 4 * metrics.bankKurt;
-  const kurtosis = Math.max(1, (stockFourth + bondFourth + bankFourth) / std ** 4);
+  // Third central moment of a sum. For independent components the cross terms vanish
+  // (E[A²B] = E[A²]E[B] = 0 for centred variables), so this is exact when uncorrelated
+  // and a mild approximation once equity and bonds co-move.
+  const skewness = (aStock ** 3 * metrics.stockSkew + aBond ** 3 * metrics.bondSkew + aBank ** 3 * metrics.bankSkew) / std ** 3;
+
+  // Fourth central moment of a sum. The Σaᵢ⁴κᵢ terms alone are *not* the fourth moment —
+  // the cross terms are the bulk of it, and omitting them made a blend of independent
+  // normals come out at kurtosis 1.5 instead of 3, i.e. thinner-than-normal tails, which
+  // then told the Student-t mapping there was no excess kurtosis to reproduce.
+  //
+  //   μ₄(S) = Σ aᵢ⁴κᵢ
+  //         + 12ρ(a_s³a_b + a_s a_b³)          equity/bond, normal-theory E[A³B]
+  //         + 6a_s²a_b²(1 + 2ρ²)               equity/bond, normal-theory E[A²B²]
+  //         + 6a_c²·Var(equity + bond)         cash against the rest (independent)
+  //
+  // Exact for jointly normal components (verified against Monte Carlo) and exact for
+  // independent components whatever their marginal shape, since the cross moments then
+  // factor. With both correlation *and* non-normal marginals it is a normal-theory
+  // approximation — the joint fourth moments are not determined by ρ alone.
+  const equityBondVariance = aStock ** 2 + aBond ** 2 + 2 * rhoEquityBond * aStock * aBond;
+  const fourthMoment =
+    aStock ** 4 * metrics.stockKurt +
+    aBond ** 4 * metrics.bondKurt +
+    aBank ** 4 * metrics.bankKurt +
+    12 * rhoEquityBond * (aStock ** 3 * aBond + aStock * aBond ** 3) +
+    6 * aStock ** 2 * aBond ** 2 * (1 + 2 * rhoEquityBond ** 2) +
+    6 * aBank ** 2 * equityBondVariance;
+  const kurtosis = Math.max(1, fourthMoment / std ** 4);
 
   return { mean, std, skewness, kurtosis };
 }

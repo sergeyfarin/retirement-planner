@@ -369,9 +369,29 @@ $$\sigma_p^2 = \sum_i (w_i \sigma_i)^2 + 2 w_{eq} w_{bond} \sigma_{eq} \sigma_{b
 
 Cash correlation terms are treated as 0. When historical market data is available, $\rho_{eq,bond}$ is estimated from the selected region's monthly series.
 
-Skewness and kurtosis are blended using the weighted third and fourth central moments:
+Skewness uses the third central moment of a sum. For independent components the cross
+terms vanish ($E[A^2B] = E[A^2]E[B] = 0$ for centred variables), so this is exact when
+uncorrelated and a mild approximation once equity and bonds co-move:
 
-$$s_p = \frac{\sum_i (w_i \sigma_i)^3 \cdot s_i}{\sigma_p^3} \qquad \kappa_p = \max\left(1, \frac{\sum_i (w_i \sigma_i)^4 \cdot \kappa_i}{\sigma_p^4}\right)$$
+$$s_p = \frac{\sum_i a_i^3 s_i}{\sigma_p^3}, \qquad a_i = w_i \sigma_i$$
+
+Kurtosis needs the **cross terms**, which are the bulk of a sum's fourth moment:
+
+$$\kappa_p = \max\left(1, \frac{1}{\sigma_p^4}\left[\sum_i a_i^4 \kappa_i + 12\rho\left(a_{eq}^3 a_{bd} + a_{eq} a_{bd}^3\right) + 6 a_{eq}^2 a_{bd}^2\left(1 + 2\rho^2\right) + 6 a_{cash}^2 \left(a_{eq}^2 + a_{bd}^2 + 2\rho\, a_{eq} a_{bd}\right)\right]\right)$$
+
+This is exact for jointly normal components (verified against Monte Carlo) and exact for
+independent components whatever their marginal shape, since the cross moments then
+factor. With both correlation *and* non-normal marginals it is a normal-theory
+approximation — joint fourth moments are not determined by $\rho$ alone.
+
+> **Fixed 2026-07-21 (TODO 0.5).** The $\sum a_i^4 \kappa_i$ term was previously used on
+> its own. That made a blend of *independent normals* report $\kappa_p = 1.5$ instead of
+> 3 — thinner than normal — which then told the Student-t mapping (§4.3 Mode C) there was
+> no excess kurtosis to reproduce, generating thinner tails than intended. The error grew
+> as the portfolio became more balanced, so it hit conservative allocations hardest: for
+> EUR at 20/40/40 the reported kurtosis was **1.74 against a corrected 2.90**, while a
+> 100% single-asset portfolio was unaffected and the 60/30/10 default moved only ~1%
+> (its fourth moment is dominated by the equity term).
 
 ### 6.3 Variance-Preserving Regime Decomposition
 

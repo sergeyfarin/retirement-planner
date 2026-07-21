@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blendPortfolioMetrics,
   buildCurrentConditionsMetrics,
   createRandomSource,
   type HistoricalMarketDataset
@@ -221,6 +222,54 @@ describe('annual net-gain taxation', () => {
     const effectiveAnnualDrag = 1 - Math.pow(medianWithTax / medianNoTax, 1 / years);
     expect(effectiveAnnualDrag).toBeGreaterThan(0.008);
     expect(effectiveAnnualDrag).toBeLessThan(0.025);
+  });
+});
+
+describe('portfolio kurtosis blending', () => {
+  // The fourth moment of a sum is dominated by its cross terms. Omitting them made a
+  // blend of normals report kurtosis 1.5 — thinner than normal — which told the
+  // Student-t mapping there was no excess kurtosis to reproduce (TODO 0.5).
+  const normal = (std: number) => ({ std, skew: 0, kurt: 3 });
+
+  function blendOf(
+    stocks: number,
+    bonds: number,
+    bank: number,
+    rho: number,
+    stockKurt = 3
+  ) {
+    return blendPortfolioMetrics(
+      {
+        stockMean: 0.08, stockStd: 0.16, stockSkew: 0, stockKurt,
+        bondMean: 0.04, bondStd: 0.09, bondSkew: 0, bondKurt: normal(0.09).kurt,
+        bankMean: 0.03, bankStd: 0.03, bankSkew: 0, bankKurt: normal(0.03).kurt
+      },
+      { stocks, bonds, bank },
+      rho
+    );
+  }
+
+  it('gives exactly 3 for any blend of uncorrelated normals', () => {
+    for (const [s, b, c] of [[0.5, 0.5, 0], [0.6, 0.3, 0.1], [0.34, 0.33, 0.33], [0.9, 0.05, 0.05]]) {
+      expect(blendOf(s, b, c, 0).kurtosis).toBeCloseTo(3, 9);
+    }
+  });
+
+  it('gives exactly 3 for correlated normals too', () => {
+    for (const rho of [-0.5, -0.1, 0, 0.3, 0.9]) {
+      expect(blendOf(0.6, 0.3, 0.1, rho).kurtosis).toBeCloseTo(3, 9);
+    }
+  });
+
+  it('preserves a single asset kurtosis when the portfolio is 100% that asset', () => {
+    expect(blendOf(1, 0, 0, 0, 7).kurtosis).toBeCloseTo(7, 9);
+  });
+
+  it('reports excess kurtosis when a component is fat-tailed', () => {
+    const fat = blendOf(0.6, 0.3, 0.1, -0.1, 9);
+    const thin = blendOf(0.6, 0.3, 0.1, -0.1, 3);
+    expect(fat.kurtosis).toBeGreaterThan(thin.kurtosis);
+    expect(fat.kurtosis).toBeGreaterThan(3);
   });
 });
 
