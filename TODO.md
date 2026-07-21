@@ -307,10 +307,18 @@ removed from tracking and gitignored; the emptied `public/` tree removed.
   so this blocks an accidental `npm publish`. Verified `pnpm run build` (which runs
   `svelte-package` + `publint`) still passes with the flag set.
 
-**Left deliberately undone:** the maintainer's personal email addresses appear in existing
-commit metadata and would become public. Rewriting history to scrub them is destructive
-and breaks every existing clone/hash; if that matters, it is a decision to take
-consciously (GitHub's `noreply` address is already used by some commits).
+**Commit-metadata emails — ✅ rewritten 2026-07-21 (maintainer confirmed no forks exist):**
+all 44 commits authored under `rekenraam@gmail.com`, `sergey.farin@gmail.com` or
+`Sergey.Farin@gmail.com` were rewritten to
+`Sergey Farin <1467219+sergeyfarin@users.noreply.github.com>` using `git filter-repo
+--mailmap`. Verified afterwards: local history contains zero gmail addresses, both HEAD
+and `main` tree hashes are byte-identical to before, and commit (60) and tag (29) counts
+are unchanged. Repo-local `user.email` is now pinned to the noreply address so new commits
+cannot reintroduce a personal one.
+
+Because every commit hash changed, this requires a **force-push of all branches and
+tags**. Until that happens the rewritten history exists only locally; GitHub still holds
+the original, which is also the rollback path.
 
 ---
 
