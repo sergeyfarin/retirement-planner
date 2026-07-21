@@ -522,10 +522,45 @@ Encode all inputs in the URL hash (the input object is flat; `previewTriggerKey`
 of the serialization work). Enables bookmark/share and side-by-side scenario comparison
 ("retire at 60 vs 64"). Every shared link is distribution.
 
-### 4.2 Coast / Barista FIRE Metrics (S)
-From the existing simulation, derive "the age at which you could stop contributing and
-still hit 95% success" — large FIRE-community appeal, near-zero engine work (search over
-salary-end age replaying stored growth factors, same trick as the ruin surface).
+### 4.2 Coast / Barista FIRE Metrics (S) — ✅ SHIPPED 2026-07-21
+**Shipped:** `SummaryStats.coastAge` — the earliest age at which contributions could stop
+while still clearing the 95% success target. Shown in the FI-targets card ("Coast FIRE:
+stop saving at age 55 and still clear 95%, if work still covers spending").
+
+**Modelling choice:** "stopping contributions" is net-zero cash flow from the coast age
+until retirement — you still cover spending from work (the coast/barista case), so the
+portfolio neither grows by contribution nor shrinks by withdrawal, it just compounds.
+Retirement age and retirement spending are unchanged.
+
+**Cost:** as the TODO predicted, near-zero. It reuses the ruin-surface replay trick
+(stored per-path growth factors re-run against a modified cash-flow schedule) and binary
+searches the coast month, so it costs ~6 replays rather than fresh simulations. The
+search is sound because success is monotone non-decreasing in the coast month — every
+growth factor is positive, so contributing for longer leaves every path with at least as
+much money.
+
+**Returns null, deliberately, in two cases:** when the user is not a net saver before
+retirement (there are no contributions to stop, and "stopping" would *help* them, which
+would invert the monotonicity the search relies on), and when 95% is unreachable even by
+contributing right up to retirement. The UI shows an explicit "n/a" line for the latter
+rather than hiding the metric.
+
+**Inherits the ruin-surface caveat:** the stored growth factors carry a tax factor
+computed on the original balance path. That factor is scale-invariant but not invariant
+to a changed contribution pattern, so this is a fast approximation in exactly the same way
+the ruin surface is (README §7).
+
+**Found while wiring it up:** `Option::None` was crossing the wasm boundary as `undefined`
+rather than `null`, so the declared `coastAge: number | null` type was a lie and every
+`=== null` check in the UI would have silently missed. The parity suite caught it. Fixed
+by serialising with `serialize_missing_as_null(true)`; `coastAge` is the only optional
+field in the output structs.
+
+**Tests:** four behavioural (a net saver gets an age between today and retirement, the age
+is the earliest qualifying one, null when unreachable, null for a net drawer) plus a
+parity assertion on both the null-ness and the value.
+**Files:** `rust-engine/src/{stats,engine,simulation,lib}.rs`, `src/lib/retirementEngine.ts`,
+`PlannerOutputCards.svelte`
 
 ### 4.3 Terminal Wealth CDF Plot (M)
 **Action:** Add a CDF plot for final simulated balances (e.g., Year 30 wealth). The existing CDF only shows the single-year input return distribution. Visualizing the massive log-normal right-tail skew of 30-year compounded outcomes is highly informative.

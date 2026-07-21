@@ -71,5 +71,10 @@ pub fn run_monte_carlo(
         sim_count: wrapper.sim_count,
     };
 
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    // `serialize_missing_as_null` so `Option::None` crosses as `null` rather than
+    // `undefined`. `SummaryStats.coastAge` is the only optional output field, and its
+    // TypeScript type is `number | null`; without this the runtime value would be
+    // `undefined` and every `=== null` check in the UI would silently miss.
+    let serializer = serde_wasm_bindgen::Serializer::new().serialize_missing_as_null(true);
+    Ok(res.serialize(&serializer)?)
 }

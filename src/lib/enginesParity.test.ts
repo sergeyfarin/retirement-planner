@@ -265,6 +265,12 @@ describe('cross-engine simulation parity', () => {
         );
       }
 
+      // Coast age is nullable, so compare the null-ness first, then the value.
+      expect(rust.stats.coastAge === null).toBe(ts.stats.coastAge === null);
+      if (ts.stats.coastAge !== null && rust.stats.coastAge !== null) {
+        expectClose(rust.stats.coastAge, ts.stats.coastAge, 'stats.coastAge');
+      }
+
       const scalarStats = [
         'fiTargetSWR',
         'fiTargetP95',

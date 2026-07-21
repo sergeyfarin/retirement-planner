@@ -229,6 +229,101 @@ pub fn build_ruin_surface(
     }
 }
 
+/// Coast FIRE: the earliest age at which contributions could stop while still clearing
+/// `target_success_probability`.
+///
+/// "Stopping contributions" is modelled as net-zero cash flow from that age until
+/// retirement — you still cover your spending from work (the coast/barista case), but you
+/// neither add to nor draw from the portfolio, which simply compounds. Retirement itself
+/// is unchanged.
+///
+/// Uses the same replay trick as the ruin surface: the stored per-path growth factors are
+/// re-run against a modified cash-flow schedule, so this costs a handful of replays rather
+/// than fresh simulations. It inherits the same caveat — the growth factors carry a tax
+/// factor computed on the *original* balance path, which is scale-invariant but not
+/// invariant to a changed contribution pattern.
+///
+/// Returns `None` when the idea does not apply: when the user is not a net saver before
+/// retirement (there are no contributions to stop), or when the target is unreachable even
+/// by contributing right up to retirement.
+#[allow(clippy::too_many_arguments)]
+pub fn find_coast_age(
+    input: &RetirementInput,
+    spending_periods: &[SpendingPeriod],
+    income_sources: &[IncomeSource],
+    lump_sum_events: &[LumpSumEvent],
+    growth_factors: &[Vec<f64>],
+    months: u32,
+    sample_count: usize,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
+    target_success_probability: f64,
+) -> Option<f64> {
+    if retire_month == 0 || sample_count == 0 || growth_factors.is_empty() {
+        return None;
+    }
+
+    let base = build_cashflow_arrays(
+        input,
+        spending_periods,
+        income_sources,
+        lump_sum_events,
+        months,
+    );
+
+    // Only meaningful while the user is actually adding to the portfolio. If they are a
+    // net drawer pre-retirement, "stopping contributions" would *help*, which inverts the
+    // monotonicity the search relies on and is not what Coast FIRE means anyway.
+    let pre_retirement_net: f64 = (0..retire_month)
+        .map(|m| base.monthly_income_flow[m] - base.monthly_spending_flow[m])
+        .sum();
+    if pre_retirement_net <= 0.0 {
+        return None;
+    }
+
+    // Success as a function of the coast month is monotone non-decreasing: contributing
+    // for longer can only leave every path with at least as much money, since all growth
+    // factors are positive. That makes a binary search safe.
+    let success_at = |coast_month: usize| -> f64 {
+        let mut income = base.monthly_income_flow.clone();
+        let mut spending = base.monthly_spending_flow.clone();
+        for m in coast_month..retire_month {
+            income[m] = 0.0;
+            spending[m] = 0.0;
+        }
+        1.0 - replay_ruin_probability(
+            growth_factors,
+            &income,
+            &spending,
+            &base.lump_sum_by_month,
+            input.current_savings,
+            sample_count,
+            months,
+            strategy,
+            retire_month,
+        )
+    };
+
+    // Contributing all the way to retirement is the best case; if even that misses the
+    // target there is no coast age to report.
+    if success_at(retire_month) < target_success_probability {
+        return None;
+    }
+
+    let mut low = 0usize;
+    let mut high = retire_month;
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if success_at(mid) >= target_success_probability {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+
+    Some(input.current_age + (low as f64) / 12.0)
+}
+
 // `success_flags` must use the same definition as the headline success probability
 // (never depleted AND ending balance > 0), so the P95 FI target and the success rate
 // agree on what counts as a surviving path.

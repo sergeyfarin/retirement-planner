@@ -56,6 +56,11 @@ pub struct RuinSurface {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SummaryStats {
+    /// Coast FIRE: earliest age at which contributions could stop while still clearing the
+    /// FI success target. `None` when the user is not a net saver pre-retirement, or when
+    /// the target is unreachable even by contributing until retirement.
+    #[serde(rename = "coastAge")]
+    pub coast_age: Option<f64>,
     pub fi_target: f64,
     #[serde(rename = "fiTargetSWR")]
     pub fi_target_swr: f64,

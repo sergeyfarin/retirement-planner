@@ -439,6 +439,23 @@ P10, P25, P50 (median), P75, P90 balance trajectories over the full time horizon
 |---|---|
 | FI Target (SWR) | $\text{spending at retirement age} / \text{SWR}$ (default SWR = 4%) |
 | FI Target (P95) | Minimum balance at retirement such that ≥ 95% of paths with balance ≥ that threshold end above zero. Found by sorting simulations by retirement-age balance and scanning for the 95% conditional success cutoff using a suffix-sum algorithm. |
+| Coast FIRE age | Earliest age at which **contributions** could stop while still clearing 95% success. |
+
+**Coast FIRE.** "Stopping contributions" is modelled as **net-zero cash flow** from that
+age until retirement: you still cover spending from work — the coast/barista case — so the
+portfolio neither grows by contribution nor shrinks by withdrawal, it simply compounds.
+Retirement age and retirement spending are unchanged.
+
+It reuses the ruin-surface replay (§7.4): the stored per-path growth factors are re-run
+against a modified cash-flow schedule, and the coast month is found by binary search,
+which is valid because success is monotone non-decreasing in the coast month — all growth
+factors are positive, so contributing longer leaves every path with at least as much
+money. That makes it ~6 replays rather than fresh simulations, and it inherits the same
+approximation caveat as the ruin surface.
+
+Reported as `null` in two cases, both surfaced explicitly in the UI rather than hidden:
+when the user is not a net saver before retirement (there are no contributions to stop),
+and when 95% is unreachable even by contributing right up to retirement.
 
 ### 7.3 Ruin Analysis
 

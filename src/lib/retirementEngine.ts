@@ -169,6 +169,12 @@ export type SimulationResult = {
 };
 
 export type SummaryStats = {
+  /**
+   * Coast FIRE: earliest age at which contributions could stop while still clearing the FI
+   * success target. `null` when the user is not a net saver pre-retirement, or when the
+   * target is unreachable even by contributing until retirement.
+   */
+  coastAge: number | null;
   fiTarget: number;
   fiTargetSWR: number;
   fiTargetP95: number;
@@ -607,6 +613,74 @@ function replayRuinProbability(
   }
 
   return ruinCount / Math.max(1, sampleCount);
+}
+
+/**
+ * Coast FIRE: the earliest age at which contributions could stop while still clearing
+ * `targetSuccessProbability`. Mirrors the Rust `find_coast_age` — see that function for
+ * the modelling choices and caveats.
+ */
+function findCoastAge(
+  input: RetirementInput,
+  spendingPeriods: SpendingPeriod[],
+  incomeSources: IncomeSource[],
+  lumpSumEvents: LumpSumEvent[],
+  growthFactors: number[][],
+  months: number,
+  sampleCount: number,
+  strategy: WithdrawalStrategy,
+  retireMonth: number,
+  targetSuccessProbability: number
+): number | null {
+  if (retireMonth === 0 || sampleCount === 0 || growthFactors.length === 0) return null;
+
+  const base = buildCashflowArrays(input, spendingPeriods, incomeSources, lumpSumEvents, months);
+
+  // Only meaningful while the user is actually adding to the portfolio; a net drawer has
+  // no contributions to stop, and "stopping" would help them, inverting the monotonicity
+  // the search relies on.
+  let preRetirementNet = 0;
+  for (let m = 0; m < retireMonth; m++) {
+    preRetirementNet += base.monthlyIncomeFlow[m] - base.monthlySpendingFlow[m];
+  }
+  if (preRetirementNet <= 0) return null;
+
+  const successAt = (coastMonth: number): number => {
+    const income = Float64Array.from(base.monthlyIncomeFlow);
+    const spending = Float64Array.from(base.monthlySpendingFlow);
+    for (let m = coastMonth; m < retireMonth; m++) {
+      income[m] = 0;
+      spending[m] = 0;
+    }
+    return (
+      1 -
+      replayRuinProbability(
+        growthFactors,
+        income,
+        spending,
+        base.lumpSumByMonth,
+        input.currentSavings,
+        sampleCount,
+        months,
+        strategy,
+        retireMonth
+      )
+    );
+  };
+
+  if (successAt(retireMonth) < targetSuccessProbability) return null;
+
+  // Monotone non-decreasing in coastMonth (all growth factors are positive), so a binary
+  // search for the earliest qualifying month is safe.
+  let low = 0;
+  let high = retireMonth;
+  while (low < high) {
+    const mid = low + Math.floor((high - low) / 2);
+    if (successAt(mid) >= targetSuccessProbability) high = mid;
+    else low = mid + 1;
+  }
+
+  return input.currentAge + low / 12;
 }
 
 function buildRuinSurface(
@@ -1090,7 +1164,21 @@ export function runMonteCarloSimulation(
     withdrawalStrategy
   );
 
+  const coastAge = findCoastAge(
+    input,
+    spendingPeriods,
+    incomeSources,
+    lumpSumEvents,
+    growthFactors,
+    months,
+    simCount,
+    withdrawalStrategy,
+    retireMonthClamped,
+    0.95
+  );
+
   const stats: SummaryStats = {
+    coastAge,
     fiTarget: targetFIP95,
     fiTargetSWR: targetFISWR,
     fiTargetP95: targetFIP95,

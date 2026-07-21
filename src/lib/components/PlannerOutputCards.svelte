@@ -38,6 +38,20 @@
 					FI_TARGET_SUCCESS_PROBABILITY * 100
 				).toFixed(0)}%+ chance of ending balance above zero
 			</div>
+			<div
+				class="note mono-value coast-note"
+				title="Coast FIRE: from this age you could stop adding to the portfolio and let it compound, as long as your income still covers your spending (part-time or lower-paid work). Retirement age and spending are unchanged; only the contributions stop."
+			>
+				{#if stats.coastAge != null}
+					Coast FIRE: stop saving at age <strong>{Math.ceil(stats.coastAge)}</strong> and still
+					clear {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}%, if work still covers
+					spending
+				{:else}
+					Coast FIRE: n/a — contributing until age {input.retirementAge} does not reach {(
+						FI_TARGET_SUCCESS_PROBABILITY * 100
+					).toFixed(0)}%
+				{/if}
+			</div>
 		</div>
 		<div class="card">
 			<strong>Chance to reach FI by age {input.retirementAge}</strong>

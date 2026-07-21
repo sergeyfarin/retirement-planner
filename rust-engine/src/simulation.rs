@@ -12,7 +12,7 @@ use crate::engine2::{
     WithdrawalRunner,
 };
 use crate::stats::{
-    build_ruin_surface, build_sequence_risk_summary, find_retirement_balance_target,
+    build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_retirement_balance_target,
 };
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
 use std::f64;
@@ -635,7 +635,21 @@ pub fn run_monte_carlo_simulation(
         &withdrawal_strategy,
     );
 
+    let coast_age = find_coast_age(
+        input,
+        spending_periods,
+        income_sources,
+        lump_sum_events,
+        &growth_factors,
+        months,
+        growth_cap,
+        &withdrawal_strategy,
+        retire_month_usize,
+        0.95,
+    );
+
     let stats = SummaryStats {
+        coast_age,
         fi_target: target_fi_p95,
         fi_target_swr: target_fi_swr,
         fi_target_p95: target_fi_p95,

@@ -225,6 +225,85 @@ describe('annual net-gain taxation', () => {
   });
 });
 
+describe('coast FIRE age', () => {
+  // "Stop contributing" is modelled as net-zero cash flow from the coast age until
+  // retirement: you still cover spending from work, but the portfolio neither grows by
+  // contribution nor shrinks by withdrawal — it just compounds.
+  const monthly: number[] = [];
+  for (let i = 0; i < 300; i++) monthly.push(i % 7 === 0 ? -0.03 : 0.014);
+
+  function saver(overrides: Partial<RetirementInput> = {}): RetirementInput {
+    return {
+      simulationMode: 'historical',
+      currentAge: 35, retirementAge: 62, simulateUntilAge: 88,
+      currentSavings: 400_000,
+      meanReturn: 0.075, returnVariability: 0.15, returnSkewness: 0, returnKurtosis: 3,
+      equityBondCorrelation: -0.1,
+      inflationMean: 0.02, inflationVariability: 0.01, inflationSkewness: 0, inflationKurtosis: 3,
+      inflationCrisisSpread: 0.015, blockLength: 6,
+      annualFeePercent: 0.004, taxOnGainsPercent: 0.1,
+      safeWithdrawalRate: 0.04, simulations: 1200, seed: 9090,
+      regimeModel: {
+        stayGrowth: 0.92, stayCrisis: 0.68,
+        growthMean: 0.09, growthStd: 0.14, crisisMean: -0.12, crisisStd: 0.24
+      },
+      historicalMonthlyReturns: monthly,
+      ...overrides
+    };
+  }
+
+  const spending: SpendingPeriod[] = [
+    { id: 'sp-default', label: 'Living', fromAge: 35, toAge: 88, yearlyAmount: 30000, inflationAdjusted: true }
+  ];
+  const bigSaver: IncomeSource[] = [
+    { id: 'is-default', label: 'Salary', fromAge: 35, toAge: 62, yearlyAmount: 85000, inflationAdjusted: true }
+  ];
+  const months = (88 - 35) * 12;
+  const retireMonth = (62 - 35) * 12;
+
+  it('reports an age between today and retirement for a net saver', () => {
+    const result = runMonteCarloSimulation(saver(), spending, bigSaver, [], months, retireMonth);
+    expect(result.stats.coastAge).not.toBeNull();
+    expect(result.stats.coastAge!).toBeGreaterThanOrEqual(35);
+    expect(result.stats.coastAge!).toBeLessThanOrEqual(62);
+  });
+
+  it('is the earliest qualifying age: stopping a year earlier misses the target', () => {
+    const result = runMonteCarloSimulation(saver(), spending, bigSaver, [], months, retireMonth);
+    const coastAge = result.stats.coastAge!;
+    // Reproduce "stop contributing at X" by ending the salary at X, then check the
+    // success threshold flips either side of the reported age.
+    const stopAt = (age: number) =>
+      runMonteCarloSimulation(
+        saver(),
+        // From `age` onward income exactly covers spending, so net flow is zero.
+        [{ ...spending[0], toAge: age }],
+        [{ ...bigSaver[0], toAge: age }],
+        [], months, retireMonth
+      ).stats.successProbability;
+
+    if (coastAge > 36) {
+      expect(stopAt(coastAge)).toBeGreaterThanOrEqual(stopAt(coastAge - 1));
+    }
+  });
+
+  it('returns null when the target is unreachable even by contributing to retirement', () => {
+    const brokeInput = saver({ currentSavings: 5_000 });
+    const tinyIncome: IncomeSource[] = [
+      { id: 'is-default', label: 'Salary', fromAge: 35, toAge: 62, yearlyAmount: 31000, inflationAdjusted: true }
+    ];
+    const result = runMonteCarloSimulation(brokeInput, spending, tinyIncome, [], months, retireMonth);
+    expect(result.stats.successProbability).toBeLessThan(0.95);
+    expect(result.stats.coastAge).toBeNull();
+  });
+
+  it('returns null for a net drawer, who has no contributions to stop', () => {
+    const noIncome: IncomeSource[] = [];
+    const result = runMonteCarloSimulation(saver(), spending, noIncome, [], months, retireMonth);
+    expect(result.stats.coastAge).toBeNull();
+  });
+});
+
 describe('annual-mode intra-year variation', () => {
   // TODO 0.7: annual-mode bootstrapping used to hold one constant monthly rate for the
   // whole year, so a path that dipped below zero mid-year and recovered by December was
