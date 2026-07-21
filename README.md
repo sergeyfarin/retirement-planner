@@ -494,19 +494,48 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 - **wasm-pack** (`curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`)
 
 ```bash
-npm install
-npm run dev          # Builds WASM + starts dev server
-npm run build        # Production build (WASM + Vite + publint)
-npm run build:wasm   # Rebuild WASM module only
-npm run test:unit    # Run unit tests
+pnpm install
+pnpm run dev          # Builds WASM + starts dev server
+pnpm run build        # Production build (WASM + Vite + publint)
+pnpm run build:wasm   # Rebuild WASM module only
+pnpm run test:engines # Engine + parity tests (Node only, no browser)
+pnpm run test         # Full suite, including browser tests (needs Playwright)
 ```
+
+### Two Engines, One Behaviour
+
+The production simulation is the Rust/WASM engine. `src/lib/retirementEngine.ts` is kept
+deliberately as the **reference implementation**: it is more readable, runs in plain Node
+without a wasm build, and makes the parity suite possible.
+
+`src/lib/enginesParity.test.ts` runs identical seeded inputs through both and compares the
+PRNG streams, the full per-month percentile bands, and every summary, sequence-risk and
+ruin-surface value across eight scenarios. The seeded streams are bit-identical, so the
+engines agree to about one ULP and the suite asserts a 1e-9 relative tolerance.
+
+> **Any change to simulation behaviour must land in both engines in the same commit.**
+> CI runs `pnpm run test:engines` before the dist build, so drift fails the pipeline.
+>
+> Note also what this does *not* buy you: parity is not correctness. Both engines once
+> shared the same year-boundary bug, and the parity suite would have passed it.
 
 ### Data Pipeline
 
 ```bash
-node scripts/import-retirement-market-data.mjs    # Fetch raw data from Stooq/FRED
-node scripts/preprocess-retirement-market-data.mjs # Generate historical-market-data.json
+# Full refresh: re-fetches prices, yields and CPI from Stooq/FRED
+node scripts/import-retirement-market-data.mjs
+
+# Refresh only the derived rate columns (cpi_index, bond_yield_pct), leaving the
+# committed market-data vintage byte-for-byte intact
+node scripts/import-retirement-market-data.mjs --merge-rates
+
+# Regenerate static/assets/historical-market-data.json from the raw CSVs
+node scripts/preprocess-retirement-market-data.mjs
 ```
+
+The preprocessing step writes to `static/`, which is what SvelteKit serves. Verify data
+changes through the running app, not just the generated file — an earlier version wrote
+to `public/`, and the app silently kept using a months-old dataset.
 
 ---
 

@@ -17,7 +17,8 @@
 		"test": "pnpm run test:unit -- --run",
 		"data:retirement:import": "node scripts/import-retirement-market-data.mjs",
 		"data:retirement:preprocess": "node scripts/preprocess-retirement-market-data.mjs",
-		"data:retirement:refresh": "pnpm run data:retirement:import && pnpm run data:retirement:preprocess"
+		"data:retirement:refresh": "pnpm run data:retirement:import && pnpm run data:retirement:preprocess",
+		"test:engines": "vitest run --project server"
 	},
 	"files": [
 		"dist",

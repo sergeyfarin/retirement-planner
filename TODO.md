@@ -31,8 +31,8 @@ Item numbers refer to the detailed entries below.
     historical shape) — see 2.8
 
 **Phase 4 — Engineering health:**
-14. Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
-15. De-duplicate planner-local math / decide TS engine's fate (1.2 / 1.3)
+14. ✅ Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
+15. De-duplicate planner-local math (1.2) — TS engine's fate settled by 1.1/1.3
 
 **Explicitly declined:** mortality-weighted ruin (2.2) — see rationale there.
 
@@ -206,12 +206,23 @@ same function.
 
 ## Priority 1 — Engineering Health
 
-### 1.1 Cross-engine parity test (S/M) — do this before further engine features
-The production engine is Rust/WASM but **only the unused TS engine has tests**
-(`retirementEngine.test.ts`). Drift already exists (e.g. the `taxOnGainsPercent ??
-annualDrag` fallback lives only in the TS engine). Add a seeded parity test: same
-inputs + seed through both engines → summary stats agree within tolerance. Run in CI via
-`wasm-pack test` or a Node harness loading the built WASM.
+### 1.1 Cross-engine parity test (S/M) — ✅ SHIPPED 2026-07-21
+**Shipped:** `src/lib/enginesParity.test.ts` runs the same seeded inputs through the TS
+reference engine and the Rust/WASM production engine and compares them at three levels:
+the PRNG streams (uniform + standard-normal, which turn out to be bit-identical), the
+full per-month P10/P25/P50/P75/P90 bands, and every summary/sequence-risk/ruin-surface
+value. Eight scenarios cover monthly bootstrap, joint inflation, both withdrawal
+strategies, moment targeting, the annual-bootstrap fallback, parametric mode, and the
+zero-fee/zero-tax path — so any new engine feature that lands in only one engine fails
+here.
+**Tolerance:** results agree to ~1 ULP (relative 1e-16), so the suite asserts 1e-9. Its
+sensitivity was verified by injecting a fee-divisor change in the 5th decimal place
+(12 → 12.0001) into the TS engine — 7 of 8 scenarios failed, at relative 3.5e-9.
+**CI:** `pnpm run test:engines` (the node-side vitest project, no browser needed) runs in
+`publish-dist.yml` before the dist build.
+**Caveat worth remembering:** parity is not correctness. Both engines shared the
+year-boundary reset bug (0.8) and a parity test would have passed it happily. This guards
+against divergence, not against a faithfully-mirrored mistake.
 
 ### 1.2 De-duplicate planner-local math (S)
 `RetirementPlanner.svelte` contains full local copies of ~8 functions that also exist in
@@ -221,11 +232,12 @@ inputs + seed through both engines → summary stats agree within tolerance. Run
 `buildPortfolioHistoricalReturns`, `buildRegimeModelFromPortfolio`, … The local copies
 are mostly dead — delete them and keep the imports.
 
-### 1.3 Decide the TS engine's fate (S)
-`retirementEngine.ts` (897 lines) duplicates the Rust engine. Either delete the
-simulation path (keeping only `validateSimulationInputs`, `spendingAtAge`, types) or
-keep it explicitly as the reference implementation guarded by the parity test (1.1).
-Don't leave it ambiguous.
+### 1.3 Decide the TS engine's fate (S) — ✅ DECIDED 2026-07-21
+**Decision: keep it as the reference implementation, guarded by the parity test (1.1).**
+It is now a tested asset rather than dead weight — it is far more readable than the Rust
+engine, it is what makes the parity suite possible at all, and it runs in plain Node
+without a wasm build. The obligation that comes with the decision: **every engine change
+must land in both engines in the same commit**, which the CI parity run now enforces.
 
 ### 1.4 "Success" is defined two different ways in the same result set — ✅ FIXED 2026-07-20
 **Fix applied:** `find_retirement_balance_target` (both engines) now takes explicit

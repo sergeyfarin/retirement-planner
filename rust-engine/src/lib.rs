@@ -17,6 +17,22 @@ pub struct WasmResult {
     pub sim_count: u32,
 }
 
+/// Parity-test aid: exposes the seeded PRNG stream so the cross-engine test can verify
+/// the RNG layer independently. If this diverges, every downstream comparison diverges
+/// too, and the failure is far easier to read here than in aggregate statistics.
+#[wasm_bindgen]
+pub fn debug_random_sequence(seed: f64, count: usize) -> Vec<f64> {
+    let mut rng = crate::calculations::RandomSource::new(Some(seed));
+    (0..count).map(|_| rng.random()).collect()
+}
+
+/// Parity-test aid: the seeded standard-normal stream (Box-Muller with spare caching).
+#[wasm_bindgen]
+pub fn debug_normal_sequence(seed: f64, count: usize) -> Vec<f64> {
+    let mut rng = crate::calculations::RandomSource::new(Some(seed));
+    (0..count).map(|_| rng.normal(0.0, 1.0)).collect()
+}
+
 #[wasm_bindgen]
 pub fn run_monte_carlo(
     input_val: JsValue,

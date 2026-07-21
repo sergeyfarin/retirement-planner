@@ -50,6 +50,12 @@ jobs:
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
+      # Engine tests, including the TS<->Rust cross-engine parity suite. These need the
+      # wasm package built above but no browser, so they run before the dist build and
+      # fail fast if the two engines have drifted.
+      - name: Run engine tests
+        run: pnpm run test:engines
+
       - name: Build dist
         run: pnpm run build
 
