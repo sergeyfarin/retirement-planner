@@ -1067,20 +1067,18 @@ export function runMonteCarloSimulation(
     let realizedInflationIndex = 1;
 
     for (let m = 0; m < months; m++) {
-      let regimeChanged = false;
-
       if (m > 0) {
-        const nextRegimeState = transitionRegimeState(regimeState, monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
-        if (nextRegimeState !== regimeState) {
-          regimeChanged = true;
-          regimeState = nextRegimeState;
-        }
-      } else {
-        regimeChanged = true;
+        regimeState = transitionRegimeState(regimeState, monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
       }
 
       if (useMonthlyCalibration) {
-        if (blockRemaining <= 0 || regimeChanged) {
+        // Blocks are only re-drawn when the current one is exhausted; a regime switch
+        // mid-block takes effect at the next block boundary. Aborting the block on every
+        // switch used to bias the sampler: a fresh block always *starts* on a month
+        // matching the new regime, and crisis runs are shorter than growth runs, so
+        // crisis months were over-drawn ~1.06-1.09x, costing 0.64-1.29pp/yr of return.
+        // Letting blocks finish also preserves more autocorrelation. See TODO 0.11.
+        if (blockRemaining <= 0) {
           const indexPool = regimeState === 0 ? monthlyRegimeBootstrapIndices.growth : monthlyRegimeBootstrapIndices.crisis;
           currentHistoryIndex = indexPool[Math.floor(rng.random() * indexPool.length)];
           blockRemaining = blockLength;

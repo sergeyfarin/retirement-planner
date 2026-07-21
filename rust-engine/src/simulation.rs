@@ -366,25 +366,25 @@ pub fn run_monte_carlo_simulation(
         let mut realized_inflation_index = 1.0_f64;
 
         for m in 0..months as usize {
-            let mut regime_changed = false;
-
             if m > 0 {
-                let next_regime_state = transition_regime_state(
+                regime_state = transition_regime_state(
                     regime_state,
                     monthly_markov.0,
                     monthly_markov.1,
                     &mut rng,
                 );
-                if next_regime_state != regime_state {
-                    regime_changed = true;
-                    regime_state = next_regime_state;
-                }
-            } else {
-                regime_changed = true;
             }
 
             if use_monthly_calibration {
-                if block_remaining <= 0 || regime_changed {
+                // Blocks are only re-drawn when the current one is exhausted; a regime
+                // switch mid-block takes effect at the next block boundary. Aborting the
+                // block on every switch used to bias the sampler: because a fresh block
+                // always *starts* on a month matching the new regime, and crisis runs are
+                // shorter than growth runs, crisis months were over-drawn ~1.06-1.09x,
+                // costing 0.64-1.29pp/yr of return depending on the region. Letting blocks
+                // finish also preserves more of the autocorrelation the block bootstrap
+                // exists to capture. See TODO 0.11.
+                if block_remaining <= 0 {
                     let index_pool = if regime_state == 0 {
                         &monthly_regime_bootstrap_indices.growth
                     } else {

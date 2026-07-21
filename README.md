@@ -167,6 +167,19 @@ After detection, returns are partitioned into growth and crisis pools for **bloc
 - Sequential months within the block preserve autocorrelation, momentum, and volatility clustering
 - On regime change, a new random block start is drawn
 
+> **Fixed 2026-07-21 (TODO 0.11).** The block used to be abandoned whenever the regime
+> switched, not only when it ran out. Because a freshly drawn block always *starts* on a
+> month matching the new regime, and crisis runs are shorter than growth runs, crisis
+> months were over-drawn by 1.06–1.09×, costing 0.64–1.29pp/yr of return depending on the
+> region. Letting blocks finish removed the bias — simulated returns now track the source
+> series to within ±0.07pp/yr across all four regions — and also *improved* preservation of
+> autocorrelation (EUR lag-1: source 0.064, old sampler 0.038, now 0.053), since blocks cut
+> short carry less of the clustering they exist to reproduce.
+>
+> The cost is that a regime switch is felt at the next block boundary rather than
+> immediately, a lag of at most `blockLength` months. A regression test pins the
+> mean-preserving property.
+
 **Mode B — Annual Bootstrap with Intra-Year Spread (fallback when monthly data unavailable):**
 - Every 12 months, a historical annual return $r_a$ is drawn from the regime pool
 - The year is then **spread across its 12 months** rather than held at one constant rate.
@@ -546,7 +559,7 @@ simplifications.
 | Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
 | Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
 | Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed 2026-07-21 (§5.1); replays still use the expected index (§7) |
-| Regime block bootstrap returns ~0.85pp/yr below the source series | Every headline number is biased pessimistic | **Open — TODO 0.11**, measured on EUR: source 4.20%/yr real vs engine 3.35%/yr |
+| Regime block bootstrap is mean-preserving | Simulated returns track the source series (all four regions within ±0.07pp/yr) | Fixed 2026-07-21 (§4.3 Mode A); guarded by a regression test |
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |

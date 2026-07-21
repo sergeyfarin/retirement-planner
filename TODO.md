@@ -278,47 +278,60 @@ same function.
 
 ---
 
-### 0.11 Regime block bootstrap delivers ~0.85pp/yr less than the source series (M/L) — found 2026-07-21
-**Found while validating 0.3**, unrelated to it, and pre-existing.
+### 0.11 Regime block bootstrap delivered ~0.85pp/yr less than the source series — ✅ FIXED 2026-07-21
+**Root cause, measured rather than assumed.** The sampler aborted the current block
+whenever the regime switched (`block_remaining <= 0 || regime_changed`). Because a freshly
+drawn block always *starts* on a month matching the new regime, and crisis runs are shorter
+than growth runs (stayCrisis ≈ 0.68 vs stayGrowth ≈ 0.84), crisis months were over-drawn. A
+replica of the sampler, instrumented to tally what it actually drew:
 
-**Measurement, on the shipped EUR data at the default 60/30/10 allocation**, pure growth
-with no cash flows, fees or tax, joint inflation on:
+| region | crisis months, source → sampled | annualised return, source → sampled |
+|---|---|---|
+| EUR | 33.5% → 35.4% (1.06×) | 7.68% → 6.79% (**−0.89pp**) |
+| USD | 35.0% → 37.0% (1.06×) | 9.38% → 8.67% (**−0.71pp**) |
+| GBP | 28.6% → 31.2% (1.09×) | 9.54% → 8.26% (**−1.29pp**) |
+| WORLD | 33.3% → 35.3% (1.06×) | 9.58% → 8.94% (**−0.64pp**) |
 
-| | geometric real return |
-|---|---|
-| source monthly series | **4.20%/yr** |
-| engine, median path over 55y | **3.35%/yr** |
+Decomposing against the crisis/growth mean spread showed the frequency shift alone explains
+**72–76%** of the gap in every region, confirming the mechanism rather than merely
+correlating with it.
 
-A 0.85pp/yr gap compounds to roughly 35% less terminal wealth over 50 years, so it moves
-every headline number in the pessimistic direction.
+**Fix:** blocks now run to completion; a regime switch mid-block takes effect at the next
+block boundary. One condition, `block_remaining <= 0`.
 
-**Likely mechanism (hypothesis, needs confirming):** crisis months are drawn twice over.
-The chain spends π_C of its time in the crisis regime, where every block *starts* from the
-crisis pool; but growth blocks then walk forward with
-`current_history_index = (current_history_index + 1) % len` through the **unfiltered**
-series, picking up crisis months again at their natural base rate. Total crisis exposure
-lands near `π_C + π_G·π_C > π_C`. On a synthetic series with a −3% month every 7 months
-the effect is extreme (real CAGR 0.57% against ~5.9% implied), because every growth block
-is guaranteed to walk into a crash.
+**It improved more than the mean.** Cutting blocks short was also destroying the
+autocorrelation the block bootstrap exists to preserve:
 
-**Why it may be intended:** entering a regime, sampling a block that starts there and
-letting it play out naturally is a normal way to do regime-conditioned resampling, and
-walking the raw series is what preserves autocorrelation and volatility clustering — the
-stated point of the block bootstrap (README §4.3 Mode A). The unconditional distribution
-of a regime-switching resampler is not required to match the source.
+| | source | old sampler | fixed |
+|---|---|---|---|
+| EUR lag-1 autocorrelation | 0.064 | 0.038 | **0.053** |
+| GBP lag-1 autocorrelation | 0.102 | 0.051 | **0.084** |
+| EUR monthly σ | 3.104% | 3.151% | **3.101%** |
 
-**But it is undocumented and unbounded.** Users are shown a "Real return" assumption in
-the panel (3.9% for the EUR default) that the simulation then does not deliver. Either the
-sampler should be corrected to be mean-preserving, or the displayed assumption should be
-the one the engine actually produces, or the gap should be documented — but the current
-silent mismatch is the one option that is clearly wrong.
+**End-to-end through the real engine**, 55-year horizon, no fees/tax/cash flows:
 
-**Suggested next step:** measure the realized return distribution the engine produces
-versus the source across all four regions and several allocations, confirm the mechanism
-by instrumenting crisis-month frequency in the sampled paths, then decide between
-correcting the sampler and re-labelling the displayed assumption. Worth doing before any
-further calibration work, since it confounds every comparison against history.
-**Files:** `rust-engine/src/simulation.rs` (block sampling), `src/lib/retirementEngine.ts` mirror
+| region | source geometric real | engine median | gap |
+|---|---|---|---|
+| EUR | 4.20%/yr | 4.19%/yr | −0.01pp |
+| USD | 5.00%/yr | 5.00%/yr | 0.00pp |
+| GBP | 3.65%/yr | 3.71%/yr | +0.07pp |
+| WORLD | 5.27%/yr | 5.30%/yr | +0.03pp |
+
+**User-visible effect on the default EUR scenario:** median ending balance €1.4M → €2.2M
+(+57% over 55 years of compounding), chance of reaching FI by 62 93.2% → 96.3%, Coast FIRE
+age 55 → 50. Every number moves in the optimistic direction, because the old sampler was
+systematically pessimistic.
+
+**Regression guard:** `retirementEngine.test.ts`, "regime bootstrap is mean-preserving",
+asserts the engine's median real growth tracks the geometric mean of the series it was
+handed within 0.35pp over a 50-year horizon. Verified it fails on the old sampler (measured
+0.94pp deviation) and passes on the fixed one.
+
+**Trade-off accepted:** a regime switch is now felt up to `blockLength` months later
+(default 6, mean ~3) rather than immediately. Given the immediate-switch behaviour was both
+biased and worse at preserving clustering, and that a "regime" is by construction a
+multi-month state, this is the better side of the trade.
+**Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`
 
 ## Priority 1 — Engineering Health
 
