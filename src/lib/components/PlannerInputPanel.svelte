@@ -557,6 +557,14 @@
 				</div>
 			</div>
 			{#if selectedHistoricalRegion}
+				{#if input.historicalMonthlyInflation?.length}
+					<p
+						class="note mono-value joint-inflation-badge"
+						title="Each simulated month draws its return and its inflation from the same real historical month, so high-inflation periods land on the same months as weak markets — and inflation keeps its real-world persistence."
+					>
+						✓ Inflation sampled jointly with returns from history
+					</p>
+				{/if}
 				<p class="note mono-value">
 					Historical market dataset loaded:<br />
 					{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage} of monthly data)

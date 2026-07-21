@@ -7,7 +7,11 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
 const RAW_DIR = path.join(projectRoot, 'data', 'retirement', 'raw');
-const OUT_PATH = path.join(projectRoot, 'public', 'assets', 'retirement', 'historical-market-data.json');
+// SvelteKit serves `static/` (kit.files.assets default), and the planner fetches
+// `/assets/historical-market-data.json`. Writing anywhere else means the pipeline's
+// output never reaches the running app — which is exactly what happened while this
+// pointed at `public/assets/retirement/`.
+const OUT_PATH = path.join(projectRoot, 'static', 'assets', 'historical-market-data.json');
 
 const REGIONS = {
   WORLD: { file: 'world.csv', label: 'World' },
@@ -84,6 +88,7 @@ function parseRawCsv(filePath) {
   const equityIndex = header.indexOf('equity_close');
   const bondIndex = header.indexOf('bond_close');
   const cashIndex = header.indexOf('cash_rate_pct');
+  const cpiIndex = header.indexOf('cpi_index');
   if (dateIndex < 0 || equityIndex < 0 || bondIndex < 0 || cashIndex < 0) {
     throw new Error(`Invalid CSV header in ${filePath}`);
   }
@@ -94,7 +99,9 @@ function parseRawCsv(filePath) {
     const equityClose = Number(parts[equityIndex]);
     const bondClose = Number(parts[bondIndex]);
     const cashRatePct = Number(parts[cashIndex]);
-    return { date, equityClose, bondClose, cashRatePct };
+    const rawCpi = cpiIndex >= 0 ? parts[cpiIndex]?.trim() : '';
+    const cpiLevel = rawCpi ? Number(rawCpi) : NaN;
+    return { date, equityClose, bondClose, cashRatePct, cpiLevel };
   }).filter((row) => row.date && Number.isFinite(row.equityClose) && Number.isFinite(row.bondClose) && Number.isFinite(row.cashRatePct));
 }
 
@@ -157,16 +164,79 @@ function buildMonthlyReturnRows(rows, regionCode) {
     const cash = monthlyCashReturn(curr.cashRatePct);
     if (priceReturn == null || bond == null || cash == null) continue;
 
+    // Realized monthly inflation from the regional CPI index, kept on the same row as
+    // the returns so the engine can bootstrap (return, inflation) jointly (TODO 0.4).
+    const inflation = monthlyReturnFromCloses(prev.cpiLevel, curr.cpiLevel);
+
     monthly.push({
       month: curr.date,
       year: Number(curr.date.slice(0, 4)),
       equity: priceReturn + syntheticMonthlyDividend(regionCode, curr.date),
       bond,
-      cash
+      cash,
+      inflation
     });
   }
 
   return monthly;
+}
+
+// Statistical agencies occasionally skip a month (e.g. US CPI was not published for
+// 2025-10 during the federal shutdown). A short interior hole is filled by spreading the
+// price change across the gap geometrically, which preserves the total change over the
+// window and yields a sensible monthly path. Longer holes are a data problem, not
+// something to paper over, so they still throw.
+const MAX_INTERPOLATED_CPI_GAP = 3;
+
+function fillShortCpiGaps(rows, regionCode) {
+  const filled = [];
+  for (let index = 0; index < rows.length; index++) {
+    if (Number.isFinite(rows[index].cpiLevel)) continue;
+    const previous = index - 1;
+    let next = index;
+    while (next < rows.length && !Number.isFinite(rows[next].cpiLevel)) next++;
+    // Leading or trailing holes are handled by trimming, not interpolation.
+    if (previous < 0 || next >= rows.length) continue;
+    const gapLength = next - index;
+    if (gapLength > MAX_INTERPOLATED_CPI_GAP) {
+      throw new Error(
+        `${regionCode}: CPI gap of ${gapLength} months at ${rows[index].date} exceeds the ${MAX_INTERPOLATED_CPI_GAP}-month interpolation limit`
+      );
+    }
+    const startLevel = rows[previous].cpiLevel;
+    const endLevel = rows[next].cpiLevel;
+    const steps = next - previous;
+    for (let offset = 1; offset < steps; offset++) {
+      rows[previous + offset].cpiLevel = startLevel * (endLevel / startLevel) ** (offset / steps);
+      filled.push(rows[previous + offset].date);
+    }
+    index = next - 1;
+  }
+  if (filled.length > 0) {
+    console.log(
+      `[retirement-preprocess] ${regionCode}: interpolated CPI for ${filled.length} missing month(s): ${filled.join(', ')}`
+    );
+  }
+  return rows;
+}
+
+// The joint bootstrap needs a contiguous run of months where BOTH returns and inflation
+// exist. CPI series can lag the market data by a few months, so trim the tail (and any
+// leading gap) rather than emitting rows the engine would have to special-case.
+function trimToInflationCoverage(monthlyRows) {
+  const firstWithCpi = monthlyRows.findIndex((row) => row.inflation != null);
+  if (firstWithCpi < 0) return { rows: [], trimmedLeading: 0, trimmedTrailing: monthlyRows.length };
+  let lastWithCpi = monthlyRows.length - 1;
+  while (lastWithCpi >= 0 && monthlyRows[lastWithCpi].inflation == null) lastWithCpi--;
+  const slice = monthlyRows.slice(firstWithCpi, lastWithCpi + 1);
+  if (slice.some((row) => row.inflation == null)) {
+    throw new Error('CPI series has an interior gap; joint bootstrap requires contiguous coverage');
+  }
+  return {
+    rows: slice,
+    trimmedLeading: firstWithCpi,
+    trimmedTrailing: monthlyRows.length - 1 - lastWithCpi
+  };
 }
 
 function aggregateAnnualSeries(monthlyRows) {
@@ -226,7 +296,8 @@ function normalizeMonthlySeries(series) {
     month: row.month,
     equity: roundValue(row.equity),
     bond: roundValue(row.bond),
-    cash: roundValue(row.cash)
+    cash: roundValue(row.cash),
+    ...(row.inflation == null ? {} : { inflation: roundValue(row.inflation) })
   }));
 }
 
@@ -238,7 +309,9 @@ function main() {
       annualization: 'compound monthly returns within year',
       cash: 'monthly short-rate / 12',
       dividends:
-        'price-only equity series (USD, GBP, WORLD non-EUR components) adjusted with decade-level synthetic dividend yields; EUR proxy already total-return at import'
+        'price-only equity series (USD, GBP, WORLD non-EUR components) adjusted with decade-level synthetic dividend yields; EUR proxy already total-return at import',
+      inflation:
+        'realized monthly regional CPI change stored per month alongside returns, enabling joint (return, inflation) block bootstrapping; monthly series trimmed to CPI coverage'
     },
     regions: {}
   };
@@ -247,10 +320,22 @@ function main() {
     const filePath = path.join(RAW_DIR, config.file);
     const rows = parseRawCsv(filePath);
     assertContiguousMonths(rows, code);
+    fillShortCpiGaps(rows, code);
     const monthlyRows = buildMonthlyReturnRows(rows, code);
+    // Annual moments keep the full market history; only the monthly series (which drives
+    // the joint bootstrap) is trimmed to where CPI is also available.
     const annualSeries = aggregateAnnualSeries(monthlyRows);
-    const monthlySeries = monthlyRows;
+    const { rows: monthlySeries, trimmedLeading, trimmedTrailing } =
+      trimToInflationCoverage(monthlyRows);
     const summary = summarizeRegion(annualSeries);
+    const inflationCoverage = monthlySeries.length
+      ? `${monthlySeries[0].month}..${monthlySeries[monthlySeries.length - 1].month}`
+      : 'none';
+    if (trimmedLeading || trimmedTrailing) {
+      console.log(
+        `[retirement-preprocess] ${code}: monthly series trimmed to CPI coverage (${trimmedLeading} leading, ${trimmedTrailing} trailing months dropped)`
+      );
+    }
 
     output.regions[code] = {
       code,
@@ -260,7 +345,9 @@ function main() {
       monthlySeries: normalizeMonthlySeries(monthlySeries)
     };
 
-    console.log(`[retirement-preprocess] ${code}: ${summary.sampleSize} annual rows (${summary.coverage})`);
+    console.log(
+      `[retirement-preprocess] ${code}: ${summary.sampleSize} annual rows (${summary.coverage}), ${monthlySeries.length} monthly rows with CPI (${inflationCoverage})`
+    );
   }
 
   mkdirSync(path.dirname(OUT_PATH), { recursive: true });

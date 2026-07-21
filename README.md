@@ -29,10 +29,12 @@ scripts/
   import-retirement-market-data.mjs      ← Fetches raw monthly prices from Stooq + FRED
   preprocess-retirement-market-data.mjs  ← Converts to annual/monthly return series + moments
 
-data/retirement/raw/*.csv                ← Monthly equity-close, bond-close, cash-rate per region
+data/retirement/raw/*.csv                ← Monthly equity-close, bond-close, cash-rate, CPI per region
 
-public/assets/retirement/
+static/assets/
   historical-market-data.json            ← Preprocessed returns consumed at runtime
+                                           (SvelteKit serves `static/`; this is the path
+                                            the planner fetches at `/assets/…`)
 
 rust-engine/
   src/                     ← Rust source code for the Monte Carlo engine
@@ -266,6 +268,29 @@ Box 3 wealth tax) are future work — see `TODO.md` 2.3.
 
 ### 5.3 Inflation Model
 
+**Mode A — Joint historical bootstrap (default in Historical mode).** When the planner
+supplies `historicalMonthlyInflation` (realized regional CPI change, index-aligned with
+`historicalMonthlyReturns`), each simulated month takes its inflation from the *same
+historical month* as its return. This preserves two properties the parametric draw
+cannot:
+
+- **Return/inflation correlation.** Measured in the shipped dataset (1960–2026):
+  equity −0.08 / bond −0.17 for USD — high-inflation months really were weak market
+  months.
+- **Inflation persistence.** Realized monthly inflation has AR(1) ≈ 0.62 (USD); because
+  bootstrap blocks are contiguous, simulated paths inherit sustained inflationary
+  periods rather than i.i.d. noise.
+
+The regime inflation spread is deliberately *not* applied on top in this mode — the
+historical series already embeds that co-movement. Joint sampling is used only in
+Historical mode without moment targeting (otherwise the user's explicit inflation
+assumptions would be silently ignored), and only when the two series are the same
+length; a misaligned series is ignored rather than mispaired. A regression test
+(`retirementEngine.test.ts`, "joint return/inflation bootstrap") asserts that persistent
+stagflation produces a fatter left tail than independent inflation at the same mean —
+the tail risk TODO 0.4 identified as understated.
+
+**Mode B — Parametric fallback** (Parametric mode, moment targeting, or no CPI data).
 Monthly inflation is drawn from a **regime-conditioned** Cornish-Fisher distribution:
 
 $$r_{inf} = \frac{\mu_{regime}}{12} + \frac{\sigma_{inf}}{\sqrt{12}} \cdot z'_{CF}$$
@@ -403,7 +428,7 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 | Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
 | Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
 | Nominal cashflows deflated by expected inflation | Removes inflation risk on nominal items | TODO 0.3 |
-| Inflation drawn independently of bootstrapped returns, i.i.d. monthly | Understates real-return tail risk (1970s-type paths); no inflation persistence | TODO 0.4 — joint (return, CPI) bootstrap |
+| Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
 | Annual-mode bootstrap: constant monthly rate within year | Understates intra-year volatility (fallback mode only) | TODO 0.7 |

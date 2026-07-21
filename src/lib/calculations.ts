@@ -122,7 +122,7 @@ export type HistoricalRegionDataset = {
     };
   };
   annualSeries: Array<{ year: number; equity: number; bond: number; cash: number }>;
-  monthlySeries?: Array<{ month: string; equity: number; bond: number; cash: number }>;
+  monthlySeries?: Array<{ month: string; equity: number; bond: number; cash: number; inflation?: number }>;
 };
 
 export type HistoricalMarketDataset = {
@@ -307,6 +307,42 @@ export function buildPortfolioHistoricalMonthlyReturns(
   return region.monthlySeries
     .map((row) => allocation.stocks * row.equity + allocation.bonds * row.bond + allocation.bank * row.cash)
     .filter((value) => Number.isFinite(value));
+}
+
+/**
+ * Builds index-aligned monthly portfolio return and realized-inflation series.
+ *
+ * Both arrays are filtered with a single predicate so index i always refers to the same
+ * historical month in both — the engine samples one index and reads both values, which
+ * is what preserves the historical return/inflation correlation and (via contiguous
+ * bootstrap blocks) inflation persistence. Returns an empty inflation array when the
+ * dataset predates the CPI columns.
+ */
+export function buildPortfolioHistoricalMonthlySeries(
+  historicalMarketData: HistoricalMarketDataset | null,
+  currencyCode: CurrencyCode,
+  allocation: AllocationSplit
+): { returns: number[]; inflation: number[] } {
+  const region = historicalMarketData?.regions?.[currencyCode];
+  if (!region || !Array.isArray(region.monthlySeries)) return { returns: [], inflation: [] };
+
+  const returns: number[] = [];
+  const inflation: number[] = [];
+  let everyMonthHasInflation = true;
+
+  for (const row of region.monthlySeries) {
+    const portfolioReturn =
+      allocation.stocks * row.equity + allocation.bonds * row.bond + allocation.bank * row.cash;
+    if (!Number.isFinite(portfolioReturn)) continue;
+    returns.push(portfolioReturn);
+    if (typeof row.inflation === 'number' && Number.isFinite(row.inflation)) {
+      inflation.push(row.inflation);
+    } else {
+      everyMonthHasInflation = false;
+    }
+  }
+
+  return { returns, inflation: everyMonthHasInflation ? inflation : [] };
 }
 
 export function clampProbability(value: number): number {

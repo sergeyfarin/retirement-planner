@@ -417,3 +417,10 @@ button.assumptions-reset-btn:hover:not(:disabled) {
   font-size: 0.68rem;
   line-height: 1.35;
 }
+
+/* Joint return/inflation bootstrap indicator */
+.joint-inflation-badge {
+  color: var(--color-success, #15803d);
+  font-weight: 600;
+  cursor: help;
+}

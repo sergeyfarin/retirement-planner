@@ -225,6 +225,15 @@ pub fn run_monte_carlo_simulation(
 
     let use_monthly_calibration = effective_monthly_history.len() >= 120;
 
+    // Joint (return, inflation) bootstrap: only when the caller supplied a realized
+    // inflation series aligned with the monthly return history. Sampling both from the
+    // same historical month preserves their correlation, and contiguous blocks carry
+    // inflation's own persistence — neither of which the parametric draw reproduces.
+    let historical_monthly_inflation = input
+        .historical_monthly_inflation
+        .as_ref()
+        .filter(|series| use_monthly_calibration && series.len() == effective_monthly_history.len());
+
     let annual_detected_regimes = detect_regimes(&effective_annual_history);
     let annual_regime_bootstrap_pool =
         bootstrap_pool_by_regime(&effective_annual_history, &annual_detected_regimes);
@@ -421,18 +430,26 @@ pub fn run_monte_carlo_simulation(
                 (1.0 + monthly_asset_return) * monthly_fee_factor;
             let monthly_portfolio_return_after_costs = monthly_portfolio_growth_factor - 1.0;
 
-            let effective_inflation_mean = if regime_state == 0 {
-                growth_inflation_mean
+            let monthly_inflation = if let Some(series) = historical_monthly_inflation {
+                // Same index as the return sampled this month, so the pair comes from
+                // one real historical month. The regime inflation spread is deliberately
+                // NOT applied here — the historical series already carries the
+                // inflation/market co-movement it is meant to approximate.
+                series[current_history_index]
             } else {
-                crisis_inflation_mean
+                let effective_inflation_mean = if regime_state == 0 {
+                    growth_inflation_mean
+                } else {
+                    crisis_inflation_mean
+                };
+                draw_monthly_return_shaped(
+                    effective_inflation_mean,
+                    input.inflation_variability,
+                    input.inflation_skewness,
+                    input.inflation_kurtosis,
+                    &mut rng,
+                )
             };
-            let monthly_inflation = draw_monthly_return_shaped(
-                effective_inflation_mean,
-                input.inflation_variability,
-                input.inflation_skewness,
-                input.inflation_kurtosis,
-                &mut rng,
-            );
 
             annual_asset_return =
                 (1.0 + annual_asset_return) * (1.0 + monthly_portfolio_return_after_costs) - 1.0;

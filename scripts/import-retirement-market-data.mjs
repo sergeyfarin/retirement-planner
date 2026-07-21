@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -64,8 +64,12 @@ async function fetchFredSeries(seriesId) {
   const out = new Map();
   for (let index = 1; index < lines.length; index++) {
     const [date, value] = lines[index].split(',');
-    const number = Number(value);
-    if (!date || !Number.isFinite(number)) continue;
+    const trimmed = value?.trim();
+    // FRED marks missing observations with an empty field or ".". Number('') is 0, so
+    // guard explicitly — otherwise a missing month silently becomes a 0 level/rate.
+    if (!date || !trimmed || trimmed === '.') continue;
+    const number = Number(trimmed);
+    if (!Number.isFinite(number)) continue;
     out.set(date.slice(0, 7), number);
   }
   return out;
@@ -202,11 +206,89 @@ function toCsv(regionCode, sourceLines, rows) {
   for (const line of sourceLines) {
     lines.push(`# ${line}`);
   }
-  lines.push('date,equity_close,bond_close,cash_rate_pct');
+  lines.push('date,equity_close,bond_close,cash_rate_pct,cpi_index');
   for (const row of rows) {
-    lines.push(`${row.month},${row.equityClose},${row.bondClose},${row.cashRatePct}`);
+    const cpi = Number.isFinite(row.cpiIndex) ? row.cpiIndex : '';
+    lines.push(`${row.month},${row.equityClose},${row.bondClose},${row.cashRatePct},${cpi}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+// ─── Regional CPI (for joint return/inflation bootstrapping, TODO 0.4) ─────────
+// Each region needs a price index denominated in the same currency as its returns.
+// WORLD returns are USD-converted, so US CPI is the correct deflator for them.
+const CPI_SOURCES = {
+  USD: { primary: 'CPIAUCSL', label: 'US CPI-U (CPIAUCSL, FRED)' },
+  GBP: { primary: 'GBRCPIALLMINMEI', label: 'UK CPI (GBRCPIALLMINMEI, FRED)' },
+  // Euro-area HICP only starts 1996-12; stitch German CPI before that.
+  EUR: {
+    primary: 'CP0000EZ19M086NEST',
+    fallback: 'DEUCPIALLMINMEI',
+    label: 'Euro-area HICP (CP0000EZ19M086NEST) stitched with German CPI (DEUCPIALLMINMEI) pre-1997'
+  },
+  WORLD: { primary: 'CPIAUCSL', label: 'US CPI-U (CPIAUCSL, FRED) — WORLD returns are USD-denominated' }
+};
+
+async function fetchRegionCpi(regionCode) {
+  const config = CPI_SOURCES[regionCode];
+  if (!config) return { series: new Map(), label: 'none' };
+  const primary = await fetchFredSeries(config.primary);
+  if (!config.fallback) return { series: primary, label: config.label };
+  const fallback = await fetchFredSeries(config.fallback);
+  // Rescale the fallback onto the primary's level at the first overlapping month so
+  // the stitched index has no artificial jump (only ratios matter downstream).
+  const overlap = [...primary.keys()].filter((month) => fallback.has(month)).sort();
+  let scaled = fallback;
+  if (overlap.length > 0) {
+    const anchor = overlap[0];
+    const ratio = primary.get(anchor) / fallback.get(anchor);
+    if (Number.isFinite(ratio) && ratio > 0) {
+      scaled = new Map([...fallback.entries()].map(([month, value]) => [month, value * ratio]));
+    }
+  }
+  return { series: stitchSeries(primary, scaled), label: config.label };
+}
+
+function parseExistingCsv(filePath) {
+  const text = readFileSync(filePath, 'utf8');
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  const comments = lines.filter((line) => line.startsWith('#'));
+  const dataLines = lines.filter((line) => !line.startsWith('#'));
+  const header = dataLines[0].split(',').map((item) => item.trim());
+  const rows = dataLines.slice(1).map((line) => {
+    const parts = line.split(',');
+    const row = {};
+    header.forEach((key, index) => (row[key] = parts[index]));
+    return row;
+  });
+  return { comments, rows };
+}
+
+// `--cpi-only` adds/refreshes just the cpi_index column on the existing raw CSVs,
+// leaving the committed market-data vintage byte-for-byte intact.
+async function mergeCpiIntoExistingCsvs(regionToFile) {
+  for (const [regionCode, fileName] of Object.entries(regionToFile)) {
+    const filePath = path.join(outDir, fileName);
+    const { comments, rows } = parseExistingCsv(filePath);
+    const { series: cpi, label } = await fetchRegionCpi(regionCode);
+
+    const keptComments = comments.filter((line) => !line.startsWith('# cpi_source='));
+    keptComments.push(`# cpi_source=${label}`);
+
+    const lines = [...keptComments, 'date,equity_close,bond_close,cash_rate_pct,cpi_index'];
+    let withCpi = 0;
+    for (const row of rows) {
+      const value = cpi.get(row.date);
+      if (Number.isFinite(value)) withCpi++;
+      lines.push(
+        `${row.date},${row.equity_close},${row.bond_close},${row.cash_rate_pct},${Number.isFinite(value) ? value : ''}`
+      );
+    }
+    writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
+    console.log(
+      `[retirement-import] ${regionCode}: cpi_index merged for ${withCpi}/${rows.length} months -> ${filePath}`
+    );
+  }
 }
 
 async function buildUsdRegion() {
@@ -394,6 +476,11 @@ async function main() {
     EUR: 'eur.csv'
   };
 
+  if (process.argv.includes('--cpi-only')) {
+    await mergeCpiIntoExistingCsvs(regionToFile);
+    return;
+  }
+
   for (const regionCode of Object.keys(regionToFile)) {
     const regionData = await importRegion(regionCode);
     const rows = regionData.rows;
@@ -401,7 +488,12 @@ async function main() {
       throw new Error(`Insufficient monthly history for ${regionCode}: ${rows.length} rows`);
     }
 
-    const csv = toCsv(regionCode, regionData.sourceLines, rows);
+    const { series: cpi, label: cpiLabel } = await fetchRegionCpi(regionCode);
+    for (const row of rows) {
+      row.cpiIndex = cpi.get(row.month);
+    }
+
+    const csv = toCsv(regionCode, [...regionData.sourceLines, `cpi_source=${cpiLabel}`], rows);
     const filePath = path.join(outDir, regionToFile[regionCode]);
     writeFileSync(filePath, csv, 'utf8');
     console.log(`[retirement-import] ${regionCode}: ${rows.length} rows (${rows[0].month} -> ${rows[rows.length - 1].month}) -> ${filePath}`);

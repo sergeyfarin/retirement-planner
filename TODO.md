@@ -26,7 +26,7 @@ Item numbers refer to the detailed entries below.
 
 **Phase 3 — Modeling upgrades:**
 11. ✅ Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
-12. Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
+12. ✅ Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
 13. "Current conditions" expected-return preset via moment targeting (yield-anchored means,
     historical shape)
 
@@ -97,7 +97,17 @@ by it. Implementation: split net flow into `realFlow` + `nominalFlowAtToday` arr
 each month apply `nominalFlowAtToday[m] * expectedIndex[m] / realizedIndex[m]`.
 **Files:** `rust-engine/src/engine2.rs` (cashflow arrays), `simulation.rs` loop, TS mirror
 
-### 0.4 Historical bootstrap severs the return–inflation correlation (M/L)
+### 0.4 Historical bootstrap severs the return–inflation correlation — ✅ FIXED 2026-07-21
+**Fix applied:** regional monthly CPI is now stored per month alongside returns and the
+engines sample `(return, inflation)` from the same historical month, so both the
+correlation (USD: equity −0.08 / bond −0.17) and inflation persistence (AR(1) ≈ 0.62)
+survive into simulated paths. Contiguous bootstrap blocks carry sustained inflationary
+periods. The regime spread is not applied on top in this mode. Gated to Historical mode
+without moment targeting; a misaligned series is ignored rather than mispaired.
+Regression test asserts persistent stagflation yields a fatter left tail than
+independent inflation at the same mean. See README §5.3. Original issue below.
+
+**Original issue:**
 **Current:** nominal historical returns are bootstrapped while inflation is drawn from
 an independent parametric Cornish-Fisher process. Historically the worst real-return
 periods (1970s) pair mediocre nominal returns with high inflation; independence
@@ -239,6 +249,29 @@ depleted paths recover by the end").
 before the real, JS-accurate computation on the following lines. Harmless but confusing
 for anyone auditing the RNG for correctness. Delete the dead line.
 **Files:** `rust-engine/src/calculations.rs`
+
+### 1.7 Data pipeline wrote to a directory the app never served (S) — ✅ FIXED 2026-07-21
+**Found while wiring the joint inflation bootstrap.** `preprocess-retirement-market-data.mjs`
+wrote to `public/assets/retirement/historical-market-data.json`, but SvelteKit serves
+`static/` (`kit.files.assets` default) and the planner fetches
+`/assets/historical-market-data.json`. The app had therefore been running on a stale
+`static/assets/historical-market-data.json` from 2026-02-27 — **the Priority-0 dividend
+fix (0.1) never reached the running app when it was first committed** (served USD equity
+was still 8.93% instead of 11.99%).
+**Fix:** `OUT_PATH` now points at `static/assets/historical-market-data.json`, the
+orphaned `public/` copy is deleted, and README §2 documents why the path matters.
+**Lesson worth keeping:** verify data-pipeline changes through the running app, not just
+by inspecting the generated file — the default currency (EUR) was the one region the
+dividend fix didn't change, which is why the stale data went unnoticed.
+
+### 1.8 `fetchFredSeries` turned missing observations into 0 (S) — ✅ FIXED 2026-07-21
+`Number('')` is `0` and `Number.isFinite(0)` is true, so any month FRED reports as empty
+was silently stored as a 0 level/rate. It first surfaced as a bogus `0` US CPI for
+2025-10 (not published during the federal shutdown). Existing bond/cash series were
+checked and are unaffected, but the bug would have corrupted any future refresh.
+Now empty and `.` values are skipped explicitly. Short interior CPI gaps (≤3 months) are
+geometrically interpolated by the preprocess step and logged; longer gaps throw.
+**Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
 ### 1.6 Repo hygiene before making the repo/link public (S) — found 2026-07-19
 Windows `*:Zone.Identifier` files are committed under `data/retirement/raw/`,
@@ -390,9 +423,14 @@ percentile outcome for that specific month, not one continuous scenario").
 
 ## Priority 5 — Data Quality & Coverage
 
-### 5.1 Regional CPI Series (M) — prerequisite for 0.4
-Monthly CPI per region from FRED, stored alongside returns in
-`historical-market-data.json` for joint (return, inflation) bootstrapping.
+### 5.1 Regional CPI Series (M) — ✅ SHIPPED 2026-07-21
+Monthly CPI per region now lives in the raw CSVs (`cpi_index` column) and in
+`historical-market-data.json` (`monthlySeries[].inflation`). Sources: US `CPIAUCSL`,
+UK `GBRCPIALLMINMEI`, Euro-area `CP0000EZ19M086NEST` level-matched onto German
+`DEUCPIALLMINMEI` pre-1997, and US CPI for WORLD (its returns are USD-denominated).
+`--cpi-only` on the import script refreshes just this column without disturbing the
+market-data vintage. Known coverage limit: UK CPI ends 2025-03, so the GBP monthly
+series is trimmed there (annual moments still use full market history).
 
 ### 5.2 Extended Eurozone Proxy (M)
 **Action:** Add AEX (Netherlands) and IBEX (Spain) data from 1980s onward, stitched onto the DAX/CAC core to broaden geopolitical representation of the EUR equity proxy.

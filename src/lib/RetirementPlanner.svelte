@@ -25,6 +25,7 @@
 	import {
 		blendPortfolioMetrics as calcBlendPortfolioMetrics,
 		buildPortfolioHistoricalMonthlyReturns as calcBuildPortfolioHistoricalMonthlyReturns,
+		buildPortfolioHistoricalMonthlySeries as calcBuildPortfolioHistoricalMonthlySeries,
 		buildPortfolioHistoricalReturns as calcBuildPortfolioHistoricalReturns,
 		buildRegimeModelFromPortfolio as calcBuildRegimeModelFromPortfolio,
 		clamp as calcClamp,
@@ -1019,11 +1020,12 @@
 			selectedCurrencyCode,
 			allocation
 		);
-		const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(
+		const monthlySeries = calcBuildPortfolioHistoricalMonthlySeries(
 			historicalMarketData,
 			selectedCurrencyCode,
 			allocation
 		);
+		const historicalMonthlyReturns = monthlySeries.returns;
 		// Single source of truth for effective moments (see TODO 0.10): when the
 		// simulation actually bootstraps the realized historical series (historical
 		// mode, no moment targeting), display/target the realized series' own moments;
@@ -1062,8 +1064,29 @@
 			historicalAnnualReturns:
 				historicalAnnualReturns.length >= 10 ? historicalAnnualReturns : undefined,
 			historicalMonthlyReturns:
-				historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined
+				historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined,
+			historicalMonthlyInflation: jointInflationSeries(
+				historicalMonthlyReturns,
+				monthlySeries.inflation
+			)
 		};
+	}
+
+	/**
+	 * Joint (return, inflation) bootstrapping is only appropriate when the simulation
+	 * actually samples the realized historical series and the user is not overriding
+	 * inflation assumptions — otherwise their explicit inflation inputs would be ignored.
+	 */
+	function jointInflationSeries(
+		returns: number[],
+		inflation: number[]
+	): number[] | undefined {
+		const eligible =
+			input.simulationMode === 'historical' &&
+			!input.historicalMomentTargeting &&
+			returns.length >= 120 &&
+			inflation.length === returns.length;
+		return eligible ? inflation : undefined;
 	}
 
 	function normalizeAllocationBoundaries() {
@@ -1194,11 +1217,12 @@
 			currencyCode,
 			allocation
 		);
-		const historicalMonthlyReturns = calcBuildPortfolioHistoricalMonthlyReturns(
+		const monthlySeries = calcBuildPortfolioHistoricalMonthlySeries(
 			historicalMarketData,
 			currencyCode,
 			allocation
 		);
+		const historicalMonthlyReturns = monthlySeries.returns;
 		// Same effective-moments rule as applyInvestmentAllocationMetrics (TODO 0.10):
 		// realized-series moments only when the simulation actually bootstraps them.
 		const useHistoricalMoments =
@@ -1232,7 +1256,11 @@
 			historicalAnnualReturns:
 				historicalAnnualReturns.length >= 10 ? historicalAnnualReturns : undefined,
 			historicalMonthlyReturns:
-				historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined
+				historicalMonthlyReturns.length >= 120 ? historicalMonthlyReturns : undefined,
+			historicalMonthlyInflation: jointInflationSeries(
+				historicalMonthlyReturns,
+				monthlySeries.inflation
+			)
 		};
 	}
 
@@ -1652,6 +1680,7 @@
 			input.regimeModel.crisisStd,
 			input.historicalAnnualReturns?.length ?? 0,
 			input.historicalMonthlyReturns?.length ?? 0,
+			input.historicalMonthlyInflation?.length ?? 0,
 			(input.historicalAnnualReturns ?? [])
 				.slice(0, 5)
 				.map((value) => value.toFixed(4))

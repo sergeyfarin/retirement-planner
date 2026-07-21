@@ -155,6 +155,8 @@ export type RetirementInput = {
   };
   historicalAnnualReturns?: number[];
   historicalMonthlyReturns?: number[];
+  /** Realized monthly inflation aligned index-for-index with `historicalMonthlyReturns`. */
+  historicalMonthlyInflation?: number[];
 };
 
 export type SimulationResult = {
@@ -790,6 +792,15 @@ export function runMonteCarloSimulation(
     : monthlyHistory;
   const useMonthlyCalibration = effectiveMonthlyHistory.length >= 120;
 
+  // Joint (return, inflation) bootstrap — mirrors the Rust engine. Only active when the
+  // caller supplies a realized inflation series aligned with the monthly return history.
+  const historicalMonthlyInflation =
+    useMonthlyCalibration &&
+    input.historicalMonthlyInflation &&
+    input.historicalMonthlyInflation.length === effectiveMonthlyHistory.length
+      ? input.historicalMonthlyInflation
+      : null;
+
   const annualDetectedRegimes = detectRegimes(effectiveAnnualHistory);
   const annualRegimeBootstrapPool = bootstrapPoolByRegime(effectiveAnnualHistory, annualDetectedRegimes);
   const monthlyDetectedRegimes = useMonthlyCalibration ? detectRegimesMonthly(effectiveMonthlyHistory) : [];
@@ -919,14 +930,19 @@ export function runMonteCarloSimulation(
       const monthlyPortfolioGrowthFactor = (1 + monthlyAssetReturn) * monthlyFeeFactor;
       const monthlyPortfolioReturnAfterCosts = monthlyPortfolioGrowthFactor - 1;
 
+      // Joint bootstrap: take inflation from the same historical month as the return so
+      // the pair keeps its real-world correlation; the regime spread is not applied on
+      // top, since the historical series already embeds that co-movement.
       const effectiveInflationMean = regimeState === 0 ? growthInflationMean : crisisInflationMean;
-      const monthlyInflation = drawMonthlyReturnShaped(
-        effectiveInflationMean,
-        input.inflationVariability,
-        input.inflationSkewness,
-        input.inflationKurtosis,
-        rng
-      );
+      const monthlyInflation = historicalMonthlyInflation
+        ? historicalMonthlyInflation[currentHistoryIndex]
+        : drawMonthlyReturnShaped(
+            effectiveInflationMean,
+            input.inflationVariability,
+            input.inflationSkewness,
+            input.inflationKurtosis,
+            rng
+          );
       annualAssetReturn = (1 + annualAssetReturn) * (1 + monthlyPortfolioReturnAfterCosts) - 1;
       annualInflation = (1 + annualInflation) * (1 + monthlyInflation) - 1;
 

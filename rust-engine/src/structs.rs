@@ -151,4 +151,10 @@ pub struct RetirementInput {
     pub historical_annual_returns: Option<Vec<f64>>,
     #[serde(rename = "historicalMonthlyReturns")]
     pub historical_monthly_returns: Option<Vec<f64>>,
+    /// Realized monthly inflation aligned index-for-index with
+    /// `historical_monthly_returns`. When present, the engine samples inflation from the
+    /// same historical month as the return, preserving their correlation and (through
+    /// contiguous bootstrap blocks) inflation persistence.
+    #[serde(rename = "historicalMonthlyInflation")]
+    pub historical_monthly_inflation: Option<Vec<f64>>,
 }

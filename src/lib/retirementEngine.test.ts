@@ -220,6 +220,92 @@ describe('annual net-gain taxation', () => {
   });
 });
 
+describe('joint return/inflation bootstrap', () => {
+  // A history with PERSISTENT stagflation: alternating 12-month runs of
+  // (bad returns + high inflation) and (good returns + zero inflation) — the 1970s
+  // pattern. Persistence is what makes the pairing bite: with block bootstrapping a
+  // path can land in a sustained stagflation run, which independent i.i.d. inflation
+  // at the same mean can never produce.
+  //
+  // Mechanism note: with no cash flows, terminal real wealth is Π(1+r)/Π(1+π), so the
+  // *pairing* cancels and only the inflation multiset matters. What the joint bootstrap
+  // changes is the shape of the real-return path — sustained real drawdowns — which
+  // shows up as a materially fatter left tail, exactly the risk TODO 0.4 says
+  // independence understates.
+  const MONTHLY_INFLATION_MEAN = 0.005;
+  const returns: number[] = [];
+  const inflation: number[] = [];
+  for (let cycle = 0; cycle < 20; cycle++) {
+    for (let i = 0; i < 12; i++) {
+      returns.push(-0.01);
+      inflation.push(0.01);
+    }
+    for (let i = 0; i < 12; i++) {
+      returns.push(0.035);
+      inflation.push(0.0);
+    }
+  }
+
+  function input(withJoint: boolean): RetirementInput {
+    return {
+      currentAge: 60,
+      retirementAge: 60,
+      simulateUntilAge: 90,
+      currentSavings: 1_000_000,
+      meanReturn: 0.15,
+      returnVariability: 0.15,
+      returnSkewness: 0,
+      returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      // The engine converts with monthlyMean = annualMean / 12, so this makes the
+      // independent draw's mean exactly equal the historical series' mean.
+      inflationMean: MONTHLY_INFLATION_MEAN * 12,
+      inflationVariability: 0.0001, // near-deterministic: isolate pairing from noise
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      inflationCrisisSpread: 0,
+      annualFeePercent: 0,
+      taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04,
+      simulations: 2000,
+      seed: 31337,
+      blockLength: 6,
+      regimeModel: {
+        stayGrowth: 0.92,
+        stayCrisis: 0.68,
+        growthMean: 0.15,
+        growthStd: 0.12,
+        crisisMean: -0.08,
+        crisisStd: 0.2
+      },
+      historicalMonthlyReturns: returns,
+      historicalMonthlyInflation: withJoint ? inflation : undefined
+    };
+  }
+
+  const spending: SpendingPeriod[] = [
+    { id: 'sp-default', label: 'Living', fromAge: 60, toAge: 90, yearlyAmount: 50000, inflationAdjusted: true }
+  ];
+  const months = 360;
+
+  it('produces a fatter left tail than independent inflation at the same mean', () => {
+    const independent = runMonteCarloSimulation(input(false), spending, [], [], months, 0);
+    const joint = runMonteCarloSimulation(input(true), spending, [], [], months, 0);
+
+    // Identical nominal returns and identical average inflation — the only difference is
+    // that inflation is drawn from the same historical month as the return.
+    expect(joint.stats.finalLow).toBeLessThan(independent.stats.finalLow);
+    expect(joint.stats.successProbability).toBeLessThan(independent.stats.successProbability);
+  });
+
+  it('ignores a misaligned inflation series rather than mispairing it', () => {
+    const misaligned = { ...input(true), historicalMonthlyInflation: inflation.slice(0, 100) };
+    const withoutSeries = runMonteCarloSimulation(input(false), spending, [], [], months, 0);
+    const result = runMonteCarloSimulation(misaligned, spending, [], [], months, 0);
+    expect(result.stats.finalMedian).toBeCloseTo(withoutSeries.stats.finalMedian, 6);
+  });
+});
+
 describe('withdrawal strategies', () => {
   // Guardrails and percent-of-portfolio adapt spending downward in bad markets, so both
   // should yield a higher success probability than fixed real spending on an otherwise
