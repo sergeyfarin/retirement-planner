@@ -9,7 +9,6 @@
 		WorkerProgressMessage
 	} from './retirementWorker';
 	import {
-		runMonteCarloSimulation,
 		spendingAtAge,
 		validateSimulationInputs,
 		DEFAULT_WITHDRAWAL_STRATEGY,
@@ -29,7 +28,7 @@
 		buildCurrentConditionsMetrics as calcBuildCurrentConditionsMetrics,
 		buildPortfolioHistoricalReturns as calcBuildPortfolioHistoricalReturns,
 		buildRegimeModelFromPortfolio as calcBuildRegimeModelFromPortfolio,
-		clamp as calcClamp,
+		clamp,
 		estimateEquityBondCorrelation as calcEstimateEquityBondCorrelation,
 		getAllocationSplit as calcGetAllocationSplit,
 		getHistoricalInvestmentMetrics as calcGetHistoricalInvestmentMetrics,
@@ -513,8 +512,6 @@
 	let lastSimulatedFingerprint = $state('');
 	let lastSimulatedCount = $state(0);
 	let lastSimulatedSeed: number | null = $state<number | null>(null);
-	let previewRecalcTimer: ReturnType<typeof setTimeout> | null = null;
-	let previewReady = $state(false);
 
 	let selectedCurrencyCode: CurrencyCode = $state('EUR');
 	const DEFAULT_EQUITY_BOND_CORRELATION = -0.1;
@@ -557,22 +554,22 @@
 		retirementAge: 62,
 		simulateUntilAge: 90,
 		currentSavings: 120000,
-		meanReturn: blendPortfolioMetrics(
+		meanReturn: calcBlendPortfolioMetrics(
 			initialParametricMetrics,
 			DEFAULT_ALLOCATION,
 			DEFAULT_EQUITY_BOND_CORRELATION
 		).mean,
-		returnVariability: blendPortfolioMetrics(
+		returnVariability: calcBlendPortfolioMetrics(
 			initialParametricMetrics,
 			DEFAULT_ALLOCATION,
 			DEFAULT_EQUITY_BOND_CORRELATION
 		).std,
-		returnSkewness: blendPortfolioMetrics(
+		returnSkewness: calcBlendPortfolioMetrics(
 			initialParametricMetrics,
 			DEFAULT_ALLOCATION,
 			DEFAULT_EQUITY_BOND_CORRELATION
 		).skewness,
-		returnKurtosis: blendPortfolioMetrics(
+		returnKurtosis: calcBlendPortfolioMetrics(
 			initialParametricMetrics,
 			DEFAULT_ALLOCATION,
 			DEFAULT_EQUITY_BOND_CORRELATION
@@ -589,23 +586,23 @@
 		safeWithdrawalRate: 0.04,
 		withdrawalStrategy: { ...DEFAULT_WITHDRAWAL_STRATEGY },
 		simulations: DEFAULT_FULL_MONTE_CARLO_SIMULATIONS,
-		regimeModel: buildRegimeModelFromPortfolio(
-			blendPortfolioMetrics(
+		regimeModel: calcBuildRegimeModelFromPortfolio(
+			calcBlendPortfolioMetrics(
 				initialParametricMetrics,
 				DEFAULT_ALLOCATION,
 				DEFAULT_EQUITY_BOND_CORRELATION
 			).mean,
-			blendPortfolioMetrics(
+			calcBlendPortfolioMetrics(
 				initialParametricMetrics,
 				DEFAULT_ALLOCATION,
 				DEFAULT_EQUITY_BOND_CORRELATION
 			).std,
-			blendPortfolioMetrics(
+			calcBlendPortfolioMetrics(
 				initialParametricMetrics,
 				DEFAULT_ALLOCATION,
 				DEFAULT_EQUITY_BOND_CORRELATION
 			).skewness,
-			blendPortfolioMetrics(
+			calcBlendPortfolioMetrics(
 				initialParametricMetrics,
 				DEFAULT_ALLOCATION,
 				DEFAULT_EQUITY_BOND_CORRELATION
@@ -761,252 +758,6 @@
 		maximumFractionDigits: 1
 	});
 
-	function clamp(value: number, min: number, max: number): number {
-		return Math.min(max, Math.max(min, value));
-	}
-
-	function getAllocationSplit(): AllocationSplit {
-		const stocks = clamp(stockBoundaryPercent, 0, 100) / 100;
-		const bonds = clamp(bondBoundaryPercent - stockBoundaryPercent, 0, 100) / 100;
-		const bank = clamp(100 - bondBoundaryPercent, 0, 100) / 100;
-		return { stocks, bonds, bank };
-	}
-
-	function blendPortfolioMetrics(
-		metrics: InvestmentMetricInputs,
-		allocation: AllocationSplit,
-		equityBondCorrelation: number
-	): { mean: number; std: number; skewness: number; kurtosis: number } {
-		const mean =
-			allocation.stocks * metrics.stockMean +
-			allocation.bonds * metrics.bondMean +
-			allocation.bank * metrics.bankMean;
-
-		const rhoEquityBond = clamp(equityBondCorrelation, -1, 1);
-		const stockVariance = (allocation.stocks * metrics.stockStd) ** 2;
-		const bondVariance = (allocation.bonds * metrics.bondStd) ** 2;
-		const bankVariance = (allocation.bank * metrics.bankStd) ** 2;
-		const equityBondCovariance =
-			2 * allocation.stocks * allocation.bonds * metrics.stockStd * metrics.bondStd * rhoEquityBond;
-		const variance = stockVariance + bondVariance + bankVariance + equityBondCovariance;
-		const std = Math.sqrt(Math.max(0, variance));
-
-		if (std <= 1e-9) {
-			return { mean, std: 0, skewness: DEFAULT_SKEWNESS, kurtosis: DEFAULT_KURTOSIS };
-		}
-
-		const stockThird = (allocation.stocks * metrics.stockStd) ** 3 * metrics.stockSkew;
-		const bondThird = (allocation.bonds * metrics.bondStd) ** 3 * metrics.bondSkew;
-		const bankThird = (allocation.bank * metrics.bankStd) ** 3 * metrics.bankSkew;
-		const skewness = (stockThird + bondThird + bankThird) / std ** 3;
-
-		const stockFourth = (allocation.stocks * metrics.stockStd) ** 4 * metrics.stockKurt;
-		const bondFourth = (allocation.bonds * metrics.bondStd) ** 4 * metrics.bondKurt;
-		const bankFourth = (allocation.bank * metrics.bankStd) ** 4 * metrics.bankKurt;
-		const kurtosis = Math.max(1, (stockFourth + bondFourth + bankFourth) / std ** 4);
-
-		return { mean, std, skewness, kurtosis };
-	}
-
-	function summarizeSeriesMoments(values: number[]): { mean: number; std: number } {
-		if (values.length === 0) return { mean: 0, std: 0 };
-		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
-		return { mean, std: Math.sqrt(Math.max(0, variance)) };
-	}
-
-	function summarizeSeriesDistribution(values: number[]): {
-		mean: number;
-		std: number;
-		skewness: number;
-		kurtosis: number;
-	} {
-		if (values.length === 0) {
-			return { mean: 0, std: 0, skewness: 0, kurtosis: 3 };
-		}
-
-		const n = values.length;
-		const mean = values.reduce((sum, value) => sum + value, 0) / n;
-		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / n;
-		const std = Math.sqrt(Math.max(0, variance));
-
-		if (std <= 1e-9) {
-			return { mean, std: 0, skewness: 0, kurtosis: 3 };
-		}
-
-		const m3 = values.reduce((sum, value) => sum + (value - mean) ** 3, 0) / n;
-		const m4 = values.reduce((sum, value) => sum + (value - mean) ** 4, 0) / n;
-
-		return {
-			mean,
-			std,
-			skewness: m3 / std ** 3,
-			kurtosis: m4 / std ** 4
-		};
-	}
-
-	function sampleCorrelation(first: number[], second: number[]): number | null {
-		const n = Math.min(first.length, second.length);
-		if (n < 2) return null;
-
-		const x = first.slice(0, n);
-		const y = second.slice(0, n);
-		const meanX = x.reduce((sum, value) => sum + value, 0) / n;
-		const meanY = y.reduce((sum, value) => sum + value, 0) / n;
-		const varX = x.reduce((sum, value) => sum + (value - meanX) ** 2, 0) / n;
-		const varY = y.reduce((sum, value) => sum + (value - meanY) ** 2, 0) / n;
-		if (varX <= 1e-12 || varY <= 1e-12) return null;
-
-		const cov = x.reduce((sum, value, index) => sum + (value - meanX) * (y[index] - meanY), 0) / n;
-		return cov / Math.sqrt(varX * varY);
-	}
-
-	function estimateEquityBondCorrelation(currencyCode: CurrencyCode): number | null {
-		const region = historicalMarketData?.regions?.[currencyCode];
-		if (!region) return null;
-
-		if (Array.isArray(region.monthlySeries) && region.monthlySeries.length >= 24) {
-			const validRows = region.monthlySeries.filter(
-				(row) => Number.isFinite(row.equity) && Number.isFinite(row.bond)
-			);
-			const equity = validRows.map((row) => row.equity);
-			const bond = validRows.map((row) => row.bond);
-			return sampleCorrelation(equity, bond);
-		}
-
-		if (Array.isArray(region.annualSeries) && region.annualSeries.length >= 10) {
-			const validRows = region.annualSeries.filter(
-				(row) => Number.isFinite(row.equity) && Number.isFinite(row.bond)
-			);
-			const equity = validRows.map((row) => row.equity);
-			const bond = validRows.map((row) => row.bond);
-			return sampleCorrelation(equity, bond);
-		}
-
-		return null;
-	}
-
-	function getHistoricalInvestmentMetrics(
-		currencyCode: CurrencyCode
-	): InvestmentMetricInputs | null {
-		const region = historicalMarketData?.regions?.[currencyCode];
-		if (!region) return null;
-		return {
-			stockMean: region.assetMoments.equity.arithmeticMean,
-			stockStd: region.assetMoments.equity.stdDev,
-			stockSkew: region.assetMoments.equity.skewness,
-			stockKurt: region.assetMoments.equity.kurtosis,
-			bondMean: region.assetMoments.bond.arithmeticMean,
-			bondStd: region.assetMoments.bond.stdDev,
-			bondSkew: region.assetMoments.bond.skewness,
-			bondKurt: region.assetMoments.bond.kurtosis,
-			bankMean: region.assetMoments.cash.arithmeticMean,
-			bankStd: region.assetMoments.cash.stdDev,
-			bankSkew: region.assetMoments.cash.skewness,
-			bankKurt: region.assetMoments.cash.kurtosis
-		};
-	}
-
-	function buildPortfolioHistoricalReturns(
-		currencyCode: CurrencyCode,
-		allocation: AllocationSplit
-	): number[] {
-		const region = historicalMarketData?.regions?.[currencyCode];
-		if (!region || !Array.isArray(region.annualSeries)) return [];
-
-		return region.annualSeries
-			.map(
-				(row) =>
-					allocation.stocks * row.equity + allocation.bonds * row.bond + allocation.bank * row.cash
-			)
-			.filter((value) => Number.isFinite(value));
-	}
-
-	function buildPortfolioHistoricalMonthlyReturns(
-		currencyCode: CurrencyCode,
-		allocation: AllocationSplit
-	): number[] {
-		const region = historicalMarketData?.regions?.[currencyCode];
-		if (!region || !Array.isArray(region.monthlySeries)) return [];
-
-		return region.monthlySeries
-			.map(
-				(row) =>
-					allocation.stocks * row.equity + allocation.bonds * row.bond + allocation.bank * row.cash
-			)
-			.filter((value) => Number.isFinite(value));
-	}
-
-	function clampProbability(value: number): number {
-		return clamp(value, 0.001, 0.999);
-	}
-
-	function getGrowthStationaryProbability(stayGrowth: number, stayCrisis: number): number {
-		const denominator = 2 - stayGrowth - stayCrisis;
-		if (denominator <= 1e-9) return 0.5;
-		return (1 - stayCrisis) / denominator;
-	}
-
-	function buildRegimeModelFromPortfolio(
-		portfolioMean: number,
-		portfolioStd: number,
-		portfolioSkewness: number,
-		portfolioKurtosis: number,
-		template: RegimeTemplate
-	): PlannerInput['regimeModel'] {
-		const stayGrowth = clampProbability(template.stayGrowth);
-		const stayCrisis = clampProbability(template.stayCrisis);
-		const growthProbability = clampProbability(
-			getGrowthStationaryProbability(stayGrowth, stayCrisis)
-		);
-		const crisisProbability = 1 - growthProbability;
-
-		const skewTilt = Math.max(-2, Math.min(2, portfolioSkewness));
-		const excessKurtosis = Math.max(0, portfolioKurtosis - 3);
-		const spread = Math.max(
-			0.01,
-			template.meanSpread * (1 + excessKurtosis * 0.08) * (1 + Math.max(0, -skewTilt) * 0.25)
-		);
-		const growthMean = portfolioMean + crisisProbability * spread;
-		const crisisMean = portfolioMean - growthProbability * spread;
-
-		const growthStdMultiplier = Math.max(
-			0.1,
-			template.growthStdMultiplier * (1 + Math.max(0, skewTilt) * 0.1)
-		);
-		const crisisStdMultiplier = Math.max(
-			growthStdMultiplier + 0.2,
-			template.crisisStdMultiplier * (1 + excessKurtosis * 0.06)
-		);
-
-		const targetVariance = Math.max(1e-8, portfolioStd ** 2);
-		const regimeMeanVariance =
-			growthProbability * (growthMean - portfolioMean) ** 2 +
-			crisisProbability * (crisisMean - portfolioMean) ** 2;
-
-		const weightedMultiplierSquare =
-			growthProbability * growthStdMultiplier ** 2 + crisisProbability * crisisStdMultiplier ** 2;
-
-		const remainingVariance = Math.max(0, targetVariance - regimeMeanVariance);
-		const sharedScale =
-			weightedMultiplierSquare > 1e-9
-				? Math.sqrt(remainingVariance / weightedMultiplierSquare)
-				: portfolioStd;
-
-		const floorStd = 0.005;
-		const growthStd = Math.max(floorStd, sharedScale * growthStdMultiplier);
-		const crisisStd = Math.max(growthStd + floorStd, sharedScale * crisisStdMultiplier);
-
-		return {
-			stayGrowth,
-			stayCrisis,
-			growthMean,
-			growthStd,
-			crisisMean,
-			crisisStd
-		};
-	}
-
 	function applyInvestmentAllocationMetrics() {
 		const allocation = calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent);
 		const blended = calcBlendPortfolioMetrics(
@@ -1118,7 +869,7 @@
 	const bondAllocationPercent = $derived(clamp(bondBoundaryPercent - stockBoundaryPercent, 0, 100));
 	const bankAllocationPercent = $derived(clamp(100 - bondBoundaryPercent, 0, 100));
 
-	const currentAllocation = $derived(getAllocationSplit());
+	const currentAllocation = $derived(calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent));
 	const stockRiskComponent = $derived(currentAllocation.stocks * activeMetrics.stockStd);
 	const bondRiskComponent = $derived(currentAllocation.bonds * activeMetrics.bondStd);
 	const bankRiskComponent = $derived(currentAllocation.bank * activeMetrics.bankStd);
@@ -1201,7 +952,7 @@
 			historicalMarketData,
 			currencyCode
 		);
-		const effectiveCorrelation = calcClamp(
+		const effectiveCorrelation = clamp(
 			estimatedCorrelation ?? DEFAULT_EQUITY_BOND_CORRELATION,
 			-1,
 			1
@@ -1235,7 +986,7 @@
 		const effectiveStd = useHistoricalMoments ? dataMoments.std : blended.std;
 		const effectiveSkew = useHistoricalMoments ? dataMoments.skewness : blended.skewness;
 		const effectiveKurt = useHistoricalMoments ? dataMoments.kurtosis : blended.kurtosis;
-		const regimeModel = buildRegimeModelFromPortfolio(
+		const regimeModel = calcBuildRegimeModelFromPortfolio(
 			effectiveMean,
 			effectiveStd,
 			effectiveSkew,
@@ -2006,14 +1757,9 @@
 		restoreFromShareHash();
 
 		plotReady = true;
-		previewReady = true;
 	});
 
 	onDestroy(() => {
-		if (previewRecalcTimer) {
-			clearTimeout(previewRecalcTimer);
-			previewRecalcTimer = null;
-		}
 		if (Plotly && realReturnCdfEl) {
 			Plotly.purge(realReturnCdfEl);
 		}

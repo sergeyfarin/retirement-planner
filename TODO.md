@@ -1,6 +1,6 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-07-21 (Launch Plan phases 1–4 complete except 1.2; repo licensed
+**Updated:** 2026-07-21 (Launch Plan phases 1–4 complete; repo licensed
 AGPL-3.0 and ready to go public). Mortality-weighted ruin remains declined as a product
 decision — see 2.2.
 
@@ -33,7 +33,7 @@ Item numbers refer to the detailed entries below.
 
 **Phase 4 — Engineering health:**
 14. ✅ Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
-15. De-duplicate planner-local math (1.2) — TS engine's fate settled by 1.1/1.3
+15. ✅ De-duplicate planner-local math (1.2) — also fixed a latent regime-model divergence
 
 **Explicitly declined:** mortality-weighted ruin (2.2) — see rationale there.
 
@@ -237,20 +237,42 @@ sensitivity was verified by injecting a fee-divisor change in the 5th decimal pl
 year-boundary reset bug (0.8) and a parity test would have passed it happily. This guards
 against divergence, not against a faithfully-mirrored mistake.
 
-### 1.2 De-duplicate planner-local math (S)
-**Also found 2026-07-21 while auditing the README:** `RetirementPlanner.svelte` still
-imports `runMonteCarloSimulation` but never calls it — all simulation goes through the
-Worker — and two vestiges of the removed live preview remain: `previewReady` is written
-but never read, and `previewRecalcTimer` is only ever assigned `null`. Delete all three
-along with the dead local copies below. (The stale "preview runs on main thread" line in
-README §1 that pointed at this has been corrected.)
+### 1.2 De-duplicate planner-local math (S) — ✅ DONE 2026-07-21
+**Removed** 246 lines from `RetirementPlanner.svelte` (2,498 → 2,244): local copies of
+`clamp`, `getAllocationSplit`, `blendPortfolioMetrics`, `summarizeSeriesMoments`,
+`summarizeSeriesDistribution`, `sampleCorrelation`, `estimateEquityBondCorrelation`,
+`getHistoricalInvestmentMetrics`, `buildPortfolioHistoricalReturns`,
+`buildPortfolioHistoricalMonthlyReturns`, `clampProbability`,
+`getGrowthStationaryProbability` and `buildRegimeModelFromPortfolio`, plus the unused
+`runMonteCarloSimulation` import and the dead `previewReady` / `previewRecalcTimer`
+vestiges. ESLint errors in the file went 28 → 20 (none introduced).
 
-`RetirementPlanner.svelte` contains full local copies of ~8 functions that also exist in
-`calculations.ts` (imported with `calc*` aliases): `blendPortfolioMetrics`,
-`getAllocationSplit`, `summarizeSeriesDistribution`, `sampleCorrelation`,
-`estimateEquityBondCorrelation`, `getHistoricalInvestmentMetrics`,
-`buildPortfolioHistoricalReturns`, `buildRegimeModelFromPortfolio`, … The local copies
-are mostly dead — delete them and keep the imports.
+**A latent bug found in the process.** Only one local copy actually differed from
+`calculations.ts` — `buildRegimeModelFromPortfolio`:
+
+| | local copy | `calculations.ts` |
+|---|---|---|
+| spread | floored at `0.01`, **no cap** | capped at `0.8 × sqrt(σ²/(π_G·π_C))` |
+| target variance | floored at `1e-8` | raw `σ²` |
+| regime std devs | floored at `0.005` | unfloored |
+
+`applyReferenceDefaults` (currency switch, and the initial mount) used the **local** copy
+while `applyInvestmentAllocationMetrics` (allocation slider) used the **imported** one —
+the same last-touched-control pathology as 0.10, but for the regime model.
+
+It was invisible at normal allocations because the cap is not binding there (60/30/10 has
+σ ≈ 12.9%, so the requested 15% spread sits well under the ~23% cap). It bit at low
+volatility: for a 100%-cash portfolio (σ ≈ 3.25%) the uncapped local version produced a
+crisis-regime mean of **−6.4%/yr for cash**, versus **+0.3%** from the capped version — a
+regime spread wider than the entire portfolio volatility it was meant to decompose. The
+README's documented behaviour ("capped at 80% of maximum variance-preserving spread") is
+the `calculations.ts` one, which is also the sane one, so unifying on it removes the
+duplication and fixes the bug together.
+
+**Verified behaviour-preserving where it should be:** captured effective portfolio and
+real-return moments before (from `git HEAD`) and after, at the default 60/30/10, at 100%
+cash via the slider, and at 100% cash after a currency switch — all three byte-identical,
+since the two implementations agree wherever the caps are not binding.
 
 ### 1.3 Decide the TS engine's fate (S) — ✅ DECIDED 2026-07-21
 **Decision: keep it as the reference implementation, guarded by the parity test (1.1).**
