@@ -19,7 +19,7 @@ The calculator projects portfolio balances from a starting age through a configu
 | Reproducibility | Optional seeded PRNG (`mulberry32`); default unseeded behavior when no seed is provided |
 | Output | Percentile fan chart, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis |
 | Multi-asset | Three-asset allocation (stocks / bonds / cash) with configurable equity-bond correlation |
-| Performance | Web Worker offloading with real-time progress reporting; preview runs on main thread |
+| Performance | All simulation runs in a Web Worker with real-time progress reporting; nothing simulates on the main thread (the old noisy live preview was replaced by the stale-results flow, §2) |
 
 ---
 
@@ -50,12 +50,17 @@ rust-engine/
 
 src/lib/
   retirementWorker.ts      ← Web Worker calling `run_monte_carlo` via wasm-bindgen
+  workerHelper.ts          ← Worker construction helper
+  retirementEngine.ts      ← TypeScript reference engine (see §12) + shared types/validation
+  calculations.ts          ← Portfolio blending, moments, correlation, PRNG, dataset types
   RetirementPlanner.svelte ← Main application state, Worker controller, Plotly integration
   components/
     PlannerInputPanel.svelte       ← All user inputs (Svelte 5 $props + $bindable)
     PlannerOutputCards.svelte      ← Summary metric cards
     PlannerTimelinePlot.svelte     ← Plotly fan chart
     PlannerSecondaryPlot.svelte    ← Ruin surface heatmap + sequence risk chart
+  retirementEngine.test.ts ← Engine unit + regression tests
+  enginesParity.test.ts    ← TS ↔ Rust cross-engine parity suite (§12)
 ```
 
 ### Execution Pipeline
@@ -64,7 +69,7 @@ The application relies entirely on the high-performance Web Worker for all simul
 
 1. **Initial Baseline Run:** On load, a 20,000-path baseline simulation runs automatically to populate the charts rapidly using the Rust engine.
 2. **Stale State Protection:** When any input changes, the UI charts gray out (stale state) and a warning banner appears. This explicitly prevents confusion from stale data while avoiding the extreme statistical noise (±30% jumps in ending balance) typical of small-sample "live" previews.
-3. **Full Simulation:** The user clicks "Run Monte Carlo" to trigger a new simulation. The Web Worker initializes the WASM module via `init()`, invokes `run_monte_carlo()` with a **progress callback** (~10 incremental updates), executes over contiguous heap memory without garbage collection, and structured-clones only the final ~2 KB `SummaryStats` payload back to the UI.
+3. **Full Simulation:** The user clicks "Run Monte Carlo" to trigger a new simulation. The Web Worker initializes the WASM module via `init()`, invokes `run_monte_carlo()` with a **progress callback** (~10 incremental updates), executes over contiguous heap memory without garbage collection, and structured-clones back only the aggregated result — the `SummaryStats` (a few KB) plus the five percentile bands (5 × months floats, tens of KB). The per-path balances, which would run to hundreds of megabytes, never leave the worker.
 
 All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$derived`, `$bindable`).
 
@@ -344,7 +349,7 @@ For large simulation counts (10,000+), storing all balances per month per simula
 - For sim ≤ K: all balances are kept exactly
 - For sim > K: each new balance replaces a random existing sample with probability K/(sim+1)
 
-This guarantees a uniform random sample per month, capped at ~24 MB total regardless of simulation count. Percentile accuracy at K=5,000 is excellent (±0.5% for P10–P90).
+This guarantees a uniform random sample per month, and bounds memory at `K × months × 8 bytes` **regardless of simulation count** — ≈26 MB for the default 35→90 horizon, ≈47 MB at the maximum 12→110 horizon. Percentile accuracy at K=5,000 is excellent (±0.5% for P10–P90).
 
 Growth factors for the ruin surface replay are capped at 2000 rows (~11.5 MB), matching the 2000-path subsampling used by `build_ruin_surface` (raised from 800 in 2026-07 to keep heatmap tail-probability SE under ~±1%).
 
@@ -452,9 +457,12 @@ caption makes explicit:
 | Box-Muller cache | Per-instance, no global mutation | ✓ |
 | Regime gap-filling | Single non-crisis sandwiched → crisis | ✓ |
 
-The checklist above covers unit/formula consistency. For open **correctness issues**
-found in the 2026-07-07 review (dividend handling, tax model, inflation coupling), see
-§10 below and `TODO.md` Priority 0.
+The checklist above covers unit/formula consistency. The correctness issues raised in the
+2026-07-07 review — dividend handling, the tax model and return/inflation coupling — have
+since been fixed (§3.1.1, §5.2, §5.3). What remains open is tracked in `TODO.md`
+Priority 0, chiefly nominal cashflows being deflated by expected rather than realized
+inflation (0.3) and the kurtosis-blending cross-terms (0.5). §10 below lists the standing
+simplifications.
 
 ---
 
@@ -479,6 +487,12 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
 | Annual-mode bootstrap: constant monthly rate within year | Understates intra-year volatility (fallback mode only) | TODO 0.7 |
+| **Fixed planning horizon; no mortality weighting** | Measures "ruin by your chosen age", not ruin-before-death, so it is conservative relative to a lifetime measure | **Deliberate product decision**, not an omission — survival statistics are the wrong register for a personal tool. TODO 2.2 (declined) |
+| Allocation is fixed for life; no glide path | Cannot model de-risking into retirement | TODO 2.5 |
+| Single-person model | No second person's age, income or pension start | TODO 2.6 |
+| "Use today's yields" runs via moment targeting, which disables the joint inflation bootstrap | Inflation reverts to the parametric draw in that mode | TODO 2.8 |
+| Ruin surface adjusts only the default salary's end age per cell | Other income sources are held fixed across cells | TODO 6.2 |
+| Ruin-surface cells replay a capped 2000-path subsample | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count | Surfaced in the UI (§7); cell *differences* are steadier than that (common random numbers) |
 
 ---
 
@@ -489,12 +503,14 @@ found in the 2026-07-07 review (dividend handling, tax model, inflation coupling
 | Return model | Regime-switching block bootstrap | State-of-art | ✓ Block bootstrap preserves clustering |
 | Fat tails | Cornish-Fisher + Student-t | Skew-t or Johnson SU | Minor; bootstrap dominates |
 | Correlation | Equity-bond correlation parameter | Full DCC-GARCH | Partial (cash, time-varying not modeled) |
-| Inflation | Regime-conditioned parametric | VAR(1) with returns | Good for complexity level |
+| Inflation | Joint (return, CPI) historical bootstrap; regime-conditioned parametric fallback | VAR(1) with returns | ✓ Empirical joint distribution keeps correlation *and* persistence without imposing a parametric form |
 | Ruin analysis | Full path simulation | Same | ✓ |
 | Sequence risk | Quintile analysis of early returns | Kitces/Pfau methodology | ✓ |
-| Spending rules | Fixed real | Guardrail / VPW | Future enhancement |
-| Longevity | Fixed horizon | Mortality-weighted | Future enhancement |
-| Reproducibility | Optional seeded PRNG | Seeded PRNG | ✓ Closed |
+| Spending rules | Fixed real, Guyton-Klinger guardrails, or percent-of-portfolio | Guardrail / VPW | ✓ Closed; age-banded VPW table still future (TODO 2.1) |
+| Longevity | Fixed user-chosen horizon | Mortality-weighted | **Deliberately not adopted.** Showing survival probabilities is the wrong register for a personal planning tool; the fixed horizon is the conservative choice — see `TODO.md` 2.2 |
+| Expected returns | Historical, or anchored to today's yields (§4.4.1) | Forward-looking CMAs | ✓ Yield-anchored preset; no CAPE/valuation adjustment yet |
+| Reproducibility | Optional seeded PRNG, surfaced in the UI and share link | Seeded PRNG | ✓ Closed |
+| Convergence reporting | SE on success probability + per-cell heatmap margins | Reported sampling error | ✓ Closed |
 
 ---
 

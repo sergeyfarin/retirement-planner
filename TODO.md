@@ -238,6 +238,13 @@ year-boundary reset bug (0.8) and a parity test would have passed it happily. Th
 against divergence, not against a faithfully-mirrored mistake.
 
 ### 1.2 De-duplicate planner-local math (S)
+**Also found 2026-07-21 while auditing the README:** `RetirementPlanner.svelte` still
+imports `runMonteCarloSimulation` but never calls it — all simulation goes through the
+Worker — and two vestiges of the removed live preview remain: `previewReady` is written
+but never read, and `previewRecalcTimer` is only ever assigned `null`. Delete all three
+along with the dead local copies below. (The stale "preview runs on main thread" line in
+README §1 that pointed at this has been corrected.)
+
 `RetirementPlanner.svelte` contains full local copies of ~8 functions that also exist in
 `calculations.ts` (imported with `calc*` aliases): `blendPortfolioMetrics`,
 `getAllocationSplit`, `summarizeSeriesDistribution`, `sampleCorrelation`,
@@ -559,9 +566,15 @@ series is trimmed there (annual moments still use full market history).
 ### 6.1 Advanced Dual-Mode Controls (M)
 Expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior.
 
-### 6.2 Ruin Surface Accuracy (S) — ✅ sample cap raised 800→2000, 2026-07-20
-Cap raised in both engines (~11.5 MB growth-factor memory at 720 months; tail SE now
-under ~±1%). The `is-default`-only income adjustment noted below still stands.
+### 6.2 Ruin Surface Accuracy (S) — PARTIALLY DONE (cap raised 2026-07-20, precision surfaced 2026-07-21)
+**Done:** cap raised 800→2000 in both engines (~11.5 MB of growth factors at 720 months).
+Precision is now reported rather than merely bounded — per-cell 95% margins on hover and
+a caption giving the worst case; at N=2000 that is ±2.2% for mid-range cells and under
+±1% for cells near 0% or 100% (see 3.1).
+**Still open:** only income source `is-default` has its `toAge` adjusted per cell, so any
+other income stream is held fixed across the surface. README §7 documents this as a fast
+approximation; fixing it means deciding what "retire 3 years earlier" should do to
+user-added income rows, which is a modelling question, not just a code change.
 
 **Original issue:**
 The 800-path subsampling in `build_ruin_surface` (and the matching `RUIN_SAMPLE_CAP` in `simulation.rs`) is aggressive for tail probabilities. Consider increasing or making it proportional to `simCount`. Also, only income source `is-default` has `toAge` adjusted per cell — document or fix this limitation.
