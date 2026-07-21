@@ -1,7 +1,8 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-07-20 (launch plan agreed; mortality-weighted ruin declined as a product
-decision — see 2.2). Completed phases are summarized at the bottom.
+**Updated:** 2026-07-21 (Launch Plan phases 1–4 complete except 1.2; repo licensed
+AGPL-3.0 and ready to go public). Mortality-weighted ruin remains declined as a product
+decision — see 2.2.
 
 ---
 
@@ -127,11 +128,14 @@ mapping sees no excess kurtosis and generates thinner tails than intended.
 term if feasible), or blend excess kurtosis on variance weights as an approximation.
 **Files:** `src/lib/calculations.ts`, `RetirementPlanner.svelte` local copy (see 1.2)
 
-### 0.6 Seed & fingerprint nits (S)
-- `input.seed || Math.floor(random)` treats seed `0` as unset — use explicit check.
-- `previewTriggerKey` excludes the seed, so "stale results" detection misses seed changes.
-- Surface the auto-generated seed in the UI after a run so any result can be reproduced.
-**Files:** `RetirementPlanner.svelte`
+### 0.6 Seed & fingerprint nits (S) — ✅ FIXED 2026-07-20
+All three addressed: `input.seed ?? Math.floor(random)` so an explicit seed of `0` is
+honoured (verified in-browser — a run with seed 0 reports "Seed: 0"); the seed is part of
+`previewTriggerKey`, so changing it marks results stale; and the seed actually used is
+shown in the status banner after every run, with a matching input under Advanced tuning.
+The seed also rides along in the share link (4.1), so a shared URL reproduces the exact
+run.
+**Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 0.7 Annual-mode bootstrap flattens intra-year volatility (S, documented limitation)
 When monthly history is unavailable, one sampled annual return becomes a constant
@@ -139,7 +143,16 @@ monthly rate for 12 months — understates monthly-granularity ruin and interact
 tax asymmetry (0.2). Rarely triggered since all four regions ship monthly data; document
 in README §4.3 Mode B and revisit only if the parametric mode gains users.
 
-### 0.8 Sequence-risk annual accumulator never resets in monthly-bootstrap mode (S) — found 2026-07-19
+### 0.8 Sequence-risk annual accumulator never resets in monthly-bootstrap mode — ✅ FIXED 2026-07-20
+**Fix applied:** the year-boundary reset now runs unconditionally at every 12-month
+boundary in both engines, instead of only inside the annual-bootstrap branch. The values
+feeding `build_sequence_risk_summary` are once again single-year returns.
+**Worth remembering:** both engines carried this bug identically, so the parity suite
+(1.1) would have passed it. Parity guards divergence, not correctness — the fix came from
+reading the code, and only a test asserting a *known-correct* annual return would have
+caught it independently.
+
+**Original issue:**
 **Current:** `annual_asset_return`/`annual_inflation` are reset to 0 only inside the
 `else if m % 12 == 0` branch (`simulation.rs` ~line 369), which is the *annual*-bootstrap
 path. Monthly calibration (`use_monthly_calibration`) takes an `if` branch above it and
@@ -256,34 +269,18 @@ by picking one definition and exposing the other as an explicit secondary stat (
 depleted paths recover by the end").
 **Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/stats.rs`
 
-### 1.5 Dead pseudo-`imul` computation in the RNG (S) — found 2026-07-19
-`calculations.rs` line 42 computes an unused approximation of `Math.imul` immediately
-before the real, JS-accurate computation on the following lines. Harmless but confusing
-for anyone auditing the RNG for correctness. Delete the dead line.
+### 1.5 Dead pseudo-`imul` computation in the RNG (S) — ✅ FIXED 2026-07-20
+**Was:** `RandomSource::random` computed a throwaway approximation of `Math.imul` into a
+local `t`, discarded it via `let _ = …`, and then redid the calculation properly on the
+next lines. Purely dead, but exactly the kind of thing that makes a reader distrust an
+RNG they are trying to audit.
+**Fix applied:** the dead statement is gone; `random()` is now four lines that mirror the
+JS `Math.imul` semantics directly, with a comment saying so. `cargo build` reports zero
+warnings.
+**Guarded by:** the parity suite (1.1) asserts the seeded uniform *and* standard-normal
+streams are identical between the TS and Rust engines, so any future edit that changes
+RNG behaviour — dead code or not — fails CI.
 **Files:** `rust-engine/src/calculations.rs`
-
-### 1.7 Data pipeline wrote to a directory the app never served (S) — ✅ FIXED 2026-07-21
-**Found while wiring the joint inflation bootstrap.** `preprocess-retirement-market-data.mjs`
-wrote to `public/assets/retirement/historical-market-data.json`, but SvelteKit serves
-`static/` (`kit.files.assets` default) and the planner fetches
-`/assets/historical-market-data.json`. The app had therefore been running on a stale
-`static/assets/historical-market-data.json` from 2026-02-27 — **the Priority-0 dividend
-fix (0.1) never reached the running app when it was first committed** (served USD equity
-was still 8.93% instead of 11.99%).
-**Fix:** `OUT_PATH` now points at `static/assets/historical-market-data.json`, the
-orphaned `public/` copy is deleted, and README §2 documents why the path matters.
-**Lesson worth keeping:** verify data-pipeline changes through the running app, not just
-by inspecting the generated file — the default currency (EUR) was the one region the
-dividend fix didn't change, which is why the stale data went unnoticed.
-
-### 1.8 `fetchFredSeries` turned missing observations into 0 (S) — ✅ FIXED 2026-07-21
-`Number('')` is `0` and `Number.isFinite(0)` is true, so any month FRED reports as empty
-was silently stored as a 0 level/rate. It first surfaced as a bogus `0` US CPI for
-2025-10 (not published during the federal shutdown). Existing bond/cash series were
-checked and are unaffected, but the bug would have corrupted any future refresh.
-Now empty and `.` values are skipped explicitly. Short interior CPI gaps (≤3 months) are
-geometrically interpolated by the preprocess step and logged; longer gaps throw.
-**Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
 ### 1.6 Repo hygiene before making the repo/link public (S) — ✅ DONE 2026-07-21
 **Stray files** (done 2026-07-20): `*:Zone.Identifier`, `fix-runes*.mjs` and `.build-log`
@@ -319,6 +316,30 @@ cannot reintroduce a personal one.
 Because every commit hash changed, this requires a **force-push of all branches and
 tags**. Until that happens the rewritten history exists only locally; GitHub still holds
 the original, which is also the rollback path.
+
+### 1.7 Data pipeline wrote to a directory the app never served (S) — ✅ FIXED 2026-07-21
+**Found while wiring the joint inflation bootstrap.** `preprocess-retirement-market-data.mjs`
+wrote to `public/assets/retirement/historical-market-data.json`, but SvelteKit serves
+`static/` (`kit.files.assets` default) and the planner fetches
+`/assets/historical-market-data.json`. The app had therefore been running on a stale
+`static/assets/historical-market-data.json` from 2026-02-27 — **the Priority-0 dividend
+fix (0.1) never reached the running app when it was first committed** (served USD equity
+was still 8.93% instead of 11.99%).
+**Fix:** `OUT_PATH` now points at `static/assets/historical-market-data.json`, the
+orphaned `public/` copy is deleted, and README §2 documents why the path matters.
+**Lesson worth keeping:** verify data-pipeline changes through the running app, not just
+by inspecting the generated file — the default currency (EUR) was the one region the
+dividend fix didn't change, which is why the stale data went unnoticed.
+
+### 1.8 `fetchFredSeries` turned missing observations into 0 (S) — ✅ FIXED 2026-07-21
+`Number('')` is `0` and `Number.isFinite(0)` is true, so any month FRED reports as empty
+was silently stored as a 0 level/rate. It first surfaced as a bogus `0` US CPI for
+2025-10 (not published during the federal shutdown). Existing bond/cash series were
+checked and are unaffected, but the bug would have corrupted any future refresh.
+Now empty and `.` values are skipped explicitly. Short interior CPI gaps (≤3 months) are
+geometrically interpolated by the preprocess step and logged; longer gaps throw.
+**Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
+
 
 ---
 
@@ -384,12 +405,24 @@ after pension starts") or offer a "broke ever / broke at end" toggle.
 
 ## Priority 3 — Convergence & Diagnostics
 
-### 3.1 Monte Carlo Convergence Diagnostic (S)
-**Action:** After simulation, compute and display the standard error of the success probability: $SE = \sqrt{p(1-p)/N}$. Show a convergence quality indicator (e.g., "±1.2% at 95% confidence"). This lets users judge whether their chosen simulation count is sufficient.
-**Files:** `rust-engine/src/simulation.rs`, `RetirementPlanner.svelte`
+### 3.1 Monte Carlo Convergence Diagnostic (S) — ✅ SHIPPED 2026-07-20
+The survival card now shows `±1.96·SE at 95% confidence (N simulations)` beneath the
+success probability, with $SE = \sqrt{p(1-p)/N}$ computed in `PlannerOutputCards.svelte`
+from the actual simulated count (e.g. "±0.4% at 95% confidence (20'000 simulations)").
+**Still open:** the ruin-surface heatmap has no equivalent — each cell replays a 2000-path
+subsample, so tail cells carry roughly ±1%, which is not surfaced anywhere. Worth a
+footnote on that chart.
+**Files:** `src/lib/components/PlannerOutputCards.svelte`
 
-### 3.2 Mode Transparency in UI (S)
-**Action:** Show an active mode badge, the effective moments used by the simulator, and warning text when displayed assumptions differ from the simulation driver.
+### 3.2 Mode Transparency in UI (S) — PARTIALLY DONE 2026-07-21
+**Done:** the collapsed Assumptions summary names the active mode and dataset
+("Euro area history 1961-2025 (adjusted) · 0.5% fees · 15% tax"); a badge appears when
+joint (return, inflation) sampling is active; and 0.10 removed the case where displayed
+moments could disagree with the simulation driver depending on which control was touched
+last, which was the substance of the old "warning text" ask.
+**Still open:** no explicit indicator of *which* moments the simulator is actually
+targeting under moment targeting (the table shows per-asset inputs, not the blended
+portfolio target the bootstrap is shifted onto).
 **Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ---
@@ -444,19 +477,26 @@ the concern is only that explicit user inflation edits would be ignored).
 **Action:** Allow users to input their desired geometric mean (CAGR) directly. The engine reverse-calculates the required arithmetic mean: $\mu_{arith} \approx \mu_{geom} + \sigma^2/2$.
 **Files:** `PlannerInputPanel.svelte`, `calculations.ts`
 
-### 4.6 Extract Assumptions Metadata → "Data Sources" Modal (S)
-**Action:** Move the ~300-line `ASSUMPTION_REFERENCES` object out of
-`RetirementPlanner.svelte` into `src/lib/config/currencyAssumptions.ts`, and build a
-"Data Sources & Methodology" modal that actively displays this research (sources,
-ranges, coverage). It is a genuine trust differentiator currently buried in code. Add a
-standard "not financial advice" disclaimer footer while at it.
+### 4.6 Extract Assumptions Metadata → "Data Sources" Modal (S) — PARTIALLY DONE
+**Done:** the "not financial advice" disclaimer footer ships (plus the AGPL source link,
+see 1.6), and a "more info" methodology panel already surfaces dataset coverage and
+per-asset sourcing inline.
+**Still open:** `ASSUMPTION_REFERENCES` (~300 lines) still lives inside
+`RetirementPlanner.svelte` rather than `src/lib/config/currencyAssumptions.ts`, and the
+curated research it holds (ranges, source citations) is still not fully displayed. Moving
+it out would also shrink the 2,300-line component, which pairs naturally with 1.2.
 
 ### 4.7 Localization (M)
 NL-first localization (AOW start age, Box 3 terminology, jaarruimte) — the one market
 where no good free tool does this properly. Coordinate the i18n approach with the
 heat-pump calculator in rekenraam-web.
 
-### 4.8 Shortfall/depleted-years cards show P90-of-metric under a "P10" label (S) — found 2026-07-19
+### 4.8 Shortfall/depleted-years cards show P90-of-metric under a "P10" label — ✅ FIXED 2026-07-20
+Relabelled to "Worst 10% / Median / Best 10%", which describes the *outcome* percentile
+the numbers actually represent, with a tooltip spelling out that these are percentiles of
+simulated outcomes rather than of the metric itself.
+
+**Original issue:**
 **Current:** `PlannerOutputCards.svelte` shows `stats.shortfallHigh` /
 `stats.depletedYearsHigh` (the **P90** of the underlying shortfall/depleted-years
 distribution) under a "P10" heading. The intent is defensible — a bad (P90) shortfall
@@ -466,7 +506,12 @@ to a numerate audience.
 percentile numbers that don't match the underlying stat's own percentile.
 **Files:** `src/lib/components/PlannerOutputCards.svelte`
 
-### 4.9 Fan chart bands can be misread as individual paths (S) — found 2026-07-19
+### 4.9 Fan chart bands can be misread as individual paths — ✅ FIXED 2026-07-20
+The chart caption now states that each percentile line is computed independently for that
+month across all simulations, is not a single continuous scenario, and that reading
+"recovery time" off the gap between bands overstates how fast any one path recovers.
+
+**Original issue:**
 **Current:** the timeline fan chart's P10/P50/P90 lines are computed pointwise per month
 across all simulations (reservoir sampling), not traced from any single simulated
 household. No simulated path actually follows the P10 line — reading "time to recover"
