@@ -2440,6 +2440,12 @@
 	retirement advice, and its projections are not guarantees of future performance. Historical
 	market data does not predict future returns. Consult a qualified financial advisor before
 	making retirement decisions.
+	<br />
+	<!-- AGPL-3.0 §13: network-served software must offer its users the corresponding source. -->
+	Open source (AGPL-3.0) —
+	<a href="https://github.com/sergeyfarin/retirement-planner" target="_blank" rel="noopener noreferrer"
+		>view or download the source</a
+	>.
 </p>
 
 <style>
@@ -2463,6 +2469,10 @@
 		line-height: 1.4;
 		color: var(--color-text-muted, #6b7280);
 		text-align: center;
+	}
+	.disclaimer-footer a {
+		color: inherit;
+		text-decoration: underline;
 	}
 	.headline-result {
 		font-size: 1.05rem;

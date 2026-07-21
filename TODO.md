@@ -285,15 +285,32 @@ Now empty and `.` values are skipped explicitly. Short interior CPI gaps (≤3 m
 geometrically interpolated by the preprocess step and logged; longer gaps throw.
 **Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
-### 1.6 Repo hygiene before making the repo/link public (S) — found 2026-07-19
-Windows `*:Zone.Identifier` files are committed under `data/retirement/raw/`,
-`scripts/`, and `static/assets/flags/`; `fix-runes.mjs` / `fix-runes2.mjs` (one-off
-migration scripts) and `.build-log` sit at the repo root. None of this belongs in a repo
-meant for a wider audience.
-**Action:** `git rm` the stray files, add `*:Zone.Identifier`, `.build-log` to
-`.gitignore`, delete the one-off `fix-runes*.mjs` scripts (or move to a `scripts/migrations/`
-archive if still referenced).
-**Files:** repo root, `data/retirement/raw/`, `scripts/`, `static/assets/flags/`, `.gitignore`
+### 1.6 Repo hygiene before making the repo/link public (S) — ✅ DONE 2026-07-21
+**Stray files** (done 2026-07-20): `*:Zone.Identifier`, `fix-runes*.mjs` and `.build-log`
+removed from tracking and gitignored; the emptied `public/` tree removed.
+
+**Pre-public audit** (2026-07-21) — checked and clean:
+- No secrets, tokens or credentials in tracked files; `.npmrc` holds only `engine-strict`.
+- Nothing sensitive in git history (the only removed files were the empty Windows
+  marker files and one-off migration scripts — not worth a history rewrite).
+- No build artifacts tracked; `build/`, `dist/`, `.svelte-kit/` are gitignored.
+- Largest tracked file is the 588 KB dataset — fine for a repo.
+
+**Licensing and metadata** (decided with the maintainer):
+- **AGPL-3.0-only**, full text in `LICENSE`, chosen so a hosted modified fork must
+  publish its source. README §14 explains the §13 network clause and third-party data
+  terms.
+- The app footer now links to the source repository, which is what AGPL §13 requires of
+  network-served software.
+- `package.json` gained description / license / author / repository / homepage / bugs /
+  keywords, plus `"private": true` — it is a monorepo (frontend + engine), not a library,
+  so this blocks an accidental `npm publish`. Verified `pnpm run build` (which runs
+  `svelte-package` + `publint`) still passes with the flag set.
+
+**Left deliberately undone:** the maintainer's personal email addresses appear in existing
+commit metadata and would become public. Rewriting history to scrub them is destructive
+and breaks every existing clone/hash; if that matters, it is a decision to take
+consciously (GitHub's `noreply` address is already used by some commits).
 
 ---
 

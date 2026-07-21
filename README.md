@@ -548,3 +548,24 @@ to `public/`, and the app silently kept using a months-old dataset.
 - Hamilton, J. (1989). *A New Approach to the Economic Analysis of Nonstationary Time Series and the Business Cycle* — foundational regime-switching model
 - Politis, D. & Romano, J. (1994). *The Stationary Bootstrap* — block bootstrap methodology for dependent data
 - Johnson, N. L. (1949). *Systems of Frequency Curves* — Johnson SU distribution for non-normal financial returns
+
+---
+
+## 14. License
+
+Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE](LICENSE).
+
+The AGPL's network clause (§13) is the point: if you run a modified version of this
+planner as a hosted service, you must offer that service's users the corresponding
+source. Private use and modification are unrestricted.
+
+**Not financial advice.** This is an educational planning tool. Its projections are
+model output, not predictions, and carry no warranty — see the disclaimer in §11 of the
+license text and the notice shown in the app itself.
+
+### Third-party data
+
+Market and price-index data is fetched from public sources (Stooq, FRED) by the scripts
+in `scripts/` and is subject to those providers' own terms. The derived series committed
+under `data/retirement/raw/` and `static/assets/` are transformations of that data,
+included for reproducibility.

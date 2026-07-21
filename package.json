@@ -1,6 +1,26 @@
 {
 	"name": "retirement-planner",
 	"version": "0.0.1",
+	"description": "Browser-based FIRE retirement planner: regime-switching Monte Carlo simulation with historical block bootstrapping, running in a Rust/WebAssembly engine.",
+	"license": "AGPL-3.0-only",
+	"author": "Sergey Farin",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/sergeyfarin/retirement-planner.git"
+	},
+	"homepage": "https://github.com/sergeyfarin/retirement-planner#readme",
+	"bugs": {
+		"url": "https://github.com/sergeyfarin/retirement-planner/issues"
+	},
+	"keywords": [
+		"retirement",
+		"fire",
+		"monte-carlo",
+		"financial-independence",
+		"svelte",
+		"webassembly"
+	],
+	"private": true,
 	"packageManager": "pnpm@11.10.0",
 	"scripts": {
 		"build:wasm": "cd rust-engine && wasm-pack build --target web",
