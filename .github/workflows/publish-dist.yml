@@ -16,16 +16,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 11.10.0
+          # Version is intentionally omitted: the action reads `packageManager` from
+          # package.json. Pinning it here as well makes the two drift apart the moment
+          # one is bumped, and the action hard-fails on a mismatch.
           run_install: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -77,7 +79,7 @@ jobs:
           printf '{"commit":"%s","ref":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist-build-meta.json
 
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: retirement-dist
           path: |
@@ -92,7 +94,7 @@ jobs:
 
     steps:
       - name: Download dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: retirement-dist
 
@@ -100,7 +102,7 @@ jobs:
         run: echo "RELEASE_TAG=$(date -u +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
 
       - name: Publish stable release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: dist-${{ env.RELEASE_TAG }}
           name: dist-${{ env.RELEASE_TAG }}
