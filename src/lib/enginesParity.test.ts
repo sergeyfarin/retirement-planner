@@ -307,8 +307,9 @@ describe('cross-engine simulation parity', () => {
         expectClose(other.endingMedian, bucket.endingMedian, `sequenceRisk[${index}].endingMedian`);
       });
 
-      // The whole ruin surface, including its axes.
+      // The whole ruin surface, including its axes and replay sample size.
       expect(rust.stats.ruinSurface.retirementAges).toEqual(ts.stats.ruinSurface.retirementAges);
+      expect(rust.stats.ruinSurface.sampleCount).toBe(ts.stats.ruinSurface.sampleCount);
       expectSeriesClose(
         rust.stats.ruinSurface.spendingMultipliers,
         ts.stats.ruinSurface.spendingMultipliers,

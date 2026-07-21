@@ -192,6 +192,8 @@ export type SummaryStats = {
     retirementAges: number[];
     spendingMultipliers: number[];
     ruinProbabilities: number[][];
+    /** Paths replayed per cell — capped independently of `simulations`. */
+    sampleCount: number;
   };
   shortfallLow: number;
   shortfallMedian: number;
@@ -628,7 +630,7 @@ function buildRuinSurface(
     });
   });
 
-  return { retirementAges, spendingMultipliers, ruinProbabilities };
+  return { retirementAges, spendingMultipliers, ruinProbabilities, sampleCount: sampledScenarios };
 }
 
 function expectedInflationIndexAtAge(input: RetirementInput, age: number): number {

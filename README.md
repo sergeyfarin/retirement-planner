@@ -413,6 +413,19 @@ A 5×5 grid of ruin probabilities across:
 
 Each cell replays the stored growth factors (subsampled to 2000 paths max) with recomputed cashflow arrays. Note: income source `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged. This is a documented fast approximation.
 
+**Sampling precision.** Because each cell is a proportion over `sampleCount` replayed
+paths, it carries binomial error $SE=\sqrt{p(1-p)/N}$ — at N=2000 that is up to ±2.2% at
+95% confidence for mid-range cells, tighter near 0% and 100%. The UI shows each cell's own
+margin on hover and the worst-case margin in the chart caption. Two things follow that the
+caption makes explicit:
+
+- The replay sample is capped **independently of the `simulations` setting**, so raising
+  the simulation count sharpens the summary cards but not this heatmap.
+- All cells replay the *same* stored paths (common random numbers), so **differences**
+  between neighbouring cells are considerably steadier than each cell's absolute margin
+  suggests. The chart is meant to be read for the shape of the retire-earlier / spend-more
+  trade-off rather than for any single cell's exact value.
+
 ---
 
 ## 8. Random Number Generation

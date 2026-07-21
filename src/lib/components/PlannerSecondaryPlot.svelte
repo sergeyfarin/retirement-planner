@@ -23,6 +23,24 @@
 	let ruinSurfaceEl: HTMLDivElement | null = $state(null);
 	let sequenceRiskEl: HTMLDivElement | null = $state(null);
 
+	// Precision of the heatmap. Each cell replays `sampleCount` stored paths, a cap that
+	// is independent of the run's simulation count — so raising "Simulations" past the
+	// cap does not sharpen this chart, which is worth telling the user explicitly.
+	const surfaceSampleCount = $derived(stats?.ruinSurface?.sampleCount ?? 0);
+	const worstCellMarginPercent = $derived.by(() => {
+		const survivalRows = stats?.ruinSurface?.ruinProbabilities;
+		if (!survivalRows || surfaceSampleCount <= 0) return 0;
+		let worst = 0;
+		for (const row of survivalRows) {
+			for (const ruin of row) {
+				const survival = Math.max(0, Math.min(1, 1 - ruin));
+				const margin = 1.96 * Math.sqrt((survival * (1 - survival)) / surfaceSampleCount) * 100;
+				if (margin > worst) worst = margin;
+			}
+		}
+		return worst;
+	});
+
 	$effect(() => {
 		if (plotReady && Plotly && ruinSurfaceEl && stats?.ruinSurface) {
 			drawRuinSurfaceChart();
@@ -57,6 +75,18 @@
 
 		const zValues = stats.ruinSurface.ruinProbabilities.map((row) =>
 			row.map((value) => Math.max(0, Math.min(1, 1 - value)))
+		);
+
+		// Each cell is a proportion estimated from `sampleCount` replayed paths, so it
+		// carries binomial sampling error: SE = sqrt(p(1-p)/N), shown at 95% confidence.
+		// Cells share the same underlying paths (common random numbers), which makes
+		// *differences* between cells steadier than these absolute margins suggest.
+		const cellMarginPercent = zValues.map((row) =>
+			row.map((survival) =>
+				surfaceSampleCount > 0
+					? 1.96 * Math.sqrt((survival * (1 - survival)) / surfaceSampleCount) * 100
+					: 0
+			)
 		);
 		const colorZValues = zValues.map((row) => row.map((value) => warpSurvivalForColor(value)));
 		const yLabels = spendingMultipliers.map((multiplier) => `${Math.round(multiplier * 100)}%`);
@@ -108,9 +138,11 @@
 				y: 0.5,
 				yanchor: 'middle'
 			},
-			customdata: zValues,
+			customdata: zValues.map((row, rowIndex) =>
+				row.map((survival, columnIndex) => [survival, cellMarginPercent[rowIndex][columnIndex]])
+			),
 			hovertemplate:
-				'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata:.1%}<extra></extra>'
+				'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
 		};
 
 		const layout = {
@@ -293,5 +325,18 @@
 	<div class="card chart-card chart-card-ruin">
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<!-- <div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div> -->
+		{#if surfaceSampleCount > 0}
+			<p
+				class="note"
+				title="Each cell replays the same stored set of simulated market paths against that cell's retirement age and spending level. Because every cell reuses the same paths, differences between neighbouring cells are more reliable than each cell's own margin suggests."
+			>
+				Each cell is estimated from {surfaceSampleCount.toLocaleString()} simulated paths, so individual
+				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise (hover a cell
+				for its own margin; cells near 0% or 100% are more precise). This sample is capped
+				independently of the “Simulations” setting — raising that number sharpens the summary
+				cards above, not this chart. Read it for the shape of the trade-off between retiring
+				earlier and spending more, rather than for any single cell's exact value.
+			</p>
+		{/if}
 	</div>
 {/if}

@@ -48,6 +48,9 @@ pub struct RuinSurface {
     pub retirement_ages: Vec<usize>,
     pub spending_multipliers: Vec<f64>,
     pub ruin_probabilities: Vec<Vec<f64>>,
+    /// Paths replayed per cell. Capped independently of `simulations`, so the UI must
+    /// report this rather than the run's simulation count when describing precision.
+    pub sample_count: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

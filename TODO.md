@@ -405,14 +405,25 @@ after pension starts") or offer a "broke ever / broke at end" toggle.
 
 ## Priority 3 — Convergence & Diagnostics
 
-### 3.1 Monte Carlo Convergence Diagnostic (S) — ✅ SHIPPED 2026-07-20
+### 3.1 Monte Carlo Convergence Diagnostic (S) — ✅ SHIPPED 2026-07-20 (heatmap 2026-07-21)
 The survival card now shows `±1.96·SE at 95% confidence (N simulations)` beneath the
 success probability, with $SE = \sqrt{p(1-p)/N}$ computed in `PlannerOutputCards.svelte`
 from the actual simulated count (e.g. "±0.4% at 95% confidence (20'000 simulations)").
-**Still open:** the ruin-surface heatmap has no equivalent — each cell replays a 2000-path
-subsample, so tail cells carry roughly ±1%, which is not surfaced anywhere. Worth a
-footnote on that chart.
-**Files:** `src/lib/components/PlannerOutputCards.svelte`
+**Ruin-surface heatmap — ✅ also done 2026-07-21.** Each cell now reports its own binomial
+margin on hover ("Survival 88.9% ±1.4%"), and a caption states the replay sample size and
+the worst-case margin across cells (±2.2% at the 50% mid-range, tighter near 0%/100%).
+The caption also says the thing users would otherwise get wrong: this sample is capped
+independently of the "Simulations" setting, so raising that number sharpens the summary
+cards but *not* this chart. `RuinSurface` gained a `sampleCount` field in both engines so
+the UI reads the real replay count instead of duplicating the cap constant; the parity
+suite asserts it.
+**Caveat recorded in the code:** cells share the same stored paths (common random
+numbers), so *differences* between neighbouring cells are steadier than each cell's
+absolute margin implies — which is why the caption steers readers toward the shape of the
+trade-off rather than any single cell's value.
+**Files:** `src/lib/components/PlannerOutputCards.svelte`,
+`src/lib/components/PlannerSecondaryPlot.svelte`, `rust-engine/src/{engine,stats}.rs`,
+`src/lib/retirementEngine.ts`
 
 ### 3.2 Mode Transparency in UI (S) — PARTIALLY DONE 2026-07-21
 **Done:** the collapsed Assumptions summary names the active mode and dataset

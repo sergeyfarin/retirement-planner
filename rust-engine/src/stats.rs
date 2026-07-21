@@ -225,6 +225,7 @@ pub fn build_ruin_surface(
         retirement_ages,
         spending_multipliers,
         ruin_probabilities,
+        sample_count: sampled_scenarios,
     }
 }
 
