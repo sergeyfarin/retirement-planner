@@ -89,6 +89,7 @@ function parseRawCsv(filePath) {
   const bondIndex = header.indexOf('bond_close');
   const cashIndex = header.indexOf('cash_rate_pct');
   const cpiIndex = header.indexOf('cpi_index');
+  const yieldIndex = header.indexOf('bond_yield_pct');
   if (dateIndex < 0 || equityIndex < 0 || bondIndex < 0 || cashIndex < 0) {
     throw new Error(`Invalid CSV header in ${filePath}`);
   }
@@ -101,7 +102,9 @@ function parseRawCsv(filePath) {
     const cashRatePct = Number(parts[cashIndex]);
     const rawCpi = cpiIndex >= 0 ? parts[cpiIndex]?.trim() : '';
     const cpiLevel = rawCpi ? Number(rawCpi) : NaN;
-    return { date, equityClose, bondClose, cashRatePct, cpiLevel };
+    const rawYield = yieldIndex >= 0 ? parts[yieldIndex]?.trim() : '';
+    const bondYieldPct = rawYield ? Number(rawYield) : NaN;
+    return { date, equityClose, bondClose, cashRatePct, cpiLevel, bondYieldPct };
   }).filter((row) => row.date && Number.isFinite(row.equityClose) && Number.isFinite(row.bondClose) && Number.isFinite(row.cashRatePct));
 }
 
@@ -259,6 +262,33 @@ function aggregateAnnualSeries(monthlyRows) {
   return annual;
 }
 
+// Latest observed yield levels, used by the "current conditions" preset. Starting yield
+// is a far better predictor of forward bond/cash returns than a multi-decade average,
+// which is standard capital-market-assumption practice.
+function latestYieldConditions(rows) {
+  let bondYieldPct = null;
+  let cashRatePct = null;
+  let asOf = null;
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index];
+    if (bondYieldPct == null && Number.isFinite(row.bondYieldPct)) {
+      bondYieldPct = row.bondYieldPct;
+      asOf = asOf ?? row.date;
+    }
+    if (cashRatePct == null && Number.isFinite(row.cashRatePct)) {
+      cashRatePct = row.cashRatePct;
+      asOf = asOf ?? row.date;
+    }
+    if (bondYieldPct != null && cashRatePct != null) break;
+  }
+  if (bondYieldPct == null || cashRatePct == null) return null;
+  return {
+    asOf,
+    bondYield: roundValue(bondYieldPct / 100),
+    cashRate: roundValue(cashRatePct / 100)
+  };
+}
+
 function summarizeRegion(annualSeries) {
   const equity = annualSeries.map((row) => row.equity);
   const bond = annualSeries.map((row) => row.bond);
@@ -341,6 +371,7 @@ function main() {
       code,
       label: config.label,
       ...summary,
+      currentConditions: latestYieldConditions(rows),
       annualSeries: normalizeAnnualSeries(annualSeries),
       monthlySeries: normalizeMonthlySeries(monthlySeries)
     };

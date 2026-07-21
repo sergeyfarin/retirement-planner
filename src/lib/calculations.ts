@@ -123,6 +123,8 @@ export type HistoricalRegionDataset = {
   };
   annualSeries: Array<{ year: number; equity: number; bond: number; cash: number }>;
   monthlySeries?: Array<{ month: string; equity: number; bond: number; cash: number; inflation?: number }>;
+  /** Latest observed yield levels, used to anchor forward-looking return assumptions. */
+  currentConditions?: { asOf: string; bondYield: number; cashRate: number } | null;
 };
 
 export type HistoricalMarketDataset = {
@@ -280,6 +282,45 @@ export function getHistoricalInvestmentMetrics(
     bankStd: region.assetMoments.cash.stdDev,
     bankSkew: region.assetMoments.cash.skewness,
     bankKurt: region.assetMoments.cash.kurtosis
+  };
+}
+
+/**
+ * Forward-looking return assumptions anchored to today's yields, in the style of
+ * institutional capital-market assumptions:
+ *
+ * - **Cash** → the current short rate.
+ * - **Bonds** → the current long yield. Starting yield is by far the best predictor of a
+ *   bond portfolio's forward return; a 65-year average return is not, because much of it
+ *   came from a one-off decline in yields that cannot repeat from today's level.
+ * - **Equity** → current long yield + the *historical* equity risk premium (equity
+ *   arithmetic mean − bond arithmetic mean), i.e. a standard build-up.
+ *
+ * Only the means move. Volatility, skewness and kurtosis stay at their historical values
+ * — the shape of the distribution is the part history estimates well.
+ */
+export function buildCurrentConditionsMetrics(
+  historicalMarketData: HistoricalMarketDataset | null,
+  currencyCode: CurrencyCode
+): { metrics: InvestmentMetricInputs; asOf: string; equityRiskPremium: number } | null {
+  const region = historicalMarketData?.regions?.[currencyCode];
+  const conditions = region?.currentConditions;
+  const historical = getHistoricalInvestmentMetrics(historicalMarketData, currencyCode);
+  if (!region || !conditions || !historical) return null;
+  if (!Number.isFinite(conditions.bondYield) || !Number.isFinite(conditions.cashRate)) return null;
+
+  const equityRiskPremium =
+    region.assetMoments.equity.arithmeticMean - region.assetMoments.bond.arithmeticMean;
+
+  return {
+    asOf: conditions.asOf,
+    equityRiskPremium,
+    metrics: {
+      ...historical,
+      stockMean: conditions.bondYield + equityRiskPremium,
+      bondMean: conditions.bondYield,
+      bankMean: conditions.cashRate
+    }
   };
 }
 

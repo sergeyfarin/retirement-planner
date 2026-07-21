@@ -54,7 +54,9 @@
 		resetBankMetricsToDefault,
 		resetInflationToDefault,
 		resetDragToDefault,
-		onAssumptionsToggle = undefined
+		onAssumptionsToggle = undefined,
+		currentConditions = null,
+		applyCurrentConditions = () => {}
 	}: {
 		CURRENCIES?: any[];
 		selectedCurrencyCode: any;
@@ -111,6 +113,12 @@
 		resetInflationToDefault: () => void;
 		resetDragToDefault: () => void;
 		onAssumptionsToggle?: () => void;
+		currentConditions?: {
+			asOf: string;
+			equityRiskPremium: number;
+			metrics: { stockMean: number; bondMean: number; bankMean: number };
+		} | null;
+		applyCurrentConditions?: () => void;
 	} = $props();
 
 	const DEFAULT_WITHDRAWAL_STRATEGY = {
@@ -555,6 +563,24 @@
 						Parametric<br />(User Inputs)
 					</button>
 				</div>
+				{#if currentConditions}
+					<div class="current-conditions-row">
+						<button
+							type="button"
+							class="btn-preset"
+							onclick={applyCurrentConditions}
+							title="Anchors expected returns to today's yields instead of a 65-year average: cash = current short rate, bonds = current 10y yield, equities = that yield plus the historical equity risk premium. Volatility and the shape of the return distribution stay historical."
+						>
+							Use today's yields
+						</button>
+						<span class="note current-conditions-note">
+							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
+							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
+							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks
+							<span class="current-conditions-asof">(as of {currentConditions.asOf})</span>
+						</span>
+					</div>
+				{/if}
 			</div>
 			{#if selectedHistoricalRegion}
 				{#if input.historicalMonthlyInflation?.length}

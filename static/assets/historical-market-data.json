@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T05:47:45.538Z",
+  "generatedAt": "2026-07-21T06:08:48.885Z",
   "methodology": {
     "frequency": "monthly -> annual",
     "annualization": "compound monthly returns within year",
@@ -102,6 +102,11 @@
           "skewness": 0.29325332772519824,
           "kurtosis": 2.583132601809558
         }
+      },
+      "currentConditions": {
+        "asOf": "2026-01",
+        "bondYield": 0.038372,
+        "cashRate": 0.03102576
       },
       "annualSeries": [
         {
@@ -6137,6 +6142,11 @@
           "kurtosis": 3.576689134385391
         }
       },
+      "currentConditions": {
+        "asOf": "2026-01",
+        "bondYield": 0.0421,
+        "cashRate": 0.0357
+      },
       "annualSeries": [
         {
           "year": 1961,
@@ -12171,6 +12181,11 @@
           "kurtosis": 2.386962711287314
         }
       },
+      "currentConditions": {
+        "asOf": "2026-01",
+        "bondYield": 0.04451,
+        "cashRate": 0.0371
+      },
       "annualSeries": [
         {
           "year": 1961,
@@ -18127,6 +18142,11 @@
           "skewness": 0.4771231682133102,
           "kurtosis": 2.8813132019202743
         }
+      },
+      "currentConditions": {
+        "asOf": "2026-01",
+        "bondYield": 0.02806667,
+        "cashRate": 0.02027727
       },
       "annualSeries": [
         {

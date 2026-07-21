@@ -27,8 +27,8 @@ Item numbers refer to the detailed entries below.
 **Phase 3 — Modeling upgrades:**
 11. ✅ Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
 12. ✅ Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
-13. "Current conditions" expected-return preset via moment targeting (yield-anchored means,
-    historical shape)
+13. ✅ "Current conditions" expected-return preset via moment targeting (yield-anchored means,
+    historical shape) — see 2.8
 
 **Phase 4 — Engineering health:**
 14. Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
@@ -383,6 +383,25 @@ salary-end age replaying stored growth factors, same trick as the ruin surface).
 ### 4.4 Regime Visualization in Timeline Chart (M)
 **Action:** Shade the background of the timeline fan chart to reflect whether the median path was in Crisis or Growth regime for each year. Builds user intuition about sequence risk.
 **Files:** `PlannerTimelinePlot.svelte`
+
+### 2.8 "Use today's yields" expected-return preset — ✅ SHIPPED 2026-07-21
+**Shipped:** raw CSVs gained a `bond_yield_pct` column (US GS10, UK/DE 10Y, WORLD as the
+same 50/20/30 blend used for bond returns), and the dataset exposes a per-region
+`currentConditions { asOf, bondYield, cashRate }`. `buildCurrentConditionsMetrics` builds
+forward assumptions the way institutional CMAs do: cash = current short rate, bonds =
+current long yield, equity = long yield + *historical* equity risk premium. Only means
+move; volatility/skew/kurtosis stay historical. Applied via Historical-with-Adjustments
+so real sequencing survives. As of 2026-01 this takes EUR from 7.8% → 4.7% expected
+portfolio return and the default scenario from 99% → 75% success.
+**Known limitation:** because it runs through moment targeting, the joint
+(return, inflation) bootstrap is off in this mode and inflation falls back to the
+regional parametric assumption (still user-editable).
+**Follow-ups:** anchor inflation to market-implied breakevens (FRED `T10YIE` for USD;
+inflation-swap equivalents are harder to source for EUR/GBP); consider a CAPE-based
+equity adjustment as an expert-tier option; revisit whether joint inflation can stay on
+under moment targeting (the affine transform preserves correlation, so it is defensible —
+the concern is only that explicit user inflation edits would be ignored).
+**Files:** `scripts/*.mjs`, `src/lib/calculations.ts`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 4.5 Reverse-Engineered CAGR Input (M)
 **Action:** Allow users to input their desired geometric mean (CAGR) directly. The engine reverse-calculates the required arithmetic mean: $\mu_{arith} \approx \mu_{geom} + \sigma^2/2$.

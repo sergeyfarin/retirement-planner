@@ -26,6 +26,7 @@
 		blendPortfolioMetrics as calcBlendPortfolioMetrics,
 		buildPortfolioHistoricalMonthlyReturns as calcBuildPortfolioHistoricalMonthlyReturns,
 		buildPortfolioHistoricalMonthlySeries as calcBuildPortfolioHistoricalMonthlySeries,
+		buildCurrentConditionsMetrics as calcBuildCurrentConditionsMetrics,
 		buildPortfolioHistoricalReturns as calcBuildPortfolioHistoricalReturns,
 		buildRegimeModelFromPortfolio as calcBuildRegimeModelFromPortfolio,
 		clamp as calcClamp,
@@ -1268,6 +1269,25 @@
 		applyReferenceDefaults(selectedCurrencyCode);
 	}
 
+	const currentConditions = $derived(
+		calcBuildCurrentConditionsMetrics(historicalMarketData, selectedCurrencyCode)
+	);
+
+	/**
+	 * Switches the return assumptions to today's yields (see
+	 * `buildCurrentConditionsMetrics`). Runs in Historical-with-Adjustments mode so the
+	 * bootstrap keeps real historical sequencing and volatility while its means are
+	 * shifted to the forward-looking targets. Inflation is left at the regional
+	 * assumption and stays user-editable.
+	 */
+	function applyCurrentConditions() {
+		if (!currentConditions) return;
+		parametricMetrics = { ...parametricMetrics, ...currentConditions.metrics };
+		input.simulationMode = 'historical';
+		input.historicalMomentTargeting = true;
+		onSimulationSettingsChange();
+	}
+
 	function resetStockMetricsToDefault() {
 		const reference = selectedAssumptionReference.stockMetric;
 		const historicalMetric = selectedHistoricalRegion?.assetMoments.equity;
@@ -2301,6 +2321,8 @@
 		{resetInflationToDefault}
 		{resetDragToDefault}
 		onAssumptionsToggle={() => drawRealReturnCdfChart()}
+		{currentConditions}
+		{applyCurrentConditions}
 	/>
 
 	<section class="right-panel">

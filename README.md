@@ -12,9 +12,10 @@ The calculator projects portfolio balances from a starting age through a configu
 
 | Aspect | Approach |
 |---|---|
-| Return generation | Regime-switching block bootstrap from historical data, with parametric Cornish-Fisher fallback |
-| Inflation | Regime-conditioned parametric monthly draws (higher mean in crisis regimes) |
+| Return generation | Regime-switching block bootstrap from historical data, with parametric Cornish-Fisher fallback. Optional forward-looking means anchored to today's yields (§4.4.1) |
+| Inflation | Bootstrapped jointly with returns from the same historical month, preserving their correlation and inflation persistence; regime-conditioned parametric draws as fallback (§5.3) |
 | Cash flows | Age-gated income/spending periods + lump-sum events, all in real terms |
+| Withdrawals | Fixed real spending, Guyton-Klinger guardrails, or percent-of-portfolio (§5.1.1) |
 | Reproducibility | Optional seeded PRNG (`mulberry32`); default unseeded behavior when no seed is provided |
 | Output | Percentile fan chart, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis |
 | Multi-asset | Three-asset allocation (stocks / bonds / cash) with configurable equity-bond correlation |
@@ -29,7 +30,7 @@ scripts/
   import-retirement-market-data.mjs      ← Fetches raw monthly prices from Stooq + FRED
   preprocess-retirement-market-data.mjs  ← Converts to annual/monthly return series + moments
 
-data/retirement/raw/*.csv                ← Monthly equity-close, bond-close, cash-rate, CPI per region
+data/retirement/raw/*.csv                ← Monthly equity/bond closes, cash rate, CPI, bond yield per region
 
 static/assets/
   historical-market-data.json            ← Preprocessed returns consumed at runtime
@@ -180,6 +181,39 @@ When `historicalMomentTargeting` is enabled in Historical mode, each bootstrap s
 $$r' = \mu_{target} + \frac{r - \mu_{source}}{\sigma_{source}} \cdot \sigma_{target}$$
 
 This preserves the ordering and autocorrelation of historical sequences while shifting their first two moments to the user's targets.
+
+### 4.4.1 "Use today's yields" — Current-Conditions Assumptions
+
+Historical averages are a poor forecast of *bond* returns: much of the 1960–2026 bond
+return came from yields falling from double digits, which cannot repeat from today's
+level. The **Use today's yields** preset therefore rebuilds the return means the way
+institutional capital-market assumptions do, from the latest observed yields shipped in
+the dataset (`currentConditions`, sourced from the `bond_yield_pct` / `cash_rate_pct`
+columns):
+
+| Asset | Forward mean |
+|---|---|
+| Cash | current short rate |
+| Bonds | current long yield |
+| Equity | current long yield + historical equity risk premium (equity mean − bond mean) |
+
+**Only the means change.** Volatility, skewness, kurtosis and the bootstrap's real
+historical sequencing are retained — the shape of the distribution is the part history
+estimates well. The preset runs in Historical-with-Adjustments mode, so the moment
+targeting of §4.4 shifts the sampled historical series onto these targets.
+
+As of the shipped 2026-01 data:
+
+| Region | Cash | Bonds | Equity (forward) | Equity (historical) |
+|---|---|---|---|---|
+| USD | 3.6% | 4.2% | 9.9% | 12.0% |
+| EUR | 2.0% | 2.8% | 6.1% | 9.3% |
+| GBP | 3.7% | 4.5% | 7.7% | 11.3% |
+| WORLD | 3.1% | 3.8% | 9.4% | 12.1% |
+
+> Because this mode uses moment targeting, the joint (return, inflation) bootstrap of
+> §5.3 is inactive and inflation falls back to the regional parametric assumption, which
+> remains user-editable. Anchoring inflation to market-implied breakevens is future work.
 
 ### 4.5 Cornish-Fisher Expansion (`drawCornishFisherScore`)
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createRandomSource } from './calculations';
+import {
+  buildCurrentConditionsMetrics,
+  createRandomSource,
+  type HistoricalMarketDataset
+} from './calculations';
 import {
   buildCashflowArrays,
   detectRegimes,
@@ -217,6 +221,55 @@ describe('annual net-gain taxation', () => {
     const effectiveAnnualDrag = 1 - Math.pow(medianWithTax / medianNoTax, 1 / years);
     expect(effectiveAnnualDrag).toBeGreaterThan(0.008);
     expect(effectiveAnnualDrag).toBeLessThan(0.025);
+  });
+});
+
+describe('current-conditions expected returns', () => {
+  const dataset = {
+    generatedAt: '2026-07-21T00:00:00.000Z',
+    methodology: { frequency: '', annualization: '', cash: '' },
+    regions: {
+      USD: {
+        code: 'USD' as const,
+        label: 'United States',
+        years: [2024],
+        sampleSize: 1,
+        coverage: '1961-2025',
+        assetMoments: {
+          equity: { arithmeticMean: 0.12, geometricMean: 0.106, stdDev: 0.165, skewness: -0.3, kurtosis: 3.4 },
+          bond: { arithmeticMean: 0.063, geometricMean: 0.058, stdDev: 0.092, skewness: 0.2, kurtosis: 3.9 },
+          cash: { arithmeticMean: 0.045, geometricMean: 0.045, stdDev: 0.033, skewness: 0.5, kurtosis: 2.8 }
+        },
+        annualSeries: [],
+        currentConditions: { asOf: '2026-01', bondYield: 0.0421, cashRate: 0.0357 }
+      }
+    }
+  } as unknown as HistoricalMarketDataset;
+
+  it('anchors means to current yields while keeping historical shape', () => {
+    const result = buildCurrentConditionsMetrics(dataset, 'USD');
+    expect(result).not.toBeNull();
+
+    // ERP = historical equity mean − historical bond mean = 12% − 6.3% = 5.7%
+    expect(result!.equityRiskPremium).toBeCloseTo(0.057, 6);
+    // Bonds and cash take today's yields directly; equity is yield + ERP.
+    expect(result!.metrics.bondMean).toBeCloseTo(0.0421, 6);
+    expect(result!.metrics.bankMean).toBeCloseTo(0.0357, 6);
+    expect(result!.metrics.stockMean).toBeCloseTo(0.0421 + 0.057, 6);
+    // Only means move — the distribution's shape stays historical.
+    expect(result!.metrics.stockStd).toBeCloseTo(0.165, 6);
+    expect(result!.metrics.bondStd).toBeCloseTo(0.092, 6);
+    expect(result!.metrics.stockSkew).toBeCloseTo(-0.3, 6);
+    expect(result!.metrics.bondKurt).toBeCloseTo(3.9, 6);
+    expect(result!.asOf).toBe('2026-01');
+  });
+
+  it('returns null when the dataset has no current-conditions block', () => {
+    const withoutConditions = {
+      ...dataset,
+      regions: { USD: { ...dataset.regions.USD, currentConditions: null } }
+    } as unknown as HistoricalMarketDataset;
+    expect(buildCurrentConditionsMetrics(withoutConditions, 'USD')).toBeNull();
   });
 });
 

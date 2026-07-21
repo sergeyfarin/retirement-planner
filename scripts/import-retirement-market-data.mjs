@@ -200,16 +200,21 @@ function mergeRows(equityCloseMap, bondCloseMap, cashRateMap) {
   return rows;
 }
 
+const RAW_CSV_HEADER = 'date,equity_close,bond_close,cash_rate_pct,cpi_index,bond_yield_pct';
+
 function toCsv(regionCode, sourceLines, rows) {
   const lines = [];
   lines.push(`# region=${regionCode}`);
   for (const line of sourceLines) {
     lines.push(`# ${line}`);
   }
-  lines.push('date,equity_close,bond_close,cash_rate_pct,cpi_index');
+  lines.push(RAW_CSV_HEADER);
   for (const row of rows) {
     const cpi = Number.isFinite(row.cpiIndex) ? row.cpiIndex : '';
-    lines.push(`${row.month},${row.equityClose},${row.bondClose},${row.cashRatePct},${cpi}`);
+    const bondYield = Number.isFinite(row.bondYieldPct) ? row.bondYieldPct : '';
+    lines.push(
+      `${row.month},${row.equityClose},${row.bondClose},${row.cashRatePct},${cpi},${bondYield}`
+    );
   }
   return `${lines.join('\n')}\n`;
 }
@@ -228,6 +233,45 @@ const CPI_SOURCES = {
   },
   WORLD: { primary: 'CPIAUCSL', label: 'US CPI-U (CPIAUCSL, FRED) — WORLD returns are USD-denominated' }
 };
+
+// Long-bond yield level per region. The starting yield is the single best predictor of
+// a bond portfolio's forward return, so it anchors the "current conditions" preset.
+// WORLD uses the same 50/20/30 US/UK/DE weighting as its bond return blend.
+const BOND_YIELD_SOURCES = {
+  USD: { series: [{ id: 'GS10', weight: 1 }], label: 'US 10Y (GS10, FRED)' },
+  GBP: { series: [{ id: 'IRLTLT01GBM156N', weight: 1 }], label: 'UK 10Y (IRLTLT01GBM156N, FRED)' },
+  EUR: { series: [{ id: 'IRLTLT01DEM156N', weight: 1 }], label: 'German 10Y (IRLTLT01DEM156N, FRED)' },
+  WORLD: {
+    series: [
+      { id: 'GS10', weight: 0.5 },
+      { id: 'IRLTLT01GBM156N', weight: 0.2 },
+      { id: 'IRLTLT01DEM156N', weight: 0.3 }
+    ],
+    label: 'weighted 10Y yields: US 50% / UK 20% / DE 30% (FRED)'
+  }
+};
+
+async function fetchRegionBondYield(regionCode) {
+  const config = BOND_YIELD_SOURCES[regionCode];
+  if (!config) return { series: new Map(), label: 'none' };
+  const fetched = await Promise.all(
+    config.series.map(async (part) => ({ weight: part.weight, values: await fetchFredSeries(part.id) }))
+  );
+  const months = monthSetUnion(fetched.map((part) => part.values));
+  const out = new Map();
+  for (const month of months) {
+    let weighted = 0;
+    let weightSum = 0;
+    for (const part of fetched) {
+      const value = part.values.get(month);
+      if (!Number.isFinite(value)) continue;
+      weighted += part.weight * value;
+      weightSum += part.weight;
+    }
+    if (weightSum > 0) out.set(month, weighted / weightSum);
+  }
+  return { series: out, label: config.label };
+}
 
 async function fetchRegionCpi(regionCode) {
   const config = CPI_SOURCES[regionCode];
@@ -264,29 +308,44 @@ function parseExistingCsv(filePath) {
   return { comments, rows };
 }
 
-// `--cpi-only` adds/refreshes just the cpi_index column on the existing raw CSVs,
-// leaving the committed market-data vintage byte-for-byte intact.
-async function mergeCpiIntoExistingCsvs(regionToFile) {
+// `--merge-rates` adds/refreshes only the derived rate columns (cpi_index,
+// bond_yield_pct) on the existing raw CSVs, leaving the committed market-data vintage
+// byte-for-byte intact. Use a full import to refresh prices themselves.
+async function mergeRatesIntoExistingCsvs(regionToFile) {
   for (const [regionCode, fileName] of Object.entries(regionToFile)) {
     const filePath = path.join(outDir, fileName);
     const { comments, rows } = parseExistingCsv(filePath);
-    const { series: cpi, label } = await fetchRegionCpi(regionCode);
+    const { series: cpi, label: cpiLabel } = await fetchRegionCpi(regionCode);
+    const { series: bondYield, label: yieldLabel } = await fetchRegionBondYield(regionCode);
 
-    const keptComments = comments.filter((line) => !line.startsWith('# cpi_source='));
-    keptComments.push(`# cpi_source=${label}`);
+    const keptComments = comments.filter(
+      (line) => !line.startsWith('# cpi_source=') && !line.startsWith('# bond_yield_source=')
+    );
+    keptComments.push(`# cpi_source=${cpiLabel}`);
+    keptComments.push(`# bond_yield_source=${yieldLabel}`);
 
-    const lines = [...keptComments, 'date,equity_close,bond_close,cash_rate_pct,cpi_index'];
+    const lines = [...keptComments, RAW_CSV_HEADER];
     let withCpi = 0;
+    let withYield = 0;
     for (const row of rows) {
-      const value = cpi.get(row.date);
-      if (Number.isFinite(value)) withCpi++;
+      const cpiValue = cpi.get(row.date);
+      const yieldValue = bondYield.get(row.date);
+      if (Number.isFinite(cpiValue)) withCpi++;
+      if (Number.isFinite(yieldValue)) withYield++;
       lines.push(
-        `${row.date},${row.equity_close},${row.bond_close},${row.cash_rate_pct},${Number.isFinite(value) ? value : ''}`
+        [
+          row.date,
+          row.equity_close,
+          row.bond_close,
+          row.cash_rate_pct,
+          Number.isFinite(cpiValue) ? cpiValue : '',
+          Number.isFinite(yieldValue) ? yieldValue : ''
+        ].join(',')
       );
     }
     writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
     console.log(
-      `[retirement-import] ${regionCode}: cpi_index merged for ${withCpi}/${rows.length} months -> ${filePath}`
+      `[retirement-import] ${regionCode}: cpi_index ${withCpi}/${rows.length}, bond_yield_pct ${withYield}/${rows.length} -> ${filePath}`
     );
   }
 }
@@ -476,8 +535,8 @@ async function main() {
     EUR: 'eur.csv'
   };
 
-  if (process.argv.includes('--cpi-only')) {
-    await mergeCpiIntoExistingCsvs(regionToFile);
+  if (process.argv.includes('--merge-rates')) {
+    await mergeRatesIntoExistingCsvs(regionToFile);
     return;
   }
 
@@ -489,11 +548,17 @@ async function main() {
     }
 
     const { series: cpi, label: cpiLabel } = await fetchRegionCpi(regionCode);
+    const { series: bondYield, label: yieldLabel } = await fetchRegionBondYield(regionCode);
     for (const row of rows) {
       row.cpiIndex = cpi.get(row.month);
+      row.bondYieldPct = bondYield.get(row.month);
     }
 
-    const csv = toCsv(regionCode, [...regionData.sourceLines, `cpi_source=${cpiLabel}`], rows);
+    const csv = toCsv(
+      regionCode,
+      [...regionData.sourceLines, `cpi_source=${cpiLabel}`, `bond_yield_source=${yieldLabel}`],
+      rows
+    );
     const filePath = path.join(outDir, regionToFile[regionCode]);
     writeFileSync(filePath, csv, 'utf8');
     console.log(`[retirement-import] ${regionCode}: ${rows.length} rows (${rows[0].month} -> ${rows[rows.length - 1].month}) -> ${filePath}`);
