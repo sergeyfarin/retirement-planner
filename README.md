@@ -161,11 +161,17 @@ After detection, returns are partitioned into growth and crisis pools for **bloc
 
 ### 4.3 Return Sampling — Three Modes
 
-**Mode A — Monthly Block Bootstrap (≥ 120 monthly data points):**
-- Each month, regime transitions via the monthly Markov chain
-- A contiguous block of `blockLength` months (default 6) is drawn from the regime pool
-- Sequential months within the block preserve autocorrelation, momentum, and volatility clustering
-- On regime change, a new random block start is drawn
+**Mode A — Monthly Circular Block Bootstrap (≥ 120 monthly data points):**
+- A contiguous block of `blockLength` months (default 6) is drawn from the current regime's
+  pool; sequential months within the block preserve autocorrelation, momentum and
+  volatility clustering
+- The block index wraps (`% length`), making this a **circular** block bootstrap
+  (Politis & Romano), whose defining property is that the resampled mean is unbiased for
+  the sample mean — unlike the moving block bootstrap, which under-samples the ends
+- The Markov chain transitions each month but is only *consulted* at block boundaries, to
+  choose which pool the next block comes from
+
+> **How much is the regime layer actually doing? Very little — see the note below.**
 
 > **Fixed 2026-07-21 (TODO 0.11).** The block used to be abandoned whenever the regime
 > switched, not only when it ran out. Because a freshly drawn block always *starts* on a
@@ -179,6 +185,23 @@ After detection, returns are partitioned into growth and crisis pools for **bloc
 > The cost is that a regime switch is felt at the next block boundary rather than
 > immediately, a lag of at most `blockLength` months. A regression test pins the
 > mean-preserving property.
+
+> **Measured limitation of the regime layer in Mode A (2026-07-21).** After removing the
+> sampling bias, the regime-conditioned bootstrap was compared against a plain circular
+> block bootstrap with no regime conditioning at all, on the shipped data. They are
+> statistically indistinguishable — mean, crisis-month frequency, and both the median and
+> 5th-percentile worst rolling 12-month window all agree to within noise. The reason is
+> structural rather than a bug: the regime probabilities are estimated from the same labels
+> being resampled, so selecting a pool with the stationary probability is equivalent to
+> sampling unconditionally. Measured regime persistence at consecutive block starts is
+> 56.5% against 55.4% expected by chance, because crisis runs (~3 months) are shorter than
+> the 6-month block, so the chain fully mixes inside a single block.
+>
+> **The clustering and sequence risk this model produces come from the block bootstrap, not
+> from the regime switching.** That is still a real and valuable property — blocks replay
+> genuine historical runs — but the regime layer should not be credited for it. Making the
+> regimes bite would require regime runs long relative to `blockLength`, or a transition
+> matrix specified independently of the empirical label frequencies. See `TODO.md` 0.12.
 
 **Mode B — Annual Bootstrap with Intra-Year Spread (fallback when monthly data unavailable):**
 - Every 12 months, a historical annual return $r_a$ is drawn from the regime pool
@@ -552,7 +575,7 @@ simplifications.
 | Spending strategy (fixed / guardrails / percent-of-portfolio) | Fixed default is conservative | Adaptive strategies available (§5.1.1), added 2026-07-20 |
 | Split fee/tax costs | Improved | More interpretable than single drag |
 | Monthly time step | Good | Sufficient for retirement horizon |
-| Two regimes (Growth/Crisis) | Good | Captures main market dynamics |
+| Two regimes (Growth/Crisis) | **Contributes nothing measurable in Mode A** | Clustering comes from the block bootstrap; regime layer is near-vacuous once unbiased (§4.3, TODO 0.12). Still drives Mode C's parametric generator |
 | Historical bootstrap for calibration | Good | Data-driven, adapts to region |
 | Variance-preserving regime decomposition | Good | Total σ is preserved exactly |
 | Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |

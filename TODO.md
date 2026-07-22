@@ -322,6 +322,29 @@ autocorrelation the block bootstrap exists to preserve:
 age 55 → 50. Every number moves in the optimistic direction, because the old sampler was
 systematically pessimistic.
 
+
+**Cross-checked against the literature after the fix, because "it now matches the source
+mean" is not self-evidently the right target.**
+
+- The sampler wraps its block index (`% len`), which makes it a **circular block
+  bootstrap**. The CBB was introduced by Politis & Romano precisely because the moving
+  block bootstrap under-samples observations at the ends of the series; its stated
+  advantage is that **the resampled sample mean is unbiased**. Matching the source mean is
+  therefore this method's own design property, not a metric imposed after the fact.
+- In Hamilton-type Markov switching models the unconditional mean is the
+  stationary-probability-weighted average of the regime means. Since the transition
+  probabilities here are *estimated from the detected labels*, the implied unconditional
+  mean is the sample mean by construction. The old sampler contradicted its own chain: the
+  chain implied 33.5% crisis months, the sampler delivered 35.4%.
+
+**Cases where a deviation would be legitimate, and why none apply here:** conditioning the
+start on a known current regime (the engine draws the initial state from the stationary
+distribution, so it is unconditional); deliberate stress-testing (should be an explicit,
+documented parameter, not an emergent artifact); moment-targeting mode (deliberate, and
+unaffected by this change); the parametric generator (Mode C, different code path); and
+moving-block edge bias (real, but O(b/n) ≈ 0.8% here, and removed by the circular wrap).
+The fix was also verified to hold at block lengths 2, 3 and 6.
+
 **Regression guard:** `retirementEngine.test.ts`, "regime bootstrap is mean-preserving",
 asserts the engine's median real growth tracks the geometric mean of the series it was
 handed within 0.35pp over a 50-year horizon. Verified it fails on the old sampler (measured
@@ -332,6 +355,48 @@ handed within 0.35pp over a 50-year horizon. Verified it fails on the old sample
 biased and worse at preserving clustering, and that a "regime" is by construction a
 multi-month state, this is the better side of the trade.
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`
+
+### 0.12 The regime layer contributes nothing measurable in Mode A (M) — found 2026-07-21
+**Found while validating the 0.11 fix.** With the sampling bias removed, the
+regime-conditioned block bootstrap was compared against a plain circular block bootstrap
+with no regime conditioning whatsoever, same data and seed, 6,000 paths × 55 years:
+
+| EUR, blockLength 6 | mean gap | crisis freq | worst 12m, median | worst 12m, P05 |
+|---|---|---|---|---|
+| regime-conditioned | +0.01pp | 1.00× | −25.5% | −35.4% |
+| **no regimes at all** | +0.01pp | 1.00× | −25.6% | −35.0% |
+
+Statistically indistinguishable, and the same holds for USD and at block lengths 3 and 2.
+
+**Why — structural, not a bug.** The transition probabilities are estimated from the same
+labels being resampled, so choosing a pool with the stationary probability is equivalent to
+sampling unconditionally. Measured persistence confirms it: the regime is the same at
+consecutive block starts 56.5% of the time against 55.4% by chance, because crisis runs
+(~3.1 months) are shorter than the 6-month block, so the chain mixes completely inside one
+block. The regime state is simply never consulted at a moment when it carries information.
+
+**What this means.** The clustering and sequence risk the model produces are real, but they
+come from the **block bootstrap** replaying genuine historical runs — not from the regime
+switching. The old sampler's apparent regime "effect" was the 0.11 bias. README §4.1/§4.3
+and §10 now say so rather than crediting the regime layer.
+
+**Options, needs a decision:**
+1. **Accept and relabel** — Mode A is a circular block bootstrap; drop the regime machinery
+   from that path and keep it for Mode C's parametric generator, where it genuinely drives
+   the process. Simplest, and removes code that implies more than it delivers.
+2. **Make regimes bite** — require regime runs long relative to `blockLength` (e.g. detect
+   regimes on 12-month windows so crisis runs span several blocks), or specify the
+   transition matrix independently of the empirical label frequencies. This would make
+   crisis persistence a real modelled effect rather than an artifact, but it deliberately
+   moves the simulated distribution away from the source, so it must be explicit and
+   documented.
+3. Leave as is, documented.
+
+Worth resolving before any further calibration work: option 2 in particular would
+re-introduce a deliberate deviation from the historical mean, which must not be confused
+with the accidental one that 0.11 removed.
+**Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/engine2.rs` (regime detection),
+`src/lib/retirementEngine.ts`
 
 ## Priority 1 — Engineering Health
 
