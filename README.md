@@ -159,12 +159,27 @@ When historical returns are available (≥ 25 annual or ≥ 120 monthly observat
 
 After detection, returns are partitioned into growth and crisis pools for **block bootstrap** sampling.
 
+### 4.2.1 What the three UI buttons map to
+
+The "Simulation mode and assumptions" toggle in the app maps onto the sampling modes below.
+The distinction between the first two is the one users most often miss, so it is stated
+explicitly here and in the UI:
+
+| UI button | Sampling | Return moments | Inflation | Use it when |
+|---|---|---|---|---|
+| **Historical Data Sampling** | Mode A block bootstrap of real months | **Taken from history** — the assumption table is read-only | Joint: read from the *same real month* as the return (§5.3 Mode A) | You want the most faithful replay of what markets actually did |
+| **Historical (with Adjustments)** | Mode A block bootstrap of the *same* real months | **Your targets** — the sampled series is affine-shifted to your mean/σ (§4.4) | Falls back to the modelled parametric draw, because the shift breaks the month-for-month pairing | You want history's *shape* but different average returns — "what if the next 30 years are worse?" |
+| **Parametric (User Inputs)** | Mode C — no historical data at all | Your inputs, via the regime-switching generator | Modelled parametric draw | You want a purely hypothetical market |
+
+The "Use today's yields" preset (§4.4.1) switches to **Historical (with Adjustments)**,
+because anchoring returns to current yields is exactly a moment-targeting operation.
+
 ### 4.3 Return Sampling — Three Modes
 
 **Mode A — Monthly Circular Block Bootstrap (≥ 120 monthly data points):**
-- A contiguous block of `blockLength` months (default 6) is drawn from the current regime's
-  pool; sequential months within the block preserve autocorrelation, momentum and
-  volatility clustering
+- A contiguous block of `blockLength` months (**default 6**, see below) is drawn from the
+  current regime's pool; sequential months within the block preserve autocorrelation,
+  momentum and volatility clustering
 - The block index wraps (`% length`), making this a **circular** block bootstrap
   (Politis & Romano), whose defining property is that the resampled mean is unbiased for
   the sample mean — unlike the moving block bootstrap, which under-samples the ends
@@ -185,6 +200,28 @@ After detection, returns are partitioned into growth and crisis pools for **bloc
 > The cost is that a regime switch is felt at the next block boundary rather than
 > immediately, a lag of at most `blockLength` months. A regression test pins the
 > mean-preserving property.
+
+#### Where the default block length comes from
+
+`blockLength` is the main control over how sustained simulated downturns are, so it is
+chosen by a published procedure rather than by taste. `scripts/analyze-block-length.mjs`
+(`pnpm run data:retirement:blocklength`) implements the automatic block-length selection of
+**Politis & White (2004)** with the **Patton, Politis & White (2009)** correction, matching
+the reference implementations in `np::b.star` and R's `blocklength::pwsd`. The script
+self-validates against AR(1) series with known dependence before reporting anything.
+
+On the shipped data it returns a median optimal length of **2.9 months** (range 1.0–12.7
+across regions and allocations). The default of 6 sits just above that median: inside the
+procedure's range, and leaning slightly long, which preserves a little more dependence for
+path simulation than the point estimate.
+
+> Note for readers comparing against other tools: practitioner planning tooling sometimes
+> uses much longer blocks (e.g. a 120-month average with the stationary bootstrap). That is
+> not a contradiction — PWSD optimises estimation of the variance of a *statistic*, whereas
+> very long blocks aim to reproduce multi-year *path* dynamics. These monthly series carry
+> little short-lag autocorrelation (the procedure's `m_hat` is 1 almost everywhere), so the
+> data-driven answer for this estimator is short. Re-run the script whenever the market data
+> is refreshed.
 
 > **Measured limitation of the regime layer in Mode A (2026-07-21).** After removing the
 > sampling bias, the regime-conditioned bootstrap was compared against a plain circular

@@ -423,7 +423,7 @@ after 0.11 moved them ~57%); rejected option 2 (measured ineffective). README §
 assumptions table already state that clustering comes from the block bootstrap rather than
 the regime layer. **The follow-on question worth real effort is block length — see 0.13.**
 
-### 0.13 `blockLength = 6` is an unexamined magic number, and it flattens the term structure of risk (M) — found 2026-07-21
+### 0.13 `blockLength = 6` was an unexamined magic number — ✅ RESOLVED 2026-07-21 (kept at 6, now cited)
 **Found while resolving 0.12.** The default block length appears as a bare `6` in three
 places (`simulation.rs`, `retirementEngine.ts`, `RetirementPlanner.svelte`) with no stated
 justification anywhere in the code or docs. It is the single biggest lever on simulated
@@ -495,6 +495,59 @@ a retirement simulation needs.
 4. Surface `blockLength` in the UI as what it actually is: the control over how sustained
    simulated downturns are. It is currently buried in Advanced tuning with a purely
    mechanical description.
+
+
+---
+
+#### Resolved 2026-07-21 — the guess is now a citation
+
+`scripts/analyze-block-length.mjs` implements Politis & White (2004) with the Patton,
+Politis & White (2009) correction, following the reference implementations (`np::b.star`,
+R `blocklength::pwsd`). Run it with `pnpm run data:retirement:blocklength`; re-run whenever
+the market data is refreshed.
+
+**The implementation is validated before it is trusted**, against cases whose answer is
+known in advance — the block length rises monotonically with AR(1) dependence
+(φ = 0 → 2.9, 0.3 → 4.7, 0.5 → 8.8, 0.8 → 15.0) and the ratio b_CB / b_SB reproduces the
+analytic value (2 / (4/3))^(1/3) = 1.1447 to four decimals.
+
+**Result on the shipped data — b_CB, the fixed-length circular bootstrap figure:**
+
+| allocation | WORLD | USD | GBP | EUR |
+|---|---|---|---|---|
+| 100/0/0 | 2.7 | 1.0 | 1.8 | 2.4 |
+| 60/30/10 | 3.0 | 1.9 | 3.2 | 2.5 |
+| 20/40/40 | 4.6 | 12.7 | 5.4 | 3.6 |
+
+Across all regions × allocations: min 1.0, **median 2.9**, max 12.7.
+
+**This overturns the expectation set earlier in this item.** The data-driven procedure says
+roughly **3 months**, not the ~120 that practitioner planning tooling uses. The existing
+default of 6 is therefore already in the right region — within a factor of two of the
+PWSD median, and comfortably inside its cross-sectional range.
+
+**Why the literature appeared to disagree, resolved:** PWSD optimises estimation of the
+variance *of a scalar statistic*, and these monthly series carry very little short-lag
+autocorrelation (m_hat = 1 for almost every region and allocation), so short blocks suffice
+for that objective. The 120-month figure targets a different objective — reproducing
+multi-year path dynamics. The two numbers answer different questions, and PWSD is the one
+with a defensible estimator behind it.
+
+**Consequence for the variance-ratio finding above:** the flat VR term structure at block 6
+is largely *unavoidable* at any PWSD-defensible block length, because the dependence simply
+is not there at short lags. Combined with the fact that the long-horizon source VR figures
+rest on ~6.6 non-overlapping windows and are noise-dominated, the earlier framing of this as
+a "deficiency" was too strong.
+
+**Decision: keep the default at 6 months, now documented and cited.** It sits just above the
+PWSD median, which preserves marginally more dependence for path simulation than the
+point estimate — a defensible lean for a long-horizon planner — while staying within the
+procedure's range. Not changed to 3, because that would slightly *reduce* dependence
+preservation for no measured benefit and would churn user results again.
+
+**Still open, optional:** the stationary bootstrap (geometric random block lengths) remains
+attractive on robustness grounds, being "less sensitive to block size misspecification".
+Lower priority now that the fixed length is shown to be defensible.
 
 **Do not** treat this as a bug fix. Unlike 0.11 there is no provably correct target; it is a
 modelling choice that should be made explicitly and disclosed, not silently changed.

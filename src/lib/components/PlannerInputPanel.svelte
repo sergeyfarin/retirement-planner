@@ -533,6 +533,7 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
+						title="Replays real market history. Stitches together runs of actual past months in their original order. Returns and inflation are taken from the same real months, so the two stay linked. Averages match history and cannot be edited — the table below is read-only in this mode."
 					>
 						Historical<br />Data Sampling
 					</button>
@@ -546,6 +547,7 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'historical' && input.historicalMomentTargeting}
+						title="The same real market history, rescaled to return targets you choose. Keeps history's shape — the crashes, recoveries and clustering — while sliding average return and volatility to your numbers. Use it to ask 'what if returns are worse than the past?'. Trade-off: inflation reverts to a modelled draw, so the return/inflation link is lost."
 					>
 						Historical <br />(with Adjustments)
 					</button>
@@ -559,6 +561,7 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'parametric'}
+						title="Uses no historical data. Returns are generated from a statistical model built only from the numbers you enter, via a two-state growth/crisis regime switcher with fat-tailed draws. Most flexible and least anchored to reality — for exploring hypothetical markets rather than planning against history."
 					>
 						Parametric<br />(User Inputs)
 					</button>
@@ -582,6 +585,24 @@
 					</div>
 				{/if}
 			</div>
+			<p class="mode-explainer">
+				{#if input.simulationMode === 'parametric'}
+					<strong>Uses no historical data.</strong> Returns are generated from a statistical model
+					built only from the numbers you enter below. Most flexible, least anchored to what
+					markets actually did.
+				{:else if input.historicalMomentTargeting}
+					<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the
+					crashes, recoveries and clustering — but slides average return and volatility to the
+					values you set below. Answers “what if returns are worse than the past?”. Inflation falls
+					back to a modelled draw in this mode.
+				{:else}
+					<strong>Replays real market history.</strong> Stitches together runs of actual past
+					months in their original order. Returns and inflation come from the same real months, so
+					high-inflation periods land on the markets that truly accompanied them. Averages match
+					history, so the table below is read-only.
+				{/if}
+			</p>
+
 			{#if selectedHistoricalRegion}
 				{#if input.historicalMonthlyInflation?.length}
 					<p
@@ -1096,10 +1117,14 @@
 						bind:value={input.blockLength}
 						oninput={onSimulationSettingsChange}
 						class="w-16 text-center"
+						title="How many consecutive real months are replayed before jumping elsewhere in history. Longer blocks keep whole bear markets intact; shorter blocks chop history finer and average the bad runs away. The default of 6 is set by the Politis-White (2004) automatic block-length procedure run on this dataset — see scripts/analyze-block-length.mjs."
 					/>
-					<span class="text-xs text-slate-500 opacity-80 leading-tight"
-						>Length of historical sequences drawn during block bootstrapping.</span
-					>
+					<span class="text-xs text-slate-500 opacity-80 leading-tight">
+						Consecutive real months replayed before jumping elsewhere in history.
+						<strong>The main lever on how severe sustained downturns are</strong> — longer keeps
+						whole bear markets intact, shorter averages them away. The default of 6 comes from the
+						Politis-White procedure run on this data, not from taste.
+					</span>
 				</div>
 			</div>
 			<div>
@@ -1119,10 +1144,17 @@
 							onSimulationSettingsChange();
 						}}
 						class="w-16 text-center"
+						title="How much higher inflation runs during a simulated crisis than in calm periods. This only bites when inflation is modelled rather than taken from history — Parametric mode, or Historical (with Adjustments). In plain Historical Data Sampling it does nothing, because inflation is read from the same real month as the return."
 					/>
-					<span class="text-xs text-slate-500 opacity-80 leading-tight"
-						>Absolute percentage jump applied to inflation baseline during an economic Crisis.</span
-					>
+					<span class="text-xs text-slate-500 opacity-80 leading-tight">
+						Extra inflation during simulated crises.
+						{#if input.historicalMonthlyInflation?.length}
+							<strong>No effect in the current mode</strong> — inflation is being read from real
+							history rather than modelled.
+						{:else}
+							Active in this mode, because inflation is modelled rather than read from history.
+						{/if}
+					</span>
 				</div>
 			</div>
 			<div class="mt-3">

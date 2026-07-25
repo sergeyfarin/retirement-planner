@@ -38,7 +38,8 @@
 		"data:retirement:import": "node scripts/import-retirement-market-data.mjs",
 		"data:retirement:preprocess": "node scripts/preprocess-retirement-market-data.mjs",
 		"data:retirement:refresh": "pnpm run data:retirement:import && pnpm run data:retirement:preprocess",
-		"test:engines": "vitest run --project server"
+		"test:engines": "vitest run --project server",
+		"data:retirement:blocklength": "node scripts/analyze-block-length.mjs"
 	},
 	"files": [
 		"dist",
@@ -57,7 +58,6 @@
 			"svelte": "./dist/index.js"
 		}
 	},
-	
 	"devDependencies": {
 		"@eslint/compat": "2.1.0",
 		"@eslint/js": "10.0.1",
