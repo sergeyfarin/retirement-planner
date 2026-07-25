@@ -554,6 +554,127 @@ modelling choice that should be made explicitly and disclosed, not silently chan
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`,
 `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`, README §4.3
 
+### 0.14 Sequence-risk window measured the first ten years from *today*, not from retirement — ✅ FIXED 2026-07-25
+**Fix applied:** `build_sequence_risk_summary` / `buildSequenceRiskSummary` now take
+`retire_month` and slice the ten annual returns starting at the bucket containing
+retirement, instead of unconditionally taking the first ten. Convention (README §7.4):
+fractional offsets floor onto the bucket *containing* the retirement month, so a crash
+landing on the retirement date stays inside the window; the window shortens when the
+horizon leaves fewer than ten post-retirement years, and clamps to the last available year
+rather than emptying. `retireMonth == 0` reproduces the old behaviour, which was correct
+only for the already-retired.
+
+**Original issue:** the annual real-return series starts at the current age and
+`retire_month` was never passed in, so for a 35-year-old retiring at 65 the quintiles
+grouped paths by returns over ages 35–45 while the README described them as the first ten
+post-retirement years.
+
+**Why it is a real error and not just a shifted window:** before retirement a net saver is
+buying, so an early crash is bought into cheaply and partly recovers over the remaining
+accumulation years — the sign of the effect on ending wealth is weak and can invert. After
+retirement the same crash is sold into to fund withdrawals. The old slice measured a
+different phenomenon, then labelled it Kitces/Pfau.
+
+**Considered and rejected:** keeping the from-today window on the grounds that a user with
+significant capital wants to know what a crash tomorrow does. That is a legitimate question
+but it is a shock-timing stress test, not a quintile analysis, and it is partly served by
+the ruin surface (§7.5) already. For a user at or near retirement the two windows coincide,
+so nothing is lost by fixing the accumulator case. If the from-today view is wanted, it
+should ship as its own panel with its own caption.
+
+**Severity note:** the chart is currently commented out in
+`PlannerSecondaryPlot.svelte` (line 327), so no user-visible chart was mislabelled — but
+`stats.sequenceRisk` is public engine output and README §7.4 documented the wrong window.
+**Worth remembering:** like 0.8, both engines carried this identically, so parity would
+never have flagged it.
+**Files:** `rust-engine/src/stats.rs`, `rust-engine/src/simulation.rs`,
+`src/lib/retirementEngine.ts`, README §7.4
+
+### 0.15 Already-retired users could not be modelled at all — ✅ SHIPPED 2026-07-25
+**Shipped:** an "I am already retired" tickbox that sets `retirementAge = currentAge`,
+disables the retirement-age field and drops the salary row. `validateSimulationInputs`
+previously rejected `retirementAge <= currentAge` outright, so `retireMonth == 0` — the
+drawdown-only case — was unreachable through the UI even though both engines handled it.
+Now only `retirementAge < currentAge` is an error.
+
+**Why it was more than a validation relaxation:** three outputs assume an accumulation
+phase and would have shipped as plausible-looking nonsense if the check had simply been
+loosened:
+
+- **FI Target (P95)** reads its answer off the spread of balances *at retirement*. That
+  spread exists only because paths accumulate differently; with `retireMonth == 0` it
+  collapses to one month of return dispersion and the suffix-scan lands within a couple of
+  percent of current savings whether or not the plan survives. Replaced in this mode by
+  `findRequiredStartingCapital` / `find_required_starting_capital`: bisection over starting
+  capital against the stored paths, which is the question a retiree actually has. Monotone,
+  so the bisection is exact to tolerance; inherits the replay's expected-inflation caveat.
+- **Ruin surface** would have clamped its retirement-age axis to `currentAge + 1..+6` and
+  captioned it "retire later", but with no salary a later retirement age only moves when
+  the withdrawal strategy starts. Collapsed to 5×1 over spending, and the chart relabels
+  itself rather than presenting one column as a two-way trade-off.
+- **"Chance to reach FI"** has no future age to reach. The card is replaced by capital held
+  vs. capital required, and the engine computes the probabilities from `currentSavings`
+  directly so a settled fact does not come back as a spurious percentage.
+
+**Design note — no new field.** `retirementAge <= currentAge` is the encoding
+(`isAlreadyRetired` / `is_already_retired`), not a separate boolean. It costs nothing at the
+wasm boundary, needs no share-link version bump, and makes it impossible for the two engines
+to disagree about which mode they are in. The remembered previous retirement age lives in
+the component, where unticking is the only thing that needs it.
+
+**Worth remembering:** the pre-existing `retireMonth == 0` handling in `find_coast_age` and
+the 0.14 sequence-risk window was written for a case the UI could not produce. Documenting
+an unreachable branch is how it stays correct long enough to become reachable.
+**Files:** `src/lib/retirementEngine.ts`, `rust-engine/src/stats.rs`,
+`rust-engine/src/simulation.rs`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`,
+`PlannerOutputCards.svelte`, `PlannerSecondaryPlot.svelte`, `PlannerTimelinePlot.svelte`,
+README §7.6
+
+### 0.15 Moment targeting converted annual targets to monthly with `M/12` and `S/√12` — ✅ PARTLY FIXED 2026-07-25
+**Fix applied:** `monthly_targets_for_annual_moments` / `monthlyTargetsForAnnualMoments`
+now invert 12-fold compounding in closed form, so the monthly targets fed to the
+retargeting transform are the ones whose compounding reproduces the requested *annual*
+moments. Verified exact in the iid limit (README §4.4) and round-trip tested analytically.
+The naive scaling is still used for `spread_annual_return_across_months`, where √12 is the
+right convention and cannot bias annual moments — that function renormalizes each year by
+its own geometric mean, so the year compounds to the sampled annual return regardless.
+
+**Also fixed:** the TS fallback used `Math.max(0, NaN)`, which is `NaN`, where Rust's
+`f64::max` returns the non-NaN operand — a latent cross-engine divergence on degenerate
+input, found by the new test rather than by parity (parity never feeds a NaN σ).
+
+**Original issue:** a 5% / 15% request produced 5.12% / 15.78% annually, on every region
+identically. The inputs are labelled and sourced as annual arithmetic moments, and the mode
+tooltip promises "sliding average return and volatility to your numbers", so this was a
+real mismatch between promise and behaviour. Also affected the "use today's yields" preset,
+which routes through the same transform.
+
+**On the reported per-region table.** The original report measured 5.33/16.66 (WORLD),
+5.12/15.30 (USD), 5.17/15.75 (GBP), 5.45/17.61 (EUR) and concluded EUR was worst, missing
+by 2.61pp. Those figures reproduce exactly, but they are computed from only ~66
+non-overlapping annual windows of the historical ordering, where SE(σ) ≈ ±1.38pp. Under
+400k bootstrapped years the ranking changes: **GBP** is the worst region, not EUR, and
+EUR's true miss was ~1.67pp rather than 2.61pp. The direction and existence of the bias
+were right; the magnitudes and the per-region ranking were sampling noise.
+
+**Still open — the residual, and it is a modelling decision not a bug.** After the fix,
+realized annual σ still exceeds the target by +0.29pp (USD) to +1.49pp (GBP) because the
+block bootstrap preserves serial dependence, which inflates annual variance above 12× the
+monthly variance (the same variance-ratio effect measured in 0.13). Options:
+1. **Leave it, document it** (current). The overshoot is in the conservative direction and
+   preserving dependence is the entire purpose of the block bootstrap.
+2. **Deflate monthly σ by the measured variance ratio** so realized annual σ hits the
+   target. Coherent — the label says *annual*, and the correlation structure is preserved,
+   only its scale changes. Costs a pilot bootstrap at setup, must be replicated
+   bit-identically in both engines, and changes every existing user's numbers.
+3. Relabel the input as a monthly-derived target. Weakest: the input is annual everywhere
+   else in the UI.
+
+Recommend 2 if the annual label is to be taken literally, but it should be an explicit,
+measured, disclosed change in the style of 0.11/0.13 — not folded in silently.
+**Files:** `rust-engine/src/engine2.rs`, `rust-engine/src/simulation.rs`,
+`src/lib/retirementEngine.ts`, README §4.4
+
 ## Priority 1 — Engineering Health
 
 ### 1.1 Cross-engine parity test (S/M) — ✅ SHIPPED 2026-07-21
@@ -561,10 +682,10 @@ modelling choice that should be made explicitly and disclosed, not silently chan
 reference engine and the Rust/WASM production engine and compares them at three levels:
 the PRNG streams (uniform + standard-normal, which turn out to be bit-identical), the
 full per-month P10/P25/P50/P75/P90 bands, and every summary/sequence-risk/ruin-surface
-value. Eight scenarios cover monthly bootstrap, joint inflation, both withdrawal
-strategies, moment targeting, the annual-bootstrap fallback, parametric mode, and the
-zero-fee/zero-tax path — so any new engine feature that lands in only one engine fails
-here.
+value. Ten scenarios cover monthly bootstrap, joint inflation, both withdrawal
+strategies, moment targeting, the annual-bootstrap fallback, parametric mode, the
+zero-fee/zero-tax path, and both already-retired variants (0.15) — so any new engine
+feature that lands in only one engine fails here.
 **Tolerance:** results agree to ~1 ULP (relative 1e-16), so the suite asserts 1e-9. Its
 sensitivity was verified by injecting a fee-divisor change in the 5th decimal place
 (12 → 12.0001) into the TS engine — 7 of 8 scenarios failed, at relative 3.5e-9.

@@ -67,6 +67,11 @@
 
 		const retirementAges = stats.ruinSurface.retirementAges;
 		const spendingMultipliers = stats.ruinSurface.spendingMultipliers;
+		// The engine collapses the retirement-age axis to a single column when the plan is
+		// already in drawdown, because sweeping it there would compare scenarios that differ
+		// only in when the withdrawal strategy starts. Relabel rather than pretend it is
+		// still a two-way surface. See README §7.6.
+		const spendingOnly = retirementAges.length === 1;
 		const colorStretch = 14;
 		const warpSurvivalForColor = (probability: number): number => {
 			const bounded = Math.max(0, Math.min(1, probability));
@@ -141,13 +146,16 @@
 			customdata: zValues.map((row, rowIndex) =>
 				row.map((survival, columnIndex) => [survival, cellMarginPercent[rowIndex][columnIndex]])
 			),
-			hovertemplate:
-				'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
+			hovertemplate: spendingOnly
+				? 'Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
+				: 'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
 		};
 
 		const layout = {
 			title: {
-				text: `Sensitivity to retirement age and spending<br />Portfolio surviving chance until age ${simulateUntilAge}`,
+				text: spendingOnly
+					? `Sensitivity to spending<br />Portfolio surviving chance until age ${simulateUntilAge}`
+					: `Sensitivity to retirement age and spending<br />Portfolio surviving chance until age ${simulateUntilAge}`,
 				font: { size: 13, color: '#334155', family: 'Inter, system-ui, sans-serif' },
 				pad: { b: 12 }
 			},
@@ -156,12 +164,12 @@
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
 				title: {
-					text: 'Retirement age',
+					text: spendingOnly ? 'Already retired' : 'Retirement age',
 					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
 				tickvals: retirementAges,
-				ticktext: retirementAges.map((age) => `${age}`),
+				ticktext: retirementAges.map((age) => (spendingOnly ? `age ${age} (now)` : `${age}`)),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
 				showgrid: false,
 				fixedrange: true

@@ -324,17 +324,24 @@
 			}
 		];
 
-		const shapes: any[] = [
-			{
-				type: 'line',
-				x0: retirementAge,
-				x1: retirementAge,
-				y0: 0,
-				y1: 1,
-				yref: 'paper',
-				line: { dash: 'dot', width: 1.5, color: '#6b7280' }
-			}
-		];
+		// Already retired: retirement is the left edge of the chart, so a marker there divides
+		// nothing and the "FI target year" label would name a year that has passed. The whole
+		// series is drawdown; leave it unannotated. See README §7.6.
+		const alreadyRetired = retirementAge <= ages[0];
+
+		const shapes: any[] = alreadyRetired
+			? []
+			: [
+					{
+						type: 'line',
+						x0: retirementAge,
+						x1: retirementAge,
+						y0: 0,
+						y1: 1,
+						yref: 'paper',
+						line: { dash: 'dot', width: 1.5, color: '#6b7280' }
+					}
+				];
 
 		spendingPeriods.forEach((period, i) => {
 			shapes.push({
@@ -370,16 +377,18 @@
 				borderpad: 3
 			}));
 
-		annotations.push({
-			x: retirementAge,
-			y: 1,
-			yref: 'paper',
-			text: 'FI target year',
-			showarrow: false,
-			font: { size: 10, color: '#6b7280', family: 'Inter, system-ui, sans-serif' },
-			xanchor: 'left',
-			yanchor: 'top'
-		});
+		if (!alreadyRetired) {
+			annotations.push({
+				x: retirementAge,
+				y: 1,
+				yref: 'paper',
+				text: 'FI target year',
+				showarrow: false,
+				font: { size: 10, color: '#6b7280', family: 'Inter, system-ui, sans-serif' },
+				xanchor: 'left',
+				yanchor: 'top'
+			});
+		}
 
 		const layout = {
 			title: {

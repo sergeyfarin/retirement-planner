@@ -7,12 +7,17 @@ import {
 } from './calculations';
 import {
   buildCashflowArrays,
+  buildSequenceRiskSummary,
+  monthlyTargetsForAnnualMoments,
   detectRegimes,
   drawCornishFisherScore,
+  findRequiredStartingCapital,
   findRetirementBalanceTarget,
   incomeAtAge,
+  isAlreadyRetired,
   runMonteCarloSimulation,
   spendingAtAge,
+  validateSimulationInputs,
   type IncomeSource,
   type RetirementInput,
   type SpendingPeriod
@@ -274,7 +279,10 @@ describe('regime bootstrap is mean-preserving', () => {
     // The old sampler came in roughly a full percentage point light; 0.35pp leaves room for
     // Monte Carlo noise and the median-vs-geometric-mean gap without admitting that bias.
     expect(Math.abs(engineAnnual - sourceGeoAnnual)).toBeLessThan(0.0035);
-  });
+    // 4000 paths x 600 months is the heaviest test in the suite and it sits close enough to
+    // vitest's 5s default that it times out when the full suite runs its workers in parallel.
+    // The generous budget is about scheduling contention, not about the assertion above.
+  }, 30_000);
 });
 
 describe('nominal cashflows deflated by realized inflation', () => {
@@ -816,5 +824,328 @@ describe('runMonteCarloSimulation smoke', () => {
     expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
     expect(result.stats.successProbability).toBeLessThanOrEqual(1);
     expect(result.stats.finalMedian).toBeGreaterThan(0);
+  });
+});
+
+describe('sequence-risk window starts at retirement', () => {
+  // Five sims, each with 40 annual real returns: a flat pre-retirement stretch and a flat
+  // post-retirement stretch, ordered *oppositely*. Whichever stretch the summarizer slices
+  // decides the bucket ordering, so the two conventions are cleanly distinguishable.
+  const preReturns = [-0.04, -0.02, 0.0, 0.02, 0.04];
+  const postReturns = [0.04, 0.02, 0.0, -0.02, -0.04];
+  const series = preReturns.map((pre, index) => [
+    ...Array(30).fill(pre),
+    ...Array(10).fill(postReturns[index])
+  ]);
+  // Final balance encodes the sim index so we can tell which path landed in which bucket.
+  const finalBalances = [100, 200, 300, 400, 500];
+  const depletedFlags = [false, false, false, false, false];
+
+  it('buckets on post-retirement returns for someone still accumulating', () => {
+    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12);
+
+    expect(buckets).toHaveLength(5);
+    // Worst bucket is the sim with the worst *post*-retirement decade (index 4), which is
+    // the one with the best pre-retirement decade — so this cannot pass by accident.
+    expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
+    expect(buckets[0].endingMedian).toBe(500);
+    expect(buckets[4].earlyYearsMeanReturn).toBeCloseTo(0.04, 12);
+    expect(buckets[4].endingMedian).toBe(100);
+  });
+
+  it('falls back to the first ten years from today for someone already retired', () => {
+    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 0);
+
+    expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
+    expect(buckets[0].endingMedian).toBe(100);
+    expect(buckets[4].endingMedian).toBe(500);
+  });
+
+  it('floors a fractional retirement year into the bucket containing retirement', () => {
+    // 30.5 years in: the year straddling the retirement month stays inside the window, so
+    // a crash at retirement is still counted. Same answer as a clean 30-year offset here.
+    const straddling = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12 + 6);
+    const exact = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12);
+
+    expect(straddling.map((b) => b.earlyYearsMeanReturn)).toEqual(exact.map((b) => b.earlyYearsMeanReturn));
+  });
+
+  it('clamps the window to the last available year when retirement sits past the horizon', () => {
+    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 100 * 12);
+
+    expect(buckets).toHaveLength(5);
+    expect(buckets.every((bucket) => Number.isFinite(bucket.earlyYearsMeanReturn))).toBe(true);
+    expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
+  });
+});
+
+describe('already-retired mode', () => {
+  function retiredInput(overrides: Partial<RetirementInput> = {}): RetirementInput {
+    return {
+      simulationMode: 'historical',
+      currentAge: 66,
+      retirementAge: 66,
+      simulateUntilAge: 90,
+      currentSavings: 900000,
+      meanReturn: 0.06,
+      returnVariability: 0.14,
+      returnSkewness: 0,
+      returnKurtosis: 3,
+      equityBondCorrelation: -0.1,
+      inflationMean: 0.02,
+      inflationVariability: 0.015,
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      annualFeePercent: 0.004,
+      taxOnGainsPercent: 0.15,
+      safeWithdrawalRate: 0.04,
+      simulations: 400,
+      seed: 5150,
+      regimeModel: {
+        stayGrowth: 0.92,
+        stayCrisis: 0.68,
+        growthMean: 0.09,
+        growthStd: 0.14,
+        crisisMean: -0.12,
+        crisisStd: 0.24
+      },
+      historicalAnnualReturns: [
+        0.14, 0.1, 0.08, 0.18, -0.22, 0.07, 0.03, -0.15, 0.12, 0.11, 0.06, 0.09, -0.2, 0.16, 0.05,
+        0.04, 0.13, -0.12, 0.1, 0.08, 0.09, 0.07, -0.18, 0.15, 0.1
+      ],
+      ...overrides
+    };
+  }
+
+  const retiredSpending: SpendingPeriod[] = [
+    { id: 'sp-default', label: 'Living', fromAge: 66, toAge: 90, yearlyAmount: 40000, inflationAdjusted: true }
+  ];
+  // No 'is-default' salary row: the UI drops it in this mode, and so must anything that
+  // claims to reproduce what the engine is actually given.
+  const retiredIncome: IncomeSource[] = [
+    { id: 'is-pension', label: 'Pension', fromAge: 67, toAge: 90, yearlyAmount: 14000, inflationAdjusted: true }
+  ];
+
+  it('treats equal current and retirement ages as already retired', () => {
+    expect(isAlreadyRetired({ currentAge: 66, retirementAge: 66 })).toBe(true);
+    expect(isAlreadyRetired({ currentAge: 66, retirementAge: 67 })).toBe(false);
+  });
+
+  it('validates an equal-age plan and yields retireMonth 0', () => {
+    const validated = validateSimulationInputs(retiredInput(), retiredSpending);
+
+    expect(validated.error).toBeUndefined();
+    expect(validated.retireMonth).toBe(0);
+    expect(validated.months).toBe(24 * 12);
+  });
+
+  it('still rejects a retirement age before the current age', () => {
+    const validated = validateSimulationInputs(retiredInput({ retirementAge: 60 }), retiredSpending);
+
+    expect(validated.error).toBeTruthy();
+    expect(validated.months).toBe(0);
+  });
+
+  it('collapses the ruin surface to a single retirement-age column', () => {
+    const input = retiredInput();
+    const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);
+    const { stats } = runMonteCarloSimulation(
+      input,
+      retiredSpending,
+      retiredIncome,
+      [],
+      months,
+      retireMonth
+    );
+
+    expect(stats.ruinSurface.retirementAges).toEqual([66]);
+    expect(stats.ruinSurface.spendingMultipliers).toHaveLength(5);
+    // Still 5 spending rows, now one cell wide — the axis that survived.
+    expect(stats.ruinSurface.ruinProbabilities).toHaveLength(5);
+    for (const row of stats.ruinSurface.ruinProbabilities) {
+      expect(row).toHaveLength(1);
+    }
+    // Ruin can only get worse as spending scales up.
+    const byMultiplier = stats.ruinSurface.ruinProbabilities.map((row) => row[0]);
+    for (let index = 1; index < byMultiplier.length; index++) {
+      expect(byMultiplier[index]).toBeGreaterThanOrEqual(byMultiplier[index - 1]);
+    }
+  });
+
+  it('reports a required starting capital instead of a degenerate P95 balance target', () => {
+    const input = retiredInput();
+    const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);
+    const { stats } = runMonteCarloSimulation(
+      input,
+      retiredSpending,
+      retiredIncome,
+      [],
+      months,
+      retireMonth
+    );
+
+    // The old construction would have landed within a percent or two of current savings,
+    // because that is all the retirement balances contain. This one is an independent
+    // number: it must not simply echo the capital held.
+    expect(stats.fiTargetP95).toBeGreaterThan(0);
+    expect(Math.abs(stats.fiTargetP95 / input.currentSavings - 1)).toBeGreaterThan(0.02);
+
+    // Coast FIRE has nothing left to stop.
+    expect(stats.coastAge).toBeNull();
+
+    // The FI probabilities are a settled comparison, not a distribution.
+    expect([0, 1]).toContain(stats.fiProbabilityP95);
+    expect([0, 1]).toContain(stats.fiProbabilitySWR);
+    expect(stats.fiProbabilityP95).toBe(input.currentSavings >= stats.fiTargetP95 ? 1 : 0);
+  });
+
+  it('holds an accumulating plan on the original P95 construction', () => {
+    const input = retiredInput({ currentAge: 50, retirementAge: 66 });
+    const spending: SpendingPeriod[] = [
+      { id: 'sp-default', label: 'Living', fromAge: 50, toAge: 90, yearlyAmount: 40000, inflationAdjusted: true }
+    ];
+    const income: IncomeSource[] = [
+      { id: 'is-default', label: 'Salary', fromAge: 50, toAge: 66, yearlyAmount: 70000, inflationAdjusted: true },
+      ...retiredIncome
+    ];
+    const { months, retireMonth } = validateSimulationInputs(input, spending);
+    const { stats } = runMonteCarloSimulation(input, spending, income, [], months, retireMonth);
+
+    expect(retireMonth).toBe(16 * 12);
+    // Full retirement-age sweep and a live Coast FIRE age: the two outputs the
+    // already-retired branches switch off.
+    expect(stats.ruinSurface.retirementAges.length).toBeGreaterThan(1);
+    expect(stats.coastAge).not.toBeNull();
+    // The P95 target is still read off the spread of balances at retirement, so it sits
+    // inside that distribution rather than being an independent capital figure.
+    expect(stats.fiTargetP95).toBeGreaterThan(0);
+    expect(stats.fiTargetP95).toBeLessThanOrEqual(stats.retireHigh);
+  });
+});
+
+describe('findRequiredStartingCapital', () => {
+  // Two paths: one that grows, one that shrinks. Deterministic, so the answer is a fact
+  // about the flows rather than a sampling artefact.
+  const months = 24;
+  const growthFactors = [
+    Array(months).fill(1.01),
+    Array(months).fill(0.99)
+  ];
+  const noIncome = new Float64Array(months);
+  const noLumpSums = new Float64Array(months);
+  const strategy = { kind: 'fixed' as const };
+
+  function required(spendPerMonth: number, target: number, income = noIncome): number {
+    const spending = new Float64Array(months).fill(spendPerMonth);
+    return findRequiredStartingCapital(
+      growthFactors,
+      income,
+      spending,
+      noLumpSums,
+      growthFactors.length,
+      months,
+      strategy,
+      0,
+      target,
+      10000
+    );
+  }
+
+  it('returns zero when income alone outruns spending on every path', () => {
+    // Strictly greater, not equal: the replay counts a balance of exactly zero as ruin, so
+    // break-even flows starting from nothing do not survive.
+    const income = new Float64Array(months).fill(1200);
+    expect(required(1000, 1, income)).toBe(0);
+  });
+
+  it('needs more capital to survive both paths than to survive the better one', () => {
+    // 50% target only has to satisfy the growing path; 100% must also carry the shrinking
+    // one, which sells into a falling market the whole way.
+    const lenient = required(1000, 0.5);
+    const strict = required(1000, 1);
+
+    expect(lenient).toBeGreaterThan(0);
+    expect(strict).toBeGreaterThan(lenient);
+  });
+
+  it('is monotone in spending', () => {
+    expect(required(2000, 1)).toBeGreaterThan(required(1000, 1));
+  });
+
+  it('lands close enough that one more euro of capital flips the outcome', () => {
+    const capital = required(1000, 1);
+    const spending = new Float64Array(months).fill(1000);
+    const ruinAt = (start: number) =>
+      findRequiredStartingCapital(
+        growthFactors,
+        noIncome,
+        spending,
+        noLumpSums,
+        growthFactors.length,
+        months,
+        strategy,
+        0,
+        1,
+        start
+      );
+
+    // Bracketing from either side converges on the same answer to the stated tolerance.
+    expect(ruinAt(10)).toBeCloseTo(capital, -1);
+    expect(ruinAt(1_000_000)).toBeCloseTo(capital, -1);
+  });
+});
+
+describe('moment targeting hits the requested annual moments', () => {
+  // TODO 0.15: the monthly targets fed to the retargeting transform must be the ones whose
+  // 12-fold compounding reproduces the requested *annual* moments. The old M/12 and
+  // S/sqrt(12) were log-scale intuition applied to arithmetic returns and overshot both.
+  const targets: Array<[number, number]> = [
+    [0.05, 0.15],
+    [0.07, 0.18],
+    [0.03, 0.1],
+    [0.0, 0.2],
+    [-0.02, 0.05]
+  ];
+
+  it('round-trips: compounding the monthly targets reproduces the annual targets', () => {
+    for (const [annualMean, annualStd] of targets) {
+      const { mean, std } = monthlyTargetsForAnnualMoments(annualMean, annualStd);
+
+      // Independent months: E[prod] = prod(E), so these identities need no normality.
+      const compoundedMean = (1 + mean) ** 12 - 1;
+      const compoundedVar = (std ** 2 + (1 + mean) ** 2) ** 12 - (1 + annualMean) ** 2;
+
+      expect(compoundedMean).toBeCloseTo(annualMean, 12);
+      expect(Math.sqrt(Math.max(0, compoundedVar))).toBeCloseTo(annualStd, 12);
+    }
+  });
+
+  it('differs from the naive scaling by the documented amount', () => {
+    const { mean, std } = monthlyTargetsForAnnualMoments(0.05, 0.15);
+    // Naive would be 0.05/12 = 0.41667% and 0.15/sqrt(12) = 4.3301%.
+    expect(mean).toBeLessThan(0.05 / 12);
+    expect(std).toBeLessThan(0.15 / Math.sqrt(12));
+    expect(mean * 100).toBeCloseTo(0.4074, 3);
+    expect(std * 100).toBeCloseTo(4.1216, 3);
+
+    // The naive monthly targets compound to the overshoot recorded in README §4.4.
+    const naiveMean = 0.05 / 12;
+    const naiveStd = 0.15 / Math.sqrt(12);
+    expect(((1 + naiveMean) ** 12 - 1) * 100).toBeCloseTo(5.1162, 3);
+    expect(
+      Math.sqrt((naiveStd ** 2 + (1 + naiveMean) ** 2) ** 12 - (1 + naiveMean) ** 24) * 100
+    ).toBeCloseTo(15.7826, 3);
+  });
+
+  it('falls back to naive scaling for a degenerate gross return', () => {
+    // No real 12th root of a non-positive gross return; must not emit NaN.
+    const wiped = monthlyTargetsForAnnualMoments(-1.5, 0.2);
+    expect(Number.isFinite(wiped.mean)).toBe(true);
+    expect(Number.isFinite(wiped.std)).toBe(true);
+    expect(wiped.mean).toBeCloseTo(-1.5 / 12, 12);
+
+    const nan = monthlyTargetsForAnnualMoments(0.05, Number.NaN);
+    expect(Number.isFinite(nan.mean)).toBe(true);
+    expect(nan.std).toBe(0);
   });
 });

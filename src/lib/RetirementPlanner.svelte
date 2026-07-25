@@ -10,6 +10,7 @@
 	} from './retirementWorker';
 	import {
 		spendingAtAge,
+		isAlreadyRetired,
 		validateSimulationInputs,
 		DEFAULT_WITHDRAWAL_STRATEGY,
 		type IncomeSource,
@@ -1226,6 +1227,45 @@
 		}
 	});
 
+	// ─── Already retired ──────────────────────────────────────────────────────────
+	//
+	// Drawdown-only mode, encoded as `retirementAge === currentAge` rather than as its own
+	// field so that share links, the worker payload and both engines carry it for free.
+	// See `isAlreadyRetired` in retirementEngine.ts for what the engines do differently.
+
+	const alreadyRetired = $derived(isAlreadyRetired(input));
+
+	// Remembered so unticking restores the age the user had rather than a default. Seeded
+	// from the initial input, which is why a share link that arrives already retired falls
+	// back to `currentAge + 1` below.
+	let rememberedRetirementAge = $state(62);
+
+	function setAlreadyRetired(next: boolean) {
+		if (next) {
+			if (!alreadyRetired) rememberedRetirementAge = input.retirementAge;
+			input.retirementAge = input.currentAge;
+		} else {
+			input.retirementAge = Math.max(rememberedRetirementAge, input.currentAge + 1);
+		}
+		onSimulationSettingsChange();
+	}
+
+	// Current age is still editable while retired, so keep retirement pinned to it —
+	// otherwise nudging the age silently drops the user back into accumulation.
+	$effect(() => {
+		if (alreadyRetired && input.retirementAge !== input.currentAge) {
+			input.retirementAge = input.currentAge;
+		}
+	});
+
+	// What the engines actually receive. The salary row spans current age → retirement age,
+	// an empty interval once those coincide; dropping it avoids paying a single month of
+	// salary at month 0 (`incomeAtAge` is inclusive at both ends). The UI keeps the row in
+	// `incomeSources` so its amount survives unticking the box.
+	const effectiveIncomeSources = $derived(
+		alreadyRetired ? incomeSources.filter((src) => src.id !== 'is-default') : incomeSources
+	);
+
 	// ─── Lump-sum events ──────────────────────────────────────────────────────────
 
 	let lumpSumEvents: LumpSumEvent[] = $state([]);
@@ -1492,7 +1532,7 @@
 			spendingPeriods
 				.map((p) => `${p.fromAge}:${p.toAge}:${p.yearlyAmount}:${p.inflationAdjusted ? 1 : 0}`)
 				.join('|'),
-			incomeSources
+			effectiveIncomeSources
 				.map((s) => `${s.fromAge}:${s.toAge}:${s.yearlyAmount}:${s.inflationAdjusted ? 1 : 0}`)
 				.join('|'),
 			lumpSumEvents.map((e) => `${e.age}:${e.amount}`).join('|'),
@@ -1811,7 +1851,7 @@
 						seed: seedForThisRun
 					},
 					spendingPeriods,
-					incomeSources,
+					incomeSources: effectiveIncomeSources,
 					lumpSumEvents,
 					months: validated.months,
 					retireMonth: validated.retireMonth
@@ -2018,6 +2058,8 @@
 		bind:selectedCurrencyCode
 		{selectedCurrency}
 		bind:input
+		{alreadyRetired}
+		onAlreadyRetiredChange={setAlreadyRetired}
 		bind:incomeSources
 		bind:spendingPeriods
 		bind:lumpSumEvents
@@ -2149,6 +2191,7 @@
 					{FI_TARGET_SUCCESS_PROBABILITY}
 					{percentFormatter}
 					{fmtNum}
+					{alreadyRetired}
 					simCount={lastSimulatedCount}
 				/>
 

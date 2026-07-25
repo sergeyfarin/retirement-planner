@@ -340,6 +340,47 @@ function summarizeMeanStd(values: number[]): { mean: number; std: number } {
   return { mean, std: Math.sqrt(Math.max(0, variance)) };
 }
 
+/**
+ * Inverts 12-fold compounding: given the requested *annual* arithmetic mean and standard
+ * deviation, returns the monthly mean/std whose compounding over 12 independent months
+ * reproduces them.
+ *
+ *   E[(1+r_a)]   = E[(1+r_m)]^12       =>  m = (1+M)^(1/12) - 1
+ *   E[(1+r_a)^2] = E[(1+r_m)^2]^12     =>  s = sqrt( ((1+M)^2 + S^2)^(1/12) - (1+M)^(2/12) )
+ *
+ * Both identities need only independence, not normality, since the expectation of a
+ * product of independent factors is the product of expectations — so higher moments of
+ * the retargeted history do not enter.
+ *
+ * The naive `M/12` and `S/sqrt(12)` are the *log*-scale intuition applied to arithmetic
+ * returns; used here they overshoot, because compounding adds the cross-product terms this
+ * inversion removes. At a 5%/15% target they yield 5.12%/15.79% instead of 5.00%/15.00%.
+ *
+ * This corrects the compounding artifact only. The block bootstrap deliberately preserves
+ * serial dependence, which inflates realized annual variance further and is not an error —
+ * see README §4.4 for the measured residual.
+ */
+export function monthlyTargetsForAnnualMoments(
+  annualMean: number,
+  annualStd: number
+): { mean: number; std: number } {
+  const growth = 1 + annualMean;
+  // A non-positive gross return (total loss or worse) has no real 12th root; fall back to
+  // the naive scaling rather than produce NaN. Not reachable from the UI, which bounds the
+  // mean well above -100%.
+  if (!Number.isFinite(growth) || growth <= 0 || !Number.isFinite(annualStd)) {
+    // `Math.max(0, NaN)` is NaN, unlike Rust's `f64::max`, which returns the non-NaN
+    // operand. Sanitize explicitly so both engines agree on degenerate input.
+    const safeStd = Number.isFinite(annualStd) ? Math.max(0, annualStd) : 0;
+    return { mean: annualMean / 12, std: safeStd / Math.sqrt(12) };
+  }
+
+  const monthlyMean = growth ** (1 / 12) - 1;
+  const monthlySecondMoment = (growth * growth + annualStd * annualStd) ** (1 / 12);
+  const monthlyVariance = monthlySecondMoment - growth ** (2 / 12);
+  return { mean: monthlyMean, std: Math.sqrt(Math.max(0, monthlyVariance)) };
+}
+
 function applyMomentTargeting(
   value: number,
   sourceMean: number,
@@ -539,18 +580,39 @@ function summarizeReturnMoments(values: number[]): SummaryStats['returnMoments']
   };
 }
 
-function buildSequenceRiskSummary(
+/**
+ * Groups simulations into quintiles by their mean real return over the first ten
+ * *post-retirement* years — the Kitces/Pfau danger window, when withdrawals turn a
+ * drawdown into permanently sold-off capital.
+ *
+ * The window starts at the annual bucket *containing* `retireMonth`, not the first whole
+ * year after it. Annual returns are accumulated over calendar-style buckets (months
+ * 12k..12k+11), so a retirement at month 30 falls inside bucket 2. Flooring keeps the
+ * crash-at-retirement case — the whole point of the analysis — inside the window, at the
+ * cost of mixing a few pre-retirement months into the first bucket. Rounding up would
+ * exclude exactly the scenario the chart exists to show.
+ *
+ * For someone already retired (`retireMonth === 0`) this is the first ten years from
+ * today, which is what the analysis used to do unconditionally.
+ */
+export function buildSequenceRiskSummary(
   annualRealReturnsBySim: number[][],
   finalBalances: number[],
-  depletedFlags: boolean[]
+  depletedFlags: boolean[],
+  retireMonth: number
 ): SummaryStats['sequenceRisk'] {
   const simCount = annualRealReturnsBySim.length;
   if (simCount === 0) return [];
 
-  const earlyYears = Math.max(1, Math.min(10, Math.min(...annualRealReturnsBySim.map((series) => Math.max(1, series.length)))));
+  const retireYear = Math.floor(retireMonth / 12);
+  // Clamp per series so the window never runs off the end of a short horizon; every
+  // series holds at least one entry, so this always leaves something to average.
+  const startOf = (length: number) => Math.min(retireYear, Math.max(0, length - 1));
+
+  const earlyYears = Math.max(1, Math.min(10, Math.min(...annualRealReturnsBySim.map((series) => Math.max(1, series.length - startOf(series.length))))));
   const enriched = annualRealReturnsBySim.map((series, index) => ({
     index,
-    earlyMean: series.slice(0, earlyYears).reduce((sum, value) => sum + value, 0) / earlyYears
+    earlyMean: series.slice(startOf(series.length), startOf(series.length) + earlyYears).reduce((sum, value) => sum + value, 0) / earlyYears
   })).sort((a, b) => a.earlyMean - b.earlyMean);
 
   const bucketCount = 5;
@@ -619,6 +681,89 @@ function replayRuinProbability(
   }
 
   return ruinCount / Math.max(1, sampleCount);
+}
+
+/**
+ * Smallest starting capital that still clears `targetSuccessProbability`, found by
+ * bisection over replays of the stored growth paths.
+ *
+ * This is the already-retired replacement for the P95 FI target. The usual construction
+ * (`findRetirementBalanceTarget`) reads the answer off the spread of balances *at
+ * retirement*, which only exists because different paths accumulate differently. With
+ * `retireMonth === 0` every path starts from the same capital, that spread collapses to one
+ * month of return dispersion, and the empirical target degenerates into roughly "current
+ * savings" regardless of whether the plan works — a number that looks like an answer and
+ * is not one. Here the question is turned around: hold the paths fixed and vary the
+ * capital.
+ *
+ * Success is monotone non-decreasing in starting capital along fixed paths, so bisection is
+ * exact up to the tolerance. Returns 0 when income alone survives every path, and the top
+ * of the bracket when even that much capital cannot reach the target.
+ *
+ * Inherits the replay approximation: nominal cashflows are deflated by *expected* rather
+ * than realized inflation, so this target is a touch optimistic in high-inflation paths
+ * compared with the main simulation's success probability (README §7).
+ *
+ * Mirrored in Rust as `find_required_starting_capital`.
+ */
+export function findRequiredStartingCapital(
+  growthFactors: number[][],
+  monthlyIncomeFlow: Float64Array,
+  monthlySpendingFlow: Float64Array,
+  lumpSumByMonth: Float64Array,
+  sampleCount: number,
+  months: number,
+  strategy: WithdrawalStrategy,
+  retireMonth: number,
+  targetSuccessProbability: number,
+  initialGuess: number
+): number {
+  if (sampleCount === 0 || growthFactors.length === 0) return 0;
+
+  const successAt = (capital: number) =>
+    1 -
+    replayRuinProbability(
+      growthFactors,
+      monthlyIncomeFlow,
+      monthlySpendingFlow,
+      lumpSumByMonth,
+      capital,
+      sampleCount,
+      months,
+      strategy,
+      retireMonth
+    );
+
+  if (successAt(0) >= targetSuccessProbability) return 0;
+
+  // Bracket upward from the SWR target, which is the right order of magnitude whenever
+  // spending dominates; the cap keeps a pathological plan (spending that no capital
+  // outruns) from looping forever.
+  let low = 0;
+  let high = Math.max(1, initialGuess);
+  let bracketed = false;
+  for (let step = 0; step < 24; step++) {
+    if (successAt(high) >= targetSuccessProbability) {
+      bracketed = true;
+      break;
+    }
+    low = high;
+    high *= 2;
+  }
+  if (!bracketed) return high;
+
+  // Relative tolerance rather than absolute: the answer spans a few thousand to tens of
+  // millions depending on the plan's currency and scale.
+  for (let step = 0; step < 60 && high - low > Math.max(1, high * 1e-4); step++) {
+    const mid = (low + high) / 2;
+    if (successAt(mid) >= targetSuccessProbability) {
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+
+  return high;
 }
 
 /**
@@ -700,9 +845,18 @@ function buildRuinSurface(
   strategy: WithdrawalStrategy
 ): SummaryStats['ruinSurface'] {
   const spendingMultipliers = [0.8, 0.9, 1.0, 1.1, 1.2];
+  // Already retired: the retirement-age axis is gone, not merely shifted. Sweeping it
+  // would clamp every candidate to `currentAge + 1..+6` and label the result "retire
+  // later", but with the salary already ended a later retirement age changes nothing
+  // except when the withdrawal strategy starts — a difference with no real-world
+  // counterpart. The surface collapses to the one axis that still means something:
+  // sensitivity to spending. See README §7.6.
+  const alreadyRetired = isAlreadyRetired(input);
   const candidateAges = [input.retirementAge - 6, input.retirementAge - 3, input.retirementAge, input.retirementAge + 3, input.retirementAge + 6]
     .map((age) => Math.round(Math.min(input.simulateUntilAge - 1, Math.max(input.currentAge + 1, age))));
-  const retirementAges = Array.from(new Set(candidateAges)).sort((a, b) => a - b);
+  const retirementAges = alreadyRetired
+    ? [Math.round(input.currentAge)]
+    : Array.from(new Set(candidateAges)).sort((a, b) => a - b);
   const sampledScenarios = Math.min(simCount, 2000);
 
   const ruinProbabilities = spendingMultipliers.map((multiplier) => {
@@ -728,10 +882,12 @@ function buildRuinSurface(
         months
       );
 
-      const cellRetireMonth = Math.min(
-        months,
-        Math.max(0, Math.round((retAge - input.currentAge) * 12))
-      );
+      // `retAge` is rounded for the axis label, so derive the month from the flag rather
+      // than from the rounded age — a fractional `currentAge` would otherwise reintroduce
+      // up to six months of phantom accumulation.
+      const cellRetireMonth = alreadyRetired
+        ? 0
+        : Math.min(months, Math.max(0, Math.round((retAge - input.currentAge) * 12)));
 
       return replayRuinProbability(
         growthFactors,
@@ -801,6 +957,24 @@ export function incomeAtAge(age: number, incomeSources: IncomeSource[], inflatio
     }, 0);
 }
 
+/**
+ * Already-retired mode. There is no separate flag: `retirementAge === currentAge` *is* the
+ * encoding, so it survives share links and the wasm boundary without a new field, and both
+ * engines derive it from the same two numbers. `retireMonth` then comes out as 0 and the
+ * whole accumulation phase collapses to nothing.
+ *
+ * Three outputs are only meaningful with an accumulation phase ahead, and each is handled
+ * explicitly rather than left to degenerate: Coast FIRE returns `null` (already the case
+ * for `retireMonth === 0`), the ruin surface drops its retirement-age axis
+ * (`buildRuinSurface`), and the P95 FI target switches to a required-starting-capital
+ * search (`findRequiredStartingCapital`). See README §7.6.
+ *
+ * Mirrored in Rust as `is_already_retired`.
+ */
+export function isAlreadyRetired(input: Pick<RetirementInput, 'currentAge' | 'retirementAge'>): boolean {
+  return input.retirementAge <= input.currentAge;
+}
+
 export function validateSimulationInputs(
   input: RetirementInput,
   spendingPeriods: SpendingPeriod[]
@@ -809,8 +983,8 @@ export function validateSimulationInputs(
   if (months <= 12) {
     return { months: 0, retireMonth: 0, error: 'Simulation horizon must be at least 1 year beyond current age.' };
   }
-  if (input.retirementAge <= input.currentAge) {
-    return { months: 0, retireMonth: 0, error: 'Target year to achieve FI must be higher than current age.' };
+  if (input.retirementAge < input.currentAge) {
+    return { months: 0, retireMonth: 0, error: 'Target year to achieve FI cannot be before your current age.' };
   }
   if (spendingPeriods.length === 0) {
     return { months: 0, retireMonth: 0, error: 'Add at least one spending period.' };
@@ -931,9 +1105,20 @@ export function runMonteCarloSimulation(
   const useHistoricalBootstrap = simulationMode === 'historical';
   const targetAnnualMean = input.meanReturn;
   const targetAnnualStd = Math.max(0, input.returnVariability);
-  const targetMonthlyMean = targetAnnualMean / 12;
+  // Intra-year dispersion for annual-mode spreading. The naive sqrt(12) scaling is the
+  // right convention here and does not bias anything: spreadAnnualReturnAcrossMonths
+  // renormalizes each year by its own geometric mean, so the year still compounds to the
+  // sampled annual return exactly and this parameter only sets intra-year texture.
   const targetMonthlyStd = targetAnnualStd / Math.sqrt(12);
+
+  // Moment targeting is different: it rewrites *monthly* observations that are then
+  // compounded into years, so the monthly targets must be the ones whose 12-fold
+  // compounding reproduces the requested annual moments. Using sqrt(12) here overshot both.
+  const { mean: retargetMonthlyMean, std: retargetMonthlyStd } =
+    monthlyTargetsForAnnualMoments(targetAnnualMean, targetAnnualStd);
   const {
+    monthlyIncomeFlow,
+    monthlySpendingFlow,
     monthlyRealIncomeFlow,
     monthlyNominalIncomeFlow,
     monthlyRealSpendingFlow,
@@ -966,7 +1151,7 @@ export function runMonteCarloSimulation(
   const monthlyHistoryMoments = summarizeMeanStd(monthlyHistory);
   const effectiveMonthlyHistory = useHistoricalBootstrap
     ? (input.historicalMomentTargeting
-      ? monthlyHistory.map((value) => applyMomentTargeting(value, monthlyHistoryMoments.mean, monthlyHistoryMoments.std, targetMonthlyMean, targetMonthlyStd))
+      ? monthlyHistory.map((value) => applyMomentTargeting(value, monthlyHistoryMoments.mean, monthlyHistoryMoments.std, retargetMonthlyMean, retargetMonthlyStd))
       : monthlyHistory).map((value) => clampMonthlyReturn(value))
     : monthlyHistory;
   const useMonthlyCalibration = effectiveMonthlyHistory.length >= 120;
@@ -1149,7 +1334,16 @@ export function runMonteCarloSimulation(
         monthlyRealSpendingFlow[m] + monthlyNominalSpendingFlow[m] / realizedInflationIndex;
       const effectiveSpending = withdrawalRunner.monthlySpending(m, balance, baseSpendingThisMonth);
       balance += incomeThisMonth - effectiveSpending + lumpSumByMonth[m];
-      const pnlMonth = Math.max(0, balance) * (monthlyPortfolioGrowthFactor - 1);
+      // Record the cash deficit at the moment it occurs, before investment growth and
+      // deflation touch it. A negative balance is unfunded spending, not an invested
+      // position: scaling it by the month's market return would make the same €100 of
+      // unmet spending register as €50 in a -50% month and €200 in a +100% month.
+      if (balance < 0) {
+        cumulativeShortfall += -balance;
+        depleted = true;
+        balance = 0;
+      }
+      const pnlMonth = balance * (monthlyPortfolioGrowthFactor - 1);
       balance *= monthlyPortfolioGrowthFactor;
       balance /= 1 + monthlyInflation;
       realizedInflationIndex *= 1 + monthlyInflation;
@@ -1172,8 +1366,9 @@ export function runMonteCarloSimulation(
         yearlyPnl = 0;
       }
 
+      // Growth, deflation and tax cannot drive a non-negative balance below zero, so the
+      // only remaining case is an exactly-emptied portfolio.
       if (balance <= 0) {
-        cumulativeShortfall += Math.max(0, -balance);
         depleted = true;
         balance = 0;
       }
@@ -1199,10 +1394,35 @@ export function runMonteCarloSimulation(
     if (success) successCount++;
   }
 
-  const targetFIP95 = findRetirementBalanceTarget(retireBalances, successFlags, FI_TARGET_SUCCESS_PROBABILITY);
   const targetFISWR = spendingAtRetirement / Math.max(0.01, input.safeWithdrawalRate);
-  const fiCountP95 = retireBalances.filter((balance) => balance >= targetFIP95).length;
-  const fiCountSWR = retireBalances.filter((balance) => balance >= targetFISWR).length;
+  const alreadyRetired = isAlreadyRetired(input);
+
+  // Already retired: every path starts from the same capital, so both the P95 target and
+  // the "chance to reach FI" question change shape. The target becomes the capital the
+  // plan *requires*, and the probability becomes a yes/no comparison against the capital
+  // actually held — computed from `currentSavings` directly rather than from the retirement
+  // balances, whose one month of return dispersion would otherwise turn a settled fact into
+  // a spurious percentage. See `findRequiredStartingCapital` and README §7.6.
+  const targetFIP95 = alreadyRetired
+    ? findRequiredStartingCapital(
+        growthFactors,
+        monthlyIncomeFlow,
+        monthlySpendingFlow,
+        lumpSumByMonth,
+        Math.min(simCount, 2000),
+        months,
+        withdrawalStrategy,
+        retireMonthClamped,
+        FI_TARGET_SUCCESS_PROBABILITY,
+        targetFISWR
+      )
+    : findRetirementBalanceTarget(retireBalances, successFlags, FI_TARGET_SUCCESS_PROBABILITY);
+  const fiCountP95 = alreadyRetired
+    ? (input.currentSavings >= targetFIP95 ? simCount : 0)
+    : retireBalances.filter((balance) => balance >= targetFIP95).length;
+  const fiCountSWR = alreadyRetired
+    ? (input.currentSavings >= targetFISWR ? simCount : 0)
+    : retireBalances.filter((balance) => balance >= targetFISWR).length;
 
   const percentileSeries: PercentileSeries<number[]> = { p10: [], p25: [], p50: [], p75: [], p90: [] };
   const column = new Array(simCount);
@@ -1227,7 +1447,7 @@ export function runMonteCarloSimulation(
 
   const shortfallPercentiles = summarize(shortfallTotals);
   const depletedYearsPercentiles = summarize(depletedYearsSeries);
-  const sequenceRisk = buildSequenceRiskSummary(annualRealReturnsBySim, finalBalances, depletedFlags);
+  const sequenceRisk = buildSequenceRiskSummary(annualRealReturnsBySim, finalBalances, depletedFlags, retireMonth);
   const ruinSurface = buildRuinSurface(
     input,
     spendingPeriods,

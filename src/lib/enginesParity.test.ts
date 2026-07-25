@@ -151,8 +151,19 @@ const lumpSumEvents: LumpSumEvent[] = [
   { id: 'ls-2', label: 'Roof', age: 66, amount: -22_000 }
 ];
 
+/**
+ * Already-retired mode drops the salary the same way the UI does, so the payload here
+ * matches what `RetirementPlanner.svelte` actually sends.
+ */
+const retiredIncomeSources: IncomeSource[] = incomeSources.filter((src) => src.id !== 'is-default');
+
 /** Every engine feature gets a scenario so drift in any of them fails this suite. */
-const scenarios: Array<{ name: string; input: RetirementInput }> = [
+const scenarios: Array<{
+  name: string;
+  input: RetirementInput;
+  retireMonth?: number;
+  incomeSources?: IncomeSource[];
+}> = [
   {
     name: 'historical monthly bootstrap, fixed spending',
     input: baseInput()
@@ -199,6 +210,30 @@ const scenarios: Array<{ name: string; input: RetirementInput }> = [
   {
     name: 'zero fees and zero tax',
     input: baseInput({ annualFeePercent: 0, taxOnGainsPercent: 0 })
+  },
+  {
+    // Exercises all three already-retired branches at once: the collapsed ruin-surface
+    // axis, the required-starting-capital P95 target (a bisection, so any divergence in
+    // the replay compounds across ~20 iterations), and the yes/no FI probabilities.
+    name: 'already retired (retireMonth 0)',
+    input: baseInput({ retirementAge: CURRENT_AGE }),
+    retireMonth: 0,
+    incomeSources: retiredIncomeSources
+  },
+  {
+    name: 'already retired, guardrails from month zero',
+    input: baseInput({
+      retirementAge: CURRENT_AGE,
+      withdrawalStrategy: {
+        kind: 'guardrails',
+        guardrailBand: 0.2,
+        adjustment: 0.1,
+        spendingFloor: 0.6,
+        spendingCeiling: 1.4
+      }
+    }),
+    retireMonth: 0,
+    incomeSources: retiredIncomeSources
   }
 ];
 
@@ -225,21 +260,24 @@ describe('seeded PRNG parity', () => {
 describe('cross-engine simulation parity', () => {
   for (const scenario of scenarios) {
     it(`matches for: ${scenario.name}`, () => {
+      const scenarioIncome = scenario.incomeSources ?? incomeSources;
+      const scenarioRetireMonth = scenario.retireMonth ?? RETIRE_MONTH;
+
       const ts = runMonteCarloSimulation(
         scenario.input,
         spendingPeriods,
-        incomeSources,
+        scenarioIncome,
         lumpSumEvents,
         MONTHS,
-        RETIRE_MONTH
+        scenarioRetireMonth
       );
       const rust = run_monte_carlo(
         scenario.input,
         spendingPeriods,
-        incomeSources,
+        scenarioIncome,
         lumpSumEvents,
         MONTHS,
-        RETIRE_MONTH
+        scenarioRetireMonth
       ) as unknown as typeof ts;
 
       expect(rust.simCount).toBe(ts.simCount);

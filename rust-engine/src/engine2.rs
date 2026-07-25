@@ -103,6 +103,42 @@ impl WithdrawalRunner {
     }
 }
 
+/// Inverts 12-fold compounding: given the requested *annual* arithmetic mean and standard
+/// deviation, returns the monthly (mean, std) whose compounding over 12 independent months
+/// reproduces them.
+///
+/// ```text
+///   E[(1+r_a)]   = E[(1+r_m)]^12          ⇒  m = (1+M)^(1/12) − 1
+///   E[(1+r_a)^2] = E[(1+r_m)^2]^12        ⇒  s = sqrt( ((1+M)^2 + S^2)^(1/12) − (1+M)^(2/12) )
+/// ```
+///
+/// Both identities need only independence, not normality, since the expectation of a
+/// product of independent factors is the product of expectations — so higher moments of
+/// the retargeted history do not enter.
+///
+/// The naive `M/12` and `S/√12` are the *log*-scale intuition applied to arithmetic
+/// returns; used here they overshoot, because compounding adds the cross-product terms
+/// this inversion removes. At a 5%/15% target they yield 5.12%/15.79% instead of
+/// 5.00%/15.00%.
+///
+/// This corrects the compounding artifact only. The block bootstrap deliberately preserves
+/// serial dependence, which inflates realized annual variance further and is not an error —
+/// see README §4.4 for the measured residual.
+pub fn monthly_targets_for_annual_moments(annual_mean: f64, annual_std: f64) -> (f64, f64) {
+    let growth = 1.0 + annual_mean;
+    // A non-positive gross return (total loss or worse) has no real 12th root; fall back to
+    // the naive scaling rather than produce NaN. Not reachable from the UI, which bounds
+    // the mean well above −100%.
+    if !growth.is_finite() || growth <= 0.0 || !annual_std.is_finite() {
+        return (annual_mean / 12.0, annual_std.max(0.0) / 12.0_f64.sqrt());
+    }
+
+    let monthly_mean = growth.powf(1.0 / 12.0) - 1.0;
+    let monthly_second_moment = (growth * growth + annual_std * annual_std).powf(1.0 / 12.0);
+    let monthly_variance = monthly_second_moment - growth.powf(2.0 / 12.0);
+    (monthly_mean, monthly_variance.max(0.0).sqrt())
+}
+
 pub fn apply_moment_targeting(
     value: f64,
     source_mean: f64,

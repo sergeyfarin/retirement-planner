@@ -56,7 +56,9 @@
 		resetDragToDefault,
 		onAssumptionsToggle = undefined,
 		currentConditions = null,
-		applyCurrentConditions = () => {}
+		applyCurrentConditions = () => {},
+		alreadyRetired = false,
+		onAlreadyRetiredChange = () => {}
 	}: {
 		CURRENCIES?: any[];
 		selectedCurrencyCode: any;
@@ -119,6 +121,8 @@
 			metrics: { stockMean: number; bondMean: number; bankMean: number };
 		} | null;
 		applyCurrentConditions?: () => void;
+		alreadyRetired?: boolean;
+		onAlreadyRetiredChange?: (next: boolean) => void;
 	} = $props();
 
 	const DEFAULT_WITHDRAWAL_STRATEGY = {
@@ -169,15 +173,35 @@
 				Current age
 				<input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
 			</label>
-			<label>
+			<label class:input-disabled={alreadyRetired}>
 				Retire at age
-				<input type="number" min="25" max="80" step="1" bind:value={input.retirementAge} />
+				<input
+					type="number"
+					min="25"
+					max="80"
+					step="1"
+					disabled={alreadyRetired}
+					title={alreadyRetired ? 'Already retired — retirement is now, at your current age.' : ''}
+					bind:value={input.retirementAge}
+				/>
 			</label>
 			<label title="Planning to age 90–95 is a conservative, commonly recommended choice.">
 				Plan until age
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
 		</div>
+
+		<label
+			class="already-retired"
+			title="Drawdown only: retirement starts today, so there is no accumulation phase. Salary is dropped, Coast FIRE no longer applies, and the FI target becomes the capital the plan needs today rather than a balance to reach by some future age."
+		>
+			<input
+				type="checkbox"
+				checked={alreadyRetired}
+				onchange={(e) => onAlreadyRetiredChange(e.currentTarget.checked)}
+			/>
+			<span>I am already retired — model drawdown only, starting today</span>
+		</label>
 
 		<div class="section-split">
 			<div>
@@ -188,7 +212,10 @@
 							title="Inflation-adjusted">Infl<br />adj.</span
 						><span></span>
 					</div>
-					{#each incomeSources as src (src.id)}
+					<!-- The salary row spans current age → retirement age, an interval that is empty
+					     once retirement is today. It is hidden rather than zeroed so it keeps its
+					     amount for anyone who unticks the box. -->
+					{#each incomeSources.filter((src: { id: string }) => !(alreadyRetired && src.id === 'is-default')) as src (src.id)}
 						<div class="table-row">
 							<input type="text" bind:value={src.label} placeholder="Salary" />
 

@@ -5,22 +5,41 @@ use crate::structs::{
     IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
 };
 
+/// Groups simulations into quintiles by their mean real return over the first ten
+/// *post-retirement* years — the Kitces/Pfau danger window, when withdrawals turn a
+/// drawdown into permanently sold-off capital.
+///
+/// The window starts at the annual bucket *containing* `retire_month`, not the first
+/// whole year after it. Annual returns are accumulated over calendar-style buckets
+/// (months 12k..12k+11), so a retirement at month 30 falls inside bucket 2. Flooring
+/// keeps the crash-at-retirement case — the whole point of the analysis — inside the
+/// window, at the cost of mixing a few pre-retirement months into the first bucket.
+/// Rounding up would exclude exactly the scenario the chart exists to show.
+///
+/// For someone already retired (`retire_month == 0`) this is the first ten years from
+/// today, which is what the analysis used to do unconditionally.
 pub fn build_sequence_risk_summary(
     annual_real_returns_by_sim: &[Vec<f64>],
     final_balances: &[f64],
     depleted_flags: &[bool],
+    retire_month: usize,
 ) -> Vec<SequenceRiskBucket> {
     let sim_count = annual_real_returns_by_sim.len();
     if sim_count == 0 {
         return vec![];
     }
 
-    let min_length = annual_real_returns_by_sim
+    let retire_year = retire_month / 12;
+    // Clamp per series so the window never runs off the end of a short horizon; every
+    // series holds at least one entry, so this always leaves something to average.
+    let start_of = |len: usize| retire_year.min(len.saturating_sub(1));
+
+    let min_remaining = annual_real_returns_by_sim
         .iter()
-        .map(|series| series.len().max(1))
+        .map(|series| series.len().saturating_sub(start_of(series.len())).max(1))
         .min()
         .unwrap_or(1);
-    let early_years = 1.max(10.min(min_length));
+    let early_years = 1.max(10.min(min_remaining));
 
     struct EnrichedIndex {
         index: usize,
@@ -31,7 +50,11 @@ pub fn build_sequence_risk_summary(
         .iter()
         .enumerate()
         .map(|(index, series)| {
-            let sum: f64 = series.iter().take(early_years).sum();
+            let sum: f64 = series
+                .iter()
+                .skip(start_of(series.len()))
+                .take(early_years)
+                .sum();
             EnrichedIndex {
                 index,
                 early_mean: sum / (early_years as f64),
@@ -137,6 +160,112 @@ pub fn replay_ruin_probability(
     (ruin_count as f64) / (sample_count.max(1) as f64)
 }
 
+/// Already-retired mode. There is no separate flag: `retirement_age == current_age` *is*
+/// the encoding, so it survives share links and the wasm boundary without a new field, and
+/// both engines derive it from the same two numbers. `retire_month` then comes out as 0 and
+/// the whole accumulation phase collapses to nothing.
+///
+/// Three outputs are only meaningful with an accumulation phase ahead, and each is handled
+/// explicitly rather than left to degenerate: Coast FIRE returns `None` (already the case
+/// for `retire_month == 0`), the ruin surface drops its retirement-age axis
+/// (`build_ruin_surface`), and the P95 FI target switches to a required-starting-capital
+/// search (`find_required_starting_capital`). See README §7.6.
+///
+/// Mirrored in TypeScript as `isAlreadyRetired`.
+pub fn is_already_retired(input: &RetirementInput) -> bool {
+    input.retirement_age <= input.current_age
+}
+
+/// Smallest starting capital that still clears `target_success_probability`, found by
+/// bisection over replays of the stored growth paths.
+///
+/// This is the already-retired replacement for the P95 FI target. The usual construction
+/// (`find_retirement_balance_target`) reads the answer off the spread of balances *at
+/// retirement*, which only exists because different paths accumulate differently. With
+/// `retire_month == 0` every path starts from the same capital, that spread collapses to
+/// one month of return dispersion, and the empirical target degenerates into roughly
+/// "current savings" regardless of whether the plan works — a number that looks like an
+/// answer and is not one. Here the question is turned around: hold the paths fixed and vary
+/// the capital.
+///
+/// Success is monotone non-decreasing in starting capital along fixed paths, so bisection
+/// is exact up to the tolerance. Returns 0 when income alone survives every path, and the
+/// top of the bracket when even that much capital cannot reach the target.
+///
+/// Inherits the replay approximation: nominal cashflows are deflated by *expected* rather
+/// than realized inflation, so this target is a touch optimistic in high-inflation paths
+/// compared with the main simulation's success probability (README §7).
+///
+/// Mirrored in TypeScript as `findRequiredStartingCapital`.
+#[allow(clippy::too_many_arguments)]
+pub fn find_required_starting_capital(
+    growth_factors: &[Vec<f64>],
+    monthly_income_flow: &[f64],
+    monthly_spending_flow: &[f64],
+    lump_sum_by_month: &[f64],
+    sample_count: usize,
+    months: u32,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
+    target_success_probability: f64,
+    initial_guess: f64,
+) -> f64 {
+    if sample_count == 0 || growth_factors.is_empty() {
+        return 0.0;
+    }
+
+    let success_at = |capital: f64| {
+        1.0 - replay_ruin_probability(
+            growth_factors,
+            monthly_income_flow,
+            monthly_spending_flow,
+            lump_sum_by_month,
+            capital,
+            sample_count,
+            months,
+            strategy,
+            retire_month,
+        )
+    };
+
+    if success_at(0.0) >= target_success_probability {
+        return 0.0;
+    }
+
+    // Bracket upward from the SWR target, which is the right order of magnitude whenever
+    // spending dominates; the cap keeps a pathological plan (spending that no capital
+    // outruns) from looping forever.
+    let mut low = 0.0;
+    let mut high = initial_guess.max(1.0);
+    let mut bracketed = false;
+    for _ in 0..24 {
+        if success_at(high) >= target_success_probability {
+            bracketed = true;
+            break;
+        }
+        low = high;
+        high *= 2.0;
+    }
+    if !bracketed {
+        return high;
+    }
+
+    // Relative tolerance rather than absolute: the answer spans a few thousand to tens of
+    // millions depending on the plan's currency and scale.
+    let mut step = 0;
+    while step < 60 && high - low > (high * 1e-4).max(1.0) {
+        let mid = (low + high) / 2.0;
+        if success_at(mid) >= target_success_probability {
+            high = mid;
+        } else {
+            low = mid;
+        }
+        step += 1;
+    }
+
+    high
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn build_ruin_surface(
     input: &RetirementInput,
@@ -150,16 +279,28 @@ pub fn build_ruin_surface(
 ) -> RuinSurface {
     let spending_multipliers = vec![0.8, 0.9, 1.0, 1.1, 1.2];
 
-    let offsets = vec![-6.0, -3.0, 0.0, 3.0, 6.0];
-    let mut retirement_ages: Vec<usize> = offsets
-        .iter()
-        .map(|&offset| {
-            let age = input.retirement_age + offset;
-            (input.simulate_until_age - 1.0)
-                .min((input.current_age + 1.0).max(age))
-                .round() as usize
-        })
-        .collect();
+    // Already retired: the retirement-age axis is gone, not merely shifted. Sweeping it
+    // would clamp every candidate to `current_age + 1..+6` and label the result "retire
+    // later", but with the salary already ended a later retirement age changes nothing
+    // except when the withdrawal strategy starts — a difference with no real-world
+    // counterpart. The surface collapses to the one axis that still means something:
+    // sensitivity to spending. See README §7.6.
+    let already_retired = is_already_retired(input);
+
+    let mut retirement_ages: Vec<usize> = if already_retired {
+        vec![input.current_age.round() as usize]
+    } else {
+        let offsets = vec![-6.0, -3.0, 0.0, 3.0, 6.0];
+        offsets
+            .iter()
+            .map(|&offset| {
+                let age = input.retirement_age + offset;
+                (input.simulate_until_age - 1.0)
+                    .min((input.current_age + 1.0).max(age))
+                    .round() as usize
+            })
+            .collect()
+    };
 
     retirement_ages.sort_unstable();
     retirement_ages.dedup();
@@ -206,10 +347,17 @@ pub fn build_ruin_surface(
                         months,
                     );
 
-                    let cell_retire_month = (((ret_age as f64 - input.current_age) * 12.0)
-                        .round()
-                        .max(0.0) as usize)
-                        .min(months as usize);
+                    // `ret_age` is rounded for the axis label, so derive the month from the
+                    // flag rather than from the rounded age — a fractional `current_age`
+                    // would otherwise reintroduce up to six months of phantom accumulation.
+                    let cell_retire_month = if already_retired {
+                        0
+                    } else {
+                        (((ret_age as f64 - input.current_age) * 12.0)
+                            .round()
+                            .max(0.0) as usize)
+                            .min(months as usize)
+                    };
 
                     replay_ruin_probability(
                         growth_factors,

@@ -12,7 +12,8 @@ use crate::engine2::{
     WithdrawalRunner,
 };
 use crate::stats::{
-    build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_retirement_balance_target,
+    build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_required_starting_capital,
+    find_retirement_balance_target, is_already_retired,
 };
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
 use std::f64;
@@ -113,8 +114,17 @@ pub fn run_monte_carlo_simulation(
 
     let target_annual_mean = input.mean_return;
     let target_annual_std = input.return_variability.max(0.0);
-    let target_monthly_mean = target_annual_mean / 12.0;
+    // Intra-year dispersion for annual-mode spreading. The naive √12 scaling is the right
+    // convention here and does not bias anything: spread_annual_return_across_months
+    // renormalizes each year by its own geometric mean, so the year still compounds to the
+    // sampled annual return exactly and this parameter only sets intra-year texture.
     let target_monthly_std = target_annual_std / 12.0_f64.sqrt();
+
+    // Moment targeting is different: it rewrites *monthly* observations that are then
+    // compounded into years, so the monthly targets must be the ones whose 12-fold
+    // compounding reproduces the requested annual moments. Using √12 here overshot both.
+    let (retarget_monthly_mean, retarget_monthly_std) =
+        crate::engine2::monthly_targets_for_annual_moments(target_annual_mean, target_annual_std);
 
     let arrays = build_cashflow_arrays(
         input,
@@ -123,6 +133,8 @@ pub fn run_monte_carlo_simulation(
         lump_sum_events,
         months,
     );
+    let monthly_income_flow = arrays.monthly_income_flow;
+    let monthly_spending_flow = arrays.monthly_spending_flow;
     let monthly_real_income_flow = arrays.monthly_real_income_flow;
     let monthly_nominal_income_flow = arrays.monthly_nominal_income_flow;
     let monthly_real_spending_flow = arrays.monthly_real_spending_flow;
@@ -212,8 +224,8 @@ pub fn run_monte_carlo_simulation(
                         v,
                         monthly_history_mean,
                         monthly_history_std,
-                        target_monthly_mean,
-                        target_monthly_std,
+                        retarget_monthly_mean,
+                        retarget_monthly_std,
                     )
                 } else {
                     v
@@ -490,7 +502,17 @@ pub fn run_monte_carlo_simulation(
             let effective_spending =
                 withdrawal_runner.monthly_spending(m, balance, base_spending_this_month);
             balance += income_this_month - effective_spending + lump_sum_by_month[m];
-            let pnl_month = balance.max(0.0) * (monthly_portfolio_growth_factor - 1.0);
+            // Record the cash deficit at the moment it occurs, before investment growth
+            // and deflation touch it. A negative balance is unfunded spending, not an
+            // invested position: scaling it by the month's market return would make the
+            // same €100 of unmet spending register as €50 in a −50% month and €200 in a
+            // +100% month.
+            if balance < 0.0 {
+                cumulative_shortfall += -balance;
+                depleted = true;
+                balance = 0.0;
+            }
+            let pnl_month = balance * (monthly_portfolio_growth_factor - 1.0);
             balance *= monthly_portfolio_growth_factor;
             balance /= 1.0 + monthly_inflation;
             realized_inflation_index *= 1.0 + monthly_inflation;
@@ -515,8 +537,9 @@ pub fn run_monte_carlo_simulation(
                 yearly_pnl = 0.0;
             }
 
+            // Growth, deflation and tax cannot drive a non-negative balance below zero,
+            // so the only remaining case is an exactly-emptied portfolio.
             if balance <= 0.0 {
-                cumulative_shortfall += (0.0_f64).max(-balance);
                 depleted = true;
                 balance = 0.0;
             }
@@ -580,16 +603,56 @@ pub fn run_monte_carlo_simulation(
         cb(0.90);
     }
 
-    let target_fi_p95 = find_retirement_balance_target(&retire_balances, &success_flags, 0.95);
     let target_fi_swr = spending_at_retirement / input.safe_withdrawal_rate.max(0.01);
-    let fi_count_p95 = retire_balances
-        .iter()
-        .filter(|&&b| b >= target_fi_p95)
-        .count();
-    let fi_count_swr = retire_balances
-        .iter()
-        .filter(|&&b| b >= target_fi_swr)
-        .count();
+    let already_retired = is_already_retired(input);
+
+    // Already retired: every path starts from the same capital, so both the P95 target and
+    // the "chance to reach FI" question change shape. The target becomes the capital the
+    // plan *requires*, and the probability becomes a yes/no comparison against the capital
+    // actually held — computed from `current_savings` directly rather than from the
+    // retirement balances, whose one month of return dispersion would otherwise turn a
+    // settled fact into a spurious percentage. See `find_required_starting_capital` and
+    // README §7.6.
+    let target_fi_p95 = if already_retired {
+        find_required_starting_capital(
+            &growth_factors,
+            &monthly_income_flow,
+            &monthly_spending_flow,
+            &lump_sum_by_month,
+            growth_cap,
+            months,
+            &withdrawal_strategy,
+            retire_month_usize,
+            0.95,
+            target_fi_swr,
+        )
+    } else {
+        find_retirement_balance_target(&retire_balances, &success_flags, 0.95)
+    };
+    let fi_count_p95 = if already_retired {
+        if input.current_savings >= target_fi_p95 {
+            sim_count
+        } else {
+            0
+        }
+    } else {
+        retire_balances
+            .iter()
+            .filter(|&&b| b >= target_fi_p95)
+            .count()
+    };
+    let fi_count_swr = if already_retired {
+        if input.current_savings >= target_fi_swr {
+            sim_count
+        } else {
+            0
+        }
+    } else {
+        retire_balances
+            .iter()
+            .filter(|&&b| b >= target_fi_swr)
+            .count()
+    };
 
     let mut pt10 = Vec::with_capacity(months_usize);
     let mut pt25 = Vec::with_capacity(months_usize);
@@ -637,6 +700,7 @@ pub fn run_monte_carlo_simulation(
         &annual_real_returns_by_sim,
         &final_balances,
         &depleted_flags,
+        retire_month_usize,
     );
 
     let ruin_surface = build_ruin_surface(

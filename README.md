@@ -280,6 +280,45 @@ $$r' = \mu_{target} + \frac{r - \mu_{source}}{\sigma_{source}} \cdot \sigma_{tar
 
 This preserves the ordering and autocorrelation of historical sequences while shifting their first two moments to the user's targets.
 
+**Monthly targets are the compounding-inverse of the annual inputs.** The user's inputs are
+*annual* moments, but on the production path (monthly calibration) the transform rewrites
+*monthly* observations that are then compounded into years. The monthly targets must
+therefore be the ones whose 12-fold compounding reproduces the annual request
+(`monthlyTargetsForAnnualMoments`):
+
+$$m = (1+M)^{1/12} - 1 \qquad s = \sqrt{\left((1+M)^2 + S^2\right)^{1/12} - (1+M)^{2/12}}$$
+
+Both identities require only independence across months, not normality, since the
+expectation of a product of independent factors is the product of expectations — higher
+moments of the retargeted history do not enter.
+
+The naive $M/12$ and $S/\sqrt{12}$ are log-scale intuition applied to arithmetic returns.
+Used here they overshoot, because compounding adds cross-product terms: a 5%/15% request
+came out as **5.12% / 15.78%** before this correction, on every region alike.
+
+**Residual: serial dependence, which is deliberate.** Removing the compounding artifact
+does not make realized annual moments equal the target, because the block bootstrap
+preserves the historical autocorrelation that inflates annual variance above 12× the
+monthly variance. Measured over 400,000 bootstrapped years per cell at the shipped block
+length of 6 (§4.3), on the 60/30/10 portfolio, requesting 5% / 15%:
+
+| Region | iid control (block=1) | Shipped (block=6) | Residual σ |
+|---|---|---|---|
+| WORLD | 4.98% / 15.01% | 5.22% / 15.97% | +0.97pp |
+| USD | 4.97% / 15.01% | 5.11% / 15.29% | +0.29pp |
+| GBP | 4.98% / 15.02% | 5.18% / 16.49% | +1.49pp |
+| EUR | 4.98% / 15.01% | 5.19% / 15.84% | +0.84pp |
+
+The iid column confirms the transform is now exact in the independent limit. The residual is
+the variance-ratio effect of §4.3 and scales with each region's own autocorrelation, so it
+cannot be removed without also deflating the monthly volatility below the historical
+dependence structure the block bootstrap exists to reproduce. Whether to do so is an open
+modelling decision (TODO 0.15), not a bug.
+
+> **Read the volatility input as "annual volatility of the underlying monthly process",
+> not as a guarantee about realized annual σ.** Realized annual σ runs roughly 0.3–1.5pp
+> above the requested figure depending on region, in the conservative direction.
+
 ### 4.4.1 "Use today's yields" — Current-Conditions Assumptions
 
 Historical averages are a poor forecast of *bond* returns: much of the 1960–2026 bond
@@ -520,6 +559,10 @@ P10, P25, P50 (median), P75, P90 balance trajectories over the full time horizon
 | FI Target (P95) | Minimum balance at retirement such that ≥ 95% of paths with balance ≥ that threshold end above zero. Found by sorting simulations by retirement-age balance and scanning for the 95% conditional success cutoff using a suffix-sum algorithm. |
 | Coast FIRE age | Earliest age at which **contributions** could stop while still clearing 95% success. |
 
+All three assume an accumulation phase still lies ahead. When the plan is already in
+drawdown the P95 target is computed differently and Coast FIRE is reported as `null` — see
+§7.6.
+
 **Coast FIRE.** "Stopping contributions" is modelled as **net-zero cash flow** from that
 age until retirement: you still cover spending from work — the coast/barista case — so the
 portfolio neither grows by contribution nor shrinks by withdrawal, it simply compounds.
@@ -546,11 +589,38 @@ and when 95% is unreachable even by contributing right up to retirement.
 
 Simulations are sorted by mean real return in the first 10 post-retirement years, then grouped into 5 quintiles. For each: mean early return, ruin probability, ending median balance. This directly validates the Kitces/Pfau sequence-of-returns thesis.
 
+**Where the window starts.** The annual real-return series begins at the *current* age, so
+the window is offset by `retireMonth`. Annual returns are accumulated into calendar-style
+buckets (months `12k..12k+11`), and a fractional retirement offset is **floored** onto the
+bucket that *contains* the retirement month — retiring at month 30 starts the window at
+bucket 2. Flooring keeps a crash landing on the retirement date inside the window, which is
+the exact scenario the analysis exists to show; rounding up would exclude it, at the cost of
+mixing a few pre-retirement months into the first bucket. When the horizon leaves fewer than
+10 years after retirement the window shortens to what remains, and for someone already
+retired (`retireMonth == 0`, §7.6) it is simply the first 10 years from today — which is
+the one case where the old unconditional slice was right.
+
+**Why not the first 10 years from today.** Those are two different questions, and only the
+post-retirement one is sequence risk. Before retirement a net saver is *buying*, so an early
+crash is bought into at lower prices and partly recovers over the remaining accumulation
+years — the effect on ending wealth is weak and can carry the opposite sign. After
+retirement the same crash is sold into to fund withdrawals, permanently removing the shares
+that would have recovered. Grouping an accumulator's paths by ages 35–45 and captioning it
+as sequence risk therefore measures the wrong phenomenon, not merely the right one over a
+shifted window.
+
+"What if a crisis hits tomorrow, given the capital I already have?" is a legitimate and
+*separate* question — a shock-timing stress test, not a quintile analysis — and it is
+partly served by the ruin surface (§7.5), which varies retirement age and spending against
+the same stored paths. For someone at or near retirement the two windows coincide anyway.
+
 ### 7.5 Ruin Surface Heatmap
 
 A 5×5 grid of ruin probabilities across:
 - **Retirement ages**: `[retAge−6, retAge−3, retAge, retAge+3, retAge+6]`
 - **Spending multipliers**: `[0.8, 0.9, 1.0, 1.1, 1.2]`
+
+(5×1, spending only, when the plan is already in drawdown — see §7.6.)
 
 Each cell replays the stored growth factors (subsampled to 2000 paths max) with recomputed cashflow arrays. Note: income source `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged. This is a documented fast approximation.
 
@@ -566,6 +636,57 @@ caption makes explicit:
   between neighbouring cells are considerably steadier than each cell's absolute margin
   suggests. The chart is meant to be read for the shape of the retire-earlier / spend-more
   trade-off rather than for any single cell's exact value.
+
+### 7.6 Already-Retired Mode
+
+Ticking **"I am already retired"** in the input panel sets `retirementAge = currentAge`,
+which makes `retireMonth` 0 and removes the accumulation phase entirely. There is no
+separate flag anywhere in the model: `retirementAge <= currentAge` *is* the encoding
+(`isAlreadyRetired` / `is_already_retired`), so share links, the worker payload and the
+wasm boundary carry the mode for free and the two engines cannot disagree about what it
+means. Unticking restores the retirement age the user had before.
+
+The UI drops the salary row (`is-default`) from the payload rather than zeroing it — its
+interval `currentAge → retirementAge` is empty in this mode, and `incomeAtAge` is inclusive
+at both ends, so leaving it in would pay exactly one month of salary at month 0. The row
+keeps its amount in the panel state so unticking restores it. Pension and any user-added
+income sources are untouched: a retiree usually has some.
+
+Three outputs assume an accumulation phase and are switched rather than left to degenerate.
+This is the whole reason the mode is a documented branch rather than just a validation
+relaxation:
+
+| Output | Accumulating | Already retired |
+|---|---|---|
+| Coast FIRE age | earliest age to stop contributing | `null` — no contributions left to stop |
+| FI Target (P95) | minimum *balance at retirement* clearing 95% (§7.2) | minimum *starting capital today* clearing 95% |
+| Ruin surface | 5×5 over retirement age × spending (§7.5) | 5×1 over spending only |
+| "Chance to reach FI" cards | fraction of paths clearing the target | today's capital vs. the target — a yes/no fact |
+
+**Why the P95 target has to change construction.** The accumulating version reads its
+answer off the *spread* of balances at retirement, and that spread exists only because
+different paths accumulate differently. With `retireMonth == 0` every path starts from the
+same capital, so the spread collapses to a single month of return dispersion and the
+suffix-scan returns something within a couple of percent of current savings no matter
+whether the plan survives. That is a number that looks like an answer and is not one. The
+already-retired branch turns the question around instead — hold the paths fixed, vary the
+capital — and bisects for the smallest starting capital clearing 95%
+(`findRequiredStartingCapital`). Success is monotone non-decreasing in starting capital
+along fixed paths, so the bisection is exact up to its tolerance. It reuses the ruin-surface
+replay and therefore inherits the same caveat: nominal cashflows are deflated by *expected*
+rather than realized inflation, making it slightly optimistic on high-inflation paths
+relative to the headline success probability.
+
+**Why the ruin surface loses an axis.** Sweeping retirement age for someone already retired
+would clamp every candidate to `currentAge + 1 … +6` and caption the result "retire later".
+But with the salary gone, a later retirement age changes nothing except when the withdrawal
+strategy switches on — a difference with no real-world counterpart. The surface keeps the
+axis that still means something. The chart relabels itself accordingly rather than
+presenting a one-column grid as if it were a two-way trade-off.
+
+The timeline chart drops its retirement marker and "FI target year" annotation in this
+mode: retirement is the left edge of the x-axis, so the line divides nothing and the label
+would name a year that has already passed.
 
 ---
 
