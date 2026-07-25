@@ -17,9 +17,10 @@
  *
  * Run:  node scripts/analyze-block-length.mjs
  *
- * This is an analysis tool, not runtime code. It exists so the engine's default
- * block length is a cited number rather than a guess; re-run it when the market
- * data is refreshed. See TODO 0.13 and README section 4.3.
+ * This is an analysis tool, not runtime code. PWSD selects a block length for
+ * long-run-variance estimation; it is a useful diagnostic, but it does not by
+ * itself select the best block length for retirement ruin or drawdown paths.
+ * Re-run it when the market data is refreshed. See TODO 0.13 and README section 4.3.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -43,30 +44,56 @@ function autocovariance(x, k, mean) {
   return acc / x.length;
 }
 
+export function selectMHat(rho, threshold, KN) {
+  if (!Number.isInteger(KN) || KN < 1) throw new RangeError('KN must be a positive integer');
+
+  // rho[0] is lag 1. Current blocklength::pwsd chooses the significant lag immediately
+  // before the first run of KN insignificant lags, with 1 as the lower bound.
+  for (let start = 0; start + KN <= rho.length; start++) {
+    let allSmall = true;
+    for (let offset = 0; offset < KN; offset++) {
+      if (Math.abs(rho[start + offset]) >= threshold) { allSmall = false; break; }
+    }
+    if (allSmall) return Math.max(1, start);
+  }
+
+  // Reference fallback: largest significant lag, or 1 if every lag is insignificant.
+  for (let index = rho.length - 1; index >= 0; index--) {
+    if (Math.abs(rho[index]) > threshold) return index + 1;
+  }
+  return 1;
+}
+
+export function theoreticalAr1CircularBlockLength(n, phi) {
+  if (!Number.isFinite(n) || n <= 0) throw new RangeError('n must be positive');
+  if (!Number.isFinite(phi) || Math.abs(phi) >= 1) throw new RangeError('phi must be stationary');
+  if (phi === 0) return 0;
+  return Math.cbrt((6 * phi * phi) / ((1 - phi * phi) ** 2)) * Math.cbrt(n);
+}
+
 export function politisWhiteBlockLength(x, opts = {}) {
   const n = x.length;
+  if (n < 3 || x.some((value) => !Number.isFinite(value))) {
+    throw new RangeError('x must contain at least three finite observations');
+  }
   const KN = opts.KN ?? Math.max(5, Math.ceil(Math.log10(n)));
   const MMax = opts.MMax ?? Math.ceil(Math.sqrt(n)) + KN;
   const BMax = opts.BMax ?? Math.ceil(Math.min(3 * Math.sqrt(n), n / 3));
   const c = opts.c ?? 1.959963984540054; // qnorm(0.975)
+  if (!Number.isInteger(KN) || KN < 1) throw new RangeError('KN must be a positive integer');
+  if (!Number.isInteger(MMax) || MMax < KN) throw new RangeError('MMax must be an integer >= KN');
+  if (!Number.isFinite(BMax) || BMax <= 0) throw new RangeError('BMax must be positive');
+  if (!Number.isFinite(c) || c <= 0) throw new RangeError('c must be positive');
 
   const mean = x.reduce((a, b) => a + b, 0) / n;
   const cov0 = autocovariance(x, 0, mean);
-  const rho = [1];
-  for (let k = 1; k <= MMax + KN; k++) rho.push(autocovariance(x, k, mean) / cov0);
+  if (!Number.isFinite(cov0) || cov0 <= 0) throw new RangeError('x must have positive variance');
+  const rho = [];
+  for (let k = 1; k <= MMax; k++) rho.push(autocovariance(x, k, mean) / cov0);
 
   // m_hat: smallest m after which the correlogram looks negligible for K_N lags.
   const threshold = c * Math.sqrt(Math.log10(n) / n);
-  let mHat = 0;
-  for (let m = 1; m <= MMax; m++) {
-    let allSmall = true;
-    for (let k = 1; k <= KN; k++) {
-      const idx = m + k;
-      if (idx < rho.length && Math.abs(rho[idx]) >= threshold) { allSmall = false; break; }
-    }
-    if (allSmall) { mHat = m; break; }
-  }
-  if (mHat === 0) mHat = MMax;
+  const mHat = selectMHat(rho, threshold, KN);
 
   const M = Math.min(2 * mHat, MMax);
 
@@ -90,8 +117,8 @@ export function politisWhiteBlockLength(x, opts = {}) {
 }
 
 /* ------------------------------------------------------------------ *
- * Validation. The implementation is checked against cases whose answer
- * is known a priori before it is trusted on real data.
+ * Smoke diagnostics. Exact reference fixtures live in the accompanying
+ * node:test file; these examples make dependence sensitivity visible.
  * ------------------------------------------------------------------ */
 function mulberry32(seed) {
   let s = seed >>> 0;
@@ -126,40 +153,24 @@ function ar1(n, phi, seed) {
   return out;
 }
 
-function validate() {
-  console.log('Validation (expected behaviour stated before the numbers):\n');
+function showSmokeDiagnostics() {
+  console.log('Smoke diagnostics (exact reference checks run separately via node:test):\n');
   const cases = [
     ['iid noise (phi=0)      ', ar1(500, 0.0, 11), 'no dependence -> block should collapse toward 1'],
     ['AR(1) phi=0.3          ', ar1(500, 0.3, 12), 'mild dependence -> small block'],
     ['AR(1) phi=0.5          ', ar1(500, 0.5, 13), 'moderate dependence -> larger than phi=0.3'],
     ['AR(1) phi=0.8          ', ar1(500, 0.8, 14), 'strong dependence -> larger again']
   ];
-  let prev = -Infinity;
-  let monotone = true;
   for (const [label, series, expectation] of cases) {
     const r = politisWhiteBlockLength(series);
     console.log(`  ${label} b_CB ${r.bCB.toFixed(2)}  b_SB ${r.bSB.toFixed(2)}  (m_hat ${r.mHat}, M ${r.M})`);
     console.log(`      expected: ${expectation}`);
-    if (r.bCB < prev - 1e-9) monotone = false;
-    prev = r.bCB;
   }
-  const ratio = (() => {
-    const r = politisWhiteBlockLength(ar1(500, 0.5, 13));
-    return r.bCB / r.bSB;
-  })();
-  console.log(`\n  monotone increasing in dependence: ${monotone ? 'YES' : 'NO'}`);
-  console.log(`  b_CB / b_SB = ${ratio.toFixed(4)} (analytic check: (2/(4/3))^(1/3) = ${Math.cbrt(1.5).toFixed(4)})`);
   console.log('');
-  return monotone && Math.abs(ratio - Math.cbrt(1.5)) < 1e-9;
 }
 
-function main() {
-  const ok = validate();
-  if (!ok) {
-    console.error('Validation FAILED — not reporting real-data results.');
-    process.exit(1);
-  }
-
+export function main() {
+  showSmokeDiagnostics();
   const data = JSON.parse(readFileSync(DATA, 'utf8'));
   const allocations = [
     ['100/0/0  ', { stocks: 1, bonds: 0, bank: 0 }],
@@ -190,7 +201,8 @@ function main() {
   all.sort((x, y) => x - y);
   const median = all[Math.floor(all.length / 2)];
   console.log(`\n  across all regions x allocations: min ${all[0].toFixed(1)}  median ${median.toFixed(1)}  max ${all[all.length - 1].toFixed(1)}`);
-  console.log(`  => suggested default blockLength: ${Math.round(median)} months`);
+  console.log(`  => PWSD diagnostic median: ${Math.round(median)} months`);
+  console.log('  This is not a retirement-path optimum; compare product outcomes across a sensitivity grid.');
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

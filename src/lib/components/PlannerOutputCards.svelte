@@ -68,18 +68,15 @@
 			</div>
 			<div
 				class="note mono-value coast-note"
-				title="Coast FIRE: from this age you could stop adding to the portfolio and let it compound, as long as your income still covers your spending (part-time or lower-paid work). Retirement age and spending are unchanged; only the contributions stop."
+				title="Coast FIRE: from this age you could stop positive portfolio contributions. Planned deficit months and lump sums still occur; retirement age and spending are unchanged."
 			>
 				{#if alreadyRetired}
 					Coast FIRE: n/a — there is no accumulation phase left to stop
 				{:else if stats.coastAge != null}
 					Coast FIRE: stop saving at age <strong>{Math.ceil(stats.coastAge)}</strong> and still
-					clear {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}%, if work still covers
-					spending
+					clear {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}%; planned deficits still apply
 				{:else}
-					Coast FIRE: n/a — contributing until age {input.retirementAge} does not reach {(
-						FI_TARGET_SUCCESS_PROBABILITY * 100
-					).toFixed(0)}%
+					Coast FIRE: n/a — no positive contributions to stop, or the target remains unreachable
 				{/if}
 			</div>
 		</div>
@@ -146,6 +143,29 @@
 					class:amount-negative={stats.finalHigh === 0}
 					>P90: {fmtCompactCurrency(stats.finalHigh)}</span
 				>
+			</div>
+		</div>
+		<div class="card">
+			<strong>Annual return moments</strong>
+			<div
+				class="note mono-value"
+				title="Requested values are the annual inputs captured for this run. Effective values are measured from the transformed annual bootstrap source; serial dependence can make them differ from the request."
+			>
+				Requested — mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} ·
+				vol {percentFormatter.format(stats.requestedReturnMoments.stdDev)} · skew {fmtNum(
+					stats.requestedReturnMoments.skewness,
+					2
+				)} · kurt {fmtNum(stats.requestedReturnMoments.kurtosis, 2)}
+			</div>
+			<div class="note mono-value">
+				Effective — mean {percentFormatter.format(stats.returnMoments.arithmeticMean)} · vol
+				{percentFormatter.format(stats.returnMoments.stdDev)} · skew {fmtNum(
+					stats.returnMoments.skewness,
+					2
+				)} · kurt {fmtNum(stats.returnMoments.kurtosis, 2)}
+			</div>
+			<div class="note mono-value">
+				Effective CAGR: {percentFormatter.format(stats.returnMoments.geometricMean)}
 			</div>
 		</div>
 		<div class="card">

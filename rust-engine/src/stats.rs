@@ -1,6 +1,6 @@
 use crate::calculations::summarize;
 use crate::engine::{RuinSurface, SequenceRiskBucket};
-use crate::engine2::{build_cashflow_arrays, WithdrawalRunner};
+use crate::engine2::{build_cashflow_arrays, evaluate_path, CashflowArrays, PathTape};
 use crate::structs::{
     IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
 };
@@ -9,37 +9,24 @@ use crate::structs::{
 /// *post-retirement* years — the Kitces/Pfau danger window, when withdrawals turn a
 /// drawdown into permanently sold-off capital.
 ///
-/// The window starts at the annual bucket *containing* `retire_month`, not the first
-/// whole year after it. Annual returns are accumulated over calendar-style buckets
-/// (months 12k..12k+11), so a retirement at month 30 falls inside bucket 2. Flooring
-/// keeps the crash-at-retirement case — the whole point of the analysis — inside the
-/// window, at the cost of mixing a few pre-retirement months into the first bucket.
-/// Rounding up would exclude exactly the scenario the chart exists to show.
-///
-/// For someone already retired (`retire_month == 0`) this is the first ten years from
-/// today, which is what the analysis used to do unconditionally.
+/// The caller supplies retirement-relative annual buckets, so a fractional retirement
+/// age never mixes accumulation months into the first bucket.
 pub fn build_sequence_risk_summary(
     annual_real_returns_by_sim: &[Vec<f64>],
     final_balances: &[f64],
     depleted_flags: &[bool],
-    retire_month: usize,
 ) -> Vec<SequenceRiskBucket> {
     let sim_count = annual_real_returns_by_sim.len();
-    if sim_count == 0 {
+    if sim_count == 0 || annual_real_returns_by_sim.iter().any(Vec::is_empty) {
         return vec![];
     }
 
-    let retire_year = retire_month / 12;
-    // Clamp per series so the window never runs off the end of a short horizon; every
-    // series holds at least one entry, so this always leaves something to average.
-    let start_of = |len: usize| retire_year.min(len.saturating_sub(1));
-
-    let min_remaining = annual_real_returns_by_sim
+    let early_years = annual_real_returns_by_sim
         .iter()
-        .map(|series| series.len().saturating_sub(start_of(series.len())).max(1))
+        .map(Vec::len)
         .min()
-        .unwrap_or(1);
-    let early_years = 1.max(10.min(min_remaining));
+        .unwrap_or(0)
+        .min(10);
 
     struct EnrichedIndex {
         index: usize,
@@ -50,11 +37,7 @@ pub fn build_sequence_risk_summary(
         .iter()
         .enumerate()
         .map(|(index, series)| {
-            let sum: f64 = series
-                .iter()
-                .skip(start_of(series.len()))
-                .take(early_years)
-                .sum();
+            let sum: f64 = series.iter().take(early_years).sum();
             EnrichedIndex {
                 index,
                 early_mean: sum / (early_years as f64),
@@ -117,47 +100,39 @@ pub fn build_sequence_risk_summary(
 
 #[allow(clippy::too_many_arguments)]
 pub fn replay_ruin_probability(
-    growth_factors: &[Vec<f64>],
-    monthly_income_flow: &[f64],
-    monthly_spending_flow: &[f64],
-    lump_sum_by_month: &[f64],
+    path_tapes: &[PathTape],
+    cashflows: &CashflowArrays,
     current_savings: f64,
     sample_count: usize,
     months: u32,
     strategy: &WithdrawalStrategy,
     retire_month: usize,
+    annual_fee_percent: f64,
+    tax_on_gains_percent: f64,
+    stop_contributions_at: Option<usize>,
 ) -> f64 {
     let mut ruin_count = 0;
+    let replay_count = sample_count.min(path_tapes.len());
 
-    for sim in 0..sample_count {
-        let mut balance = current_savings;
-        let mut ruined = false;
-        // Re-run the withdrawal strategy against the stored growth path so dynamic
-        // spending in the ruin surface stays consistent with the main simulation.
-        //
-        // Note: the flows passed in here have nominal items deflated by the *expected*
-        // inflation index, not the realized one. The stored growth factors bake inflation
-        // into a single number, so per-path realized inflation cannot be recovered during
-        // a replay. Documented as part of the ruin-surface approximation (README §7).
-        let mut runner = WithdrawalRunner::new(strategy, retire_month);
-
-        for month in 0..months as usize {
-            let effective_spending =
-                runner.monthly_spending(month, balance, monthly_spending_flow[month]);
-            balance += monthly_income_flow[month] - effective_spending + lump_sum_by_month[month];
-            balance *= growth_factors[sim][month];
-            if balance <= 0.0 {
-                balance = 0.0;
-                ruined = true;
-            }
-        }
-
-        if ruined || balance <= 0.0 {
+    for sim in 0..replay_count {
+        let result = evaluate_path(
+            &path_tapes[sim],
+            cashflows,
+            current_savings,
+            months as usize,
+            strategy,
+            retire_month,
+            annual_fee_percent,
+            tax_on_gains_percent,
+            stop_contributions_at,
+            false,
+        );
+        if result.depleted || result.final_balance <= 0.0 {
             ruin_count += 1;
         }
     }
 
-    (ruin_count as f64) / (sample_count.max(1) as f64)
+    (ruin_count as f64) / (replay_count.max(1) as f64)
 }
 
 /// Already-retired mode. There is no separate flag: `retirement_age == current_age` *is*
@@ -177,7 +152,7 @@ pub fn is_already_retired(input: &RetirementInput) -> bool {
 }
 
 /// Smallest starting capital that still clears `target_success_probability`, found by
-/// bisection over replays of the stored growth paths.
+/// bisection over exact replays of stored exogenous return/inflation paths.
 ///
 /// This is the already-retired replacement for the P95 FI target. The usual construction
 /// (`find_retirement_balance_target`) reads the answer off the spread of balances *at
@@ -189,42 +164,44 @@ pub fn is_already_retired(input: &RetirementInput) -> bool {
 /// the capital.
 ///
 /// Success is monotone non-decreasing in starting capital along fixed paths, so bisection
-/// is exact up to the tolerance. Returns 0 when income alone survives every path, and the
-/// top of the bracket when even that much capital cannot reach the target.
-///
-/// Inherits the replay approximation: nominal cashflows are deflated by *expected* rather
-/// than realized inflation, so this target is a touch optimistic in high-inflation paths
-/// compared with the main simulation's success probability (README §7).
+/// is exact up to the tolerance. Returns 0 when income alone survives every path. Panics
+/// if invalid inputs or floating-point limits prevent a valid upper bracket; it never
+/// returns an unverified capital amount as though it met the target.
 ///
 /// Mirrored in TypeScript as `findRequiredStartingCapital`.
 #[allow(clippy::too_many_arguments)]
 pub fn find_required_starting_capital(
-    growth_factors: &[Vec<f64>],
-    monthly_income_flow: &[f64],
-    monthly_spending_flow: &[f64],
-    lump_sum_by_month: &[f64],
+    path_tapes: &[PathTape],
+    cashflows: &CashflowArrays,
     sample_count: usize,
     months: u32,
     strategy: &WithdrawalStrategy,
     retire_month: usize,
     target_success_probability: f64,
     initial_guess: f64,
+    annual_fee_percent: f64,
+    tax_on_gains_percent: f64,
 ) -> f64 {
-    if sample_count == 0 || growth_factors.is_empty() {
+    if sample_count == 0 || path_tapes.is_empty() {
         return 0.0;
     }
+    assert!(
+        (0.0..=1.0).contains(&target_success_probability),
+        "target success probability must be between 0 and 1"
+    );
 
     let success_at = |capital: f64| {
         1.0 - replay_ruin_probability(
-            growth_factors,
-            monthly_income_flow,
-            monthly_spending_flow,
-            lump_sum_by_month,
+            path_tapes,
+            cashflows,
             capital,
             sample_count,
             months,
             strategy,
             retire_month,
+            annual_fee_percent,
+            tax_on_gains_percent,
+            None,
         )
     };
 
@@ -233,21 +210,17 @@ pub fn find_required_starting_capital(
     }
 
     // Bracket upward from the SWR target, which is the right order of magnitude whenever
-    // spending dominates; the cap keeps a pathological plan (spending that no capital
-    // outruns) from looping forever.
+    // spending dominates. Keep expanding while finite instead of imposing an arbitrary
+    // number of doublings: a small initial guess must not silently become a false answer.
     let mut low = 0.0;
     let mut high = initial_guess.max(1.0);
-    let mut bracketed = false;
-    for _ in 0..24 {
-        if success_at(high) >= target_success_probability {
-            bracketed = true;
-            break;
-        }
+    while success_at(high) < target_success_probability {
         low = high;
         high *= 2.0;
-    }
-    if !bracketed {
-        return high;
+        assert!(
+            high.is_finite(),
+            "could not bracket the required starting capital within finite numeric limits"
+        );
     }
 
     // Relative tolerance rather than absolute: the answer spans a few thousand to tens of
@@ -272,7 +245,7 @@ pub fn build_ruin_surface(
     spending_periods: &[SpendingPeriod],
     income_sources: &[IncomeSource],
     lump_sum_events: &[LumpSumEvent],
-    growth_factors: &[Vec<f64>],
+    path_tapes: &[PathTape],
     months: u32,
     sim_count: usize,
     strategy: &WithdrawalStrategy,
@@ -360,15 +333,16 @@ pub fn build_ruin_surface(
                     };
 
                     replay_ruin_probability(
-                        growth_factors,
-                        &arrays.monthly_income_flow,
-                        &arrays.monthly_spending_flow,
-                        &arrays.lump_sum_by_month,
+                        path_tapes,
+                        &arrays,
                         input.current_savings,
                         sampled_scenarios,
                         months,
                         strategy,
                         cell_retire_month,
+                        input.annual_fee_percent,
+                        input.tax_on_gains_percent,
+                        None,
                     )
                 })
                 .collect()
@@ -386,34 +360,25 @@ pub fn build_ruin_surface(
 /// Coast FIRE: the earliest age at which contributions could stop while still clearing
 /// `target_success_probability`.
 ///
-/// "Stopping contributions" is modelled as net-zero cash flow from that age until
-/// retirement — you still cover your spending from work (the coast/barista case), but you
-/// neither add to nor draw from the portfolio, which simply compounds. Retirement itself
-/// is unchanged.
+/// "Stopping contributions" removes only positive pre-retirement net cash flow from that
+/// age onward. Deficit months and lump sums remain scheduled.
 ///
-/// Uses the same replay trick as the ruin surface: the stored per-path growth factors are
-/// re-run against a modified cash-flow schedule, so this costs a handful of replays rather
-/// than fresh simulations. It inherits the same caveat — the growth factors carry a tax
-/// factor computed on the *original* balance path, which is scale-invariant but not
-/// invariant to a changed contribution pattern.
-///
-/// Returns `None` when the idea does not apply: when the user is not a net saver before
-/// retirement (there are no contributions to stop), or when the target is unreachable even
-/// by contributing right up to retirement.
+/// Returns `None` when there are no positive contributions to stop, or when the target is
+/// unreachable even by contributing right up to retirement.
 #[allow(clippy::too_many_arguments)]
 pub fn find_coast_age(
     input: &RetirementInput,
     spending_periods: &[SpendingPeriod],
     income_sources: &[IncomeSource],
     lump_sum_events: &[LumpSumEvent],
-    growth_factors: &[Vec<f64>],
+    path_tapes: &[PathTape],
     months: u32,
     sample_count: usize,
     strategy: &WithdrawalStrategy,
     retire_month: usize,
     target_success_probability: f64,
 ) -> Option<f64> {
-    if retire_month == 0 || sample_count == 0 || growth_factors.is_empty() {
+    if retire_month == 0 || sample_count == 0 || path_tapes.is_empty() {
         return None;
     }
 
@@ -425,42 +390,53 @@ pub fn find_coast_age(
         months,
     );
 
-    // Only meaningful while the user is actually adding to the portfolio. If they are a
-    // net drawer pre-retirement, "stopping contributions" would *help*, which inverts the
-    // monotonicity the search relies on and is not what Coast FIRE means anyway.
-    let pre_retirement_net: f64 = (0..retire_month)
-        .map(|m| base.monthly_income_flow[m] - base.monthly_spending_flow[m])
-        .sum();
-    if pre_retirement_net <= 0.0 {
+    let has_contribution = path_tapes.iter().any(|tape| {
+        let mut inflation_index = 1.0;
+        for month in 0..retire_month {
+            let income = base.monthly_real_income_flow[month]
+                + base.monthly_nominal_income_flow[month] / inflation_index;
+            let spending = base.monthly_real_spending_flow[month]
+                + base.monthly_nominal_spending_flow[month] / inflation_index;
+            if income > spending {
+                return true;
+            }
+            inflation_index *= 1.0 + tape.inflation_rates[month];
+        }
+        false
+    });
+    if !has_contribution {
         return None;
     }
 
-    // Success as a function of the coast month is monotone non-decreasing: contributing
-    // for longer can only leave every path with at least as much money, since all growth
-    // factors are positive. That makes a binary search safe.
     let success_at = |coast_month: usize| -> f64 {
-        let mut income = base.monthly_income_flow.clone();
-        let mut spending = base.monthly_spending_flow.clone();
-        for m in coast_month..retire_month {
-            income[m] = 0.0;
-            spending[m] = 0.0;
-        }
         1.0 - replay_ruin_probability(
-            growth_factors,
-            &income,
-            &spending,
-            &base.lump_sum_by_month,
+            path_tapes,
+            &base,
             input.current_savings,
             sample_count,
             months,
             strategy,
             retire_month,
+            input.annual_fee_percent,
+            input.tax_on_gains_percent,
+            Some(coast_month),
         )
     };
 
     // Contributing all the way to retirement is the best case; if even that misses the
     // target there is no coast age to report.
     if success_at(retire_month) < target_success_probability {
+        return None;
+    }
+
+    // Adaptive withdrawal policies can spend more after a higher retirement balance and
+    // introduce discontinuities. Scan every candidate rather than assuming monotonicity.
+    if strategy.kind != "fixed" {
+        for month in 0..=retire_month {
+            if success_at(month) >= target_success_probability {
+                return Some(input.current_age + (month as f64) / 12.0);
+            }
+        }
         return None;
     }
 

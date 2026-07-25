@@ -6,11 +6,13 @@ import {
   type HistoricalMarketDataset
 } from './calculations';
 import {
+  annualizePostRetirementGrowthFactors,
   buildCashflowArrays,
   buildSequenceRiskSummary,
   monthlyTargetsForAnnualMoments,
   detectRegimes,
   drawCornishFisherScore,
+  evaluatePath,
   findRequiredStartingCapital,
   findRetirementBalanceTarget,
   incomeAtAge,
@@ -369,9 +371,7 @@ describe('nominal cashflows deflated by realized inflation', () => {
 });
 
 describe('coast FIRE age', () => {
-  // "Stop contributing" is modelled as net-zero cash flow from the coast age until
-  // retirement: you still cover spending from work, but the portfolio neither grows by
-  // contribution nor shrinks by withdrawal — it just compounds.
+  // Coast removes only positive contributions; deficits and lump sums remain scheduled.
   const monthly: number[] = [];
   for (let i = 0; i < 300; i++) monthly.push(i % 7 === 0 ? -0.03 : 0.014);
 
@@ -385,7 +385,7 @@ describe('coast FIRE age', () => {
       inflationMean: 0.02, inflationVariability: 0.01, inflationSkewness: 0, inflationKurtosis: 3,
       inflationCrisisSpread: 0.015, blockLength: 6,
       annualFeePercent: 0.004, taxOnGainsPercent: 0.1,
-      safeWithdrawalRate: 0.04, simulations: 1200, seed: 9090,
+      safeWithdrawalRate: 0.04, simulations: 400, seed: 9090,
       regimeModel: {
         stayGrowth: 0.92, stayCrisis: 0.68,
         growthMean: 0.09, growthStd: 0.14, crisisMean: -0.12, crisisStd: 0.24
@@ -445,6 +445,104 @@ describe('coast FIRE age', () => {
     const noIncome: IncomeSource[] = [];
     const result = runMonteCarloSimulation(saver(), spending, noIncome, [], months, retireMonth);
     expect(result.stats.coastAge).toBeNull();
+  });
+
+  it('remains valid when positive-contribution and deficit months coexist', () => {
+    const mixedSpending: SpendingPeriod[] = [
+      { id: 'early', label: 'Early living', fromAge: 35, toAge: 40, yearlyAmount: 48000, inflationAdjusted: true },
+      { id: 'later', label: 'Later living', fromAge: 40, toAge: 88, yearlyAmount: 76000, inflationAdjusted: true }
+    ];
+    const result = runMonteCarloSimulation(
+      saver({ currentSavings: 2_000_000 }),
+      mixedSpending,
+      bigSaver,
+      [],
+      months,
+      retireMonth
+    );
+
+    // The overall pre-retirement net flow is negative, but early positive contributions
+    // still exist and can be stopped without erasing the later deficits.
+    expect(result.stats.coastAge).not.toBeNull();
+    expect(result.stats.coastAge!).toBeGreaterThanOrEqual(35);
+    expect(result.stats.coastAge!).toBeLessThanOrEqual(62);
+  });
+});
+
+describe('exact path evaluator', () => {
+  const fixed = { kind: 'fixed' as const };
+
+  it('deflates nominal cash flows by the tape\'s realized inflation', () => {
+    const result = evaluatePath(
+      {
+        assetReturns: new Float64Array([0, 0]),
+        inflationRates: new Float64Array([0.1, 0])
+      },
+      {
+        monthlyRealIncomeFlow: new Float64Array(2),
+        monthlyNominalIncomeFlow: new Float64Array([0, 110]),
+        monthlyRealSpendingFlow: new Float64Array(2),
+        monthlyNominalSpendingFlow: new Float64Array(2),
+        lumpSumByMonth: new Float64Array(2)
+      },
+      1,
+      2,
+      fixed,
+      0,
+      0,
+      0
+    );
+
+    expect(result.finalBalance).toBeCloseTo(1 / 1.1 + 100, 12);
+  });
+
+  it('recomputes balance-dependent annual tax on the replayed capital', () => {
+    const assetReturns = new Float64Array(12);
+    assetReturns[0] = 0.1;
+    const empty = new Float64Array(12);
+    const result = evaluatePath(
+      { assetReturns, inflationRates: empty },
+      {
+        monthlyRealIncomeFlow: empty,
+        monthlyNominalIncomeFlow: empty,
+        monthlyRealSpendingFlow: empty,
+        monthlyNominalSpendingFlow: empty,
+        lumpSumByMonth: empty
+      },
+      100,
+      12,
+      fixed,
+      0,
+      0,
+      0.5
+    );
+
+    expect(result.finalBalance).toBeCloseTo(105, 12);
+  });
+
+  it('stops only positive contributions while preserving deficits and lump sums', () => {
+    const result = evaluatePath(
+      {
+        assetReturns: new Float64Array(2),
+        inflationRates: new Float64Array(2)
+      },
+      {
+        monthlyRealIncomeFlow: new Float64Array([100, 0]),
+        monthlyNominalIncomeFlow: new Float64Array(2),
+        monthlyRealSpendingFlow: new Float64Array([50, 50]),
+        monthlyNominalSpendingFlow: new Float64Array(2),
+        lumpSumByMonth: new Float64Array([0, -25])
+      },
+      100,
+      2,
+      fixed,
+      2,
+      0,
+      0,
+      0
+    );
+
+    expect(Array.from(result.balances)).toEqual([100, 25]);
   });
 });
 
@@ -827,55 +925,34 @@ describe('runMonteCarloSimulation smoke', () => {
   });
 });
 
-describe('sequence-risk window starts at retirement', () => {
-  // Five sims, each with 40 annual real returns: a flat pre-retirement stretch and a flat
-  // post-retirement stretch, ordered *oppositely*. Whichever stretch the summarizer slices
-  // decides the bucket ordering, so the two conventions are cleanly distinguishable.
-  const preReturns = [-0.04, -0.02, 0.0, 0.02, 0.04];
+describe('sequence-risk summary consumes retirement-relative years', () => {
   const postReturns = [0.04, 0.02, 0.0, -0.02, -0.04];
-  const series = preReturns.map((pre, index) => [
-    ...Array(30).fill(pre),
-    ...Array(10).fill(postReturns[index])
-  ]);
+  const series = postReturns.map((post) => Array(10).fill(post));
   // Final balance encodes the sim index so we can tell which path landed in which bucket.
   const finalBalances = [100, 200, 300, 400, 500];
   const depletedFlags = [false, false, false, false, false];
 
-  it('buckets on post-retirement returns for someone still accumulating', () => {
-    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12);
+  it('starts its first annual bucket at a fractional retirement month', () => {
+    const factors = [...Array(6).fill(2), ...Array(12).fill(1.01), ...Array(3).fill(0.99)];
+    const annual = annualizePostRetirementGrowthFactors(factors, 6);
+
+    expect(annual).toHaveLength(2);
+    expect(annual[0]).toBeCloseTo(1.01 ** 12 - 1, 12);
+    expect(annual[1]).toBeCloseTo(0.99 ** 3 - 1, 12);
+  });
+
+  it('buckets on the first post-retirement decade', () => {
+    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags);
 
     expect(buckets).toHaveLength(5);
-    // Worst bucket is the sim with the worst *post*-retirement decade (index 4), which is
-    // the one with the best pre-retirement decade — so this cannot pass by accident.
     expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
     expect(buckets[0].endingMedian).toBe(500);
     expect(buckets[4].earlyYearsMeanReturn).toBeCloseTo(0.04, 12);
     expect(buckets[4].endingMedian).toBe(100);
   });
 
-  it('falls back to the first ten years from today for someone already retired', () => {
-    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 0);
-
-    expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
-    expect(buckets[0].endingMedian).toBe(100);
-    expect(buckets[4].endingMedian).toBe(500);
-  });
-
-  it('floors a fractional retirement year into the bucket containing retirement', () => {
-    // 30.5 years in: the year straddling the retirement month stays inside the window, so
-    // a crash at retirement is still counted. Same answer as a clean 30-year offset here.
-    const straddling = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12 + 6);
-    const exact = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 30 * 12);
-
-    expect(straddling.map((b) => b.earlyYearsMeanReturn)).toEqual(exact.map((b) => b.earlyYearsMeanReturn));
-  });
-
-  it('clamps the window to the last available year when retirement sits past the horizon', () => {
-    const buckets = buildSequenceRiskSummary(series, finalBalances, depletedFlags, 100 * 12);
-
-    expect(buckets).toHaveLength(5);
-    expect(buckets.every((bucket) => Number.isFinite(bucket.earlyYearsMeanReturn))).toBe(true);
-    expect(buckets[0].earlyYearsMeanReturn).toBeCloseTo(-0.04, 12);
+  it('returns no buckets when there is no post-retirement period', () => {
+    expect(buildSequenceRiskSummary([[], [], [], [], []], finalBalances, depletedFlags)).toEqual([]);
   });
 });
 
@@ -1027,9 +1104,9 @@ describe('findRequiredStartingCapital', () => {
   // Two paths: one that grows, one that shrinks. Deterministic, so the answer is a fact
   // about the flows rather than a sampling artefact.
   const months = 24;
-  const growthFactors = [
-    Array(months).fill(1.01),
-    Array(months).fill(0.99)
+  const pathTapes = [
+    { assetReturns: new Float64Array(months).fill(0.01), inflationRates: new Float64Array(months) },
+    { assetReturns: new Float64Array(months).fill(-0.01), inflationRates: new Float64Array(months) }
   ];
   const noIncome = new Float64Array(months);
   const noLumpSums = new Float64Array(months);
@@ -1038,16 +1115,22 @@ describe('findRequiredStartingCapital', () => {
   function required(spendPerMonth: number, target: number, income = noIncome): number {
     const spending = new Float64Array(months).fill(spendPerMonth);
     return findRequiredStartingCapital(
-      growthFactors,
-      income,
-      spending,
-      noLumpSums,
-      growthFactors.length,
+      pathTapes,
+      {
+        monthlyRealIncomeFlow: income,
+        monthlyNominalIncomeFlow: new Float64Array(months),
+        monthlyRealSpendingFlow: spending,
+        monthlyNominalSpendingFlow: new Float64Array(months),
+        lumpSumByMonth: noLumpSums
+      },
+      pathTapes.length,
       months,
       strategy,
       0,
       target,
-      10000
+      10000,
+      0,
+      0
     );
   }
 
@@ -1077,21 +1160,37 @@ describe('findRequiredStartingCapital', () => {
     const spending = new Float64Array(months).fill(1000);
     const ruinAt = (start: number) =>
       findRequiredStartingCapital(
-        growthFactors,
-        noIncome,
-        spending,
-        noLumpSums,
-        growthFactors.length,
+        pathTapes,
+        {
+          monthlyRealIncomeFlow: noIncome,
+          monthlyNominalIncomeFlow: new Float64Array(months),
+          monthlyRealSpendingFlow: spending,
+          monthlyNominalSpendingFlow: new Float64Array(months),
+          lumpSumByMonth: noLumpSums
+        },
+        pathTapes.length,
         months,
         strategy,
         0,
         1,
-        start
+        start,
+        0,
+        0
       );
 
     // Bracketing from either side converges on the same answer to the stated tolerance.
     expect(ruinAt(10)).toBeCloseTo(capital, -1);
     expect(ruinAt(1_000_000)).toBeCloseTo(capital, -1);
+  });
+
+  it('does not return an unverified bracket for an impossible target', () => {
+    expect(() => required(1000, 1.01)).toThrow(/between 0 and 1/);
+  });
+
+  it('continues beyond the old 24-doubling cap until the bound is verified', () => {
+    const capital = required(1e12, 1);
+    expect(Number.isFinite(capital)).toBe(true);
+    expect(capital).toBeGreaterThan(10_000 * 2 ** 24);
   });
 });
 

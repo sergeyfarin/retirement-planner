@@ -24,6 +24,15 @@ pub struct ReturnMoments {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct RequestedReturnMoments {
+    pub arithmetic_mean: f64,
+    pub std_dev: f64,
+    pub skewness: f64,
+    pub kurtosis: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SimulationResult {
     pub months: u32,
     pub ages: Vec<f64>,
@@ -57,8 +66,8 @@ pub struct RuinSurface {
 #[serde(rename_all = "camelCase")]
 pub struct SummaryStats {
     /// Coast FIRE: earliest age at which contributions could stop while still clearing the
-    /// FI success target. `None` when the user is not a net saver pre-retirement, or when
-    /// the target is unreachable even by contributing until retirement.
+    /// FI success target. `None` when there are no positive pre-retirement contributions
+    /// to stop, or when the target is unreachable even by contributing until retirement.
     #[serde(rename = "coastAge")]
     pub coast_age: Option<f64>,
     pub fi_target: f64,
@@ -71,6 +80,7 @@ pub struct SummaryStats {
     pub fi_probability_swr: f64,
     #[serde(rename = "fiProbabilityP95")]
     pub fi_probability_p95: f64,
+    pub requested_return_moments: RequestedReturnMoments,
     pub return_moments: ReturnMoments,
     pub sequence_risk: Vec<SequenceRiskBucket>,
     pub ruin_surface: RuinSurface,

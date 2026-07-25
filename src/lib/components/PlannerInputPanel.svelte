@@ -1144,13 +1144,13 @@
 						bind:value={input.blockLength}
 						oninput={onSimulationSettingsChange}
 						class="w-16 text-center"
-						title="How many consecutive real months are replayed before jumping elsewhere in history. Longer blocks keep whole bear markets intact; shorter blocks chop history finer and average the bad runs away. The default of 6 is set by the Politis-White (2004) automatic block-length procedure run on this dataset — see scripts/analyze-block-length.mjs."
+						title="How many consecutive real months are replayed before jumping elsewhere in history. Longer blocks preserve longer historical runs; shorter blocks preserve only short-run dependence. Six months is provisional: Politis-White is a short-block diagnostic, not a retirement-path optimum."
 					/>
 					<span class="text-xs text-slate-500 opacity-80 leading-tight">
 						Consecutive real months replayed before jumping elsewhere in history.
-						<strong>The main lever on how severe sustained downturns are</strong> — longer keeps
-						whole bear markets intact, shorter averages them away. The default of 6 comes from the
-						Politis-White procedure run on this data, not from taste.
+						<strong>The main lever on how long historical runs remain intact.</strong> Six months is
+						provisional; Politis-White supports short blocks for variance estimation, not a unique
+						retirement-path optimum.
 					</span>
 				</div>
 			</div>

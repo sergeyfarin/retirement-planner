@@ -387,11 +387,10 @@ pub fn monthly_returns_to_annual_series(monthly_returns: &[f64]) -> Vec<f64> {
 pub struct CashflowArrays {
     /// income − base spending, per month (the fixed-strategy net flow).
     pub monthly_net_flow: Vec<f64>,
-    /// income only, per month (positive = inflow), nominal items deflated by the
-    /// *expected* inflation index. Used by the ruin-surface/coast replay, which cannot
-    /// recover per-path realized inflation from the stored growth factors.
+    /// Income only, per month, with nominal items deflated by the expected inflation
+    /// index. Retained for diagnostics/compatibility; exact paths use the split arrays.
     pub monthly_income_flow: Vec<f64>,
-    /// base planned spending, per month (positive = outflow), same expected-index caveat.
+    /// Base planned spending using the expected index, retained for compatibility.
     pub monthly_spending_flow: Vec<f64>,
     /// Inflation-adjusted income, constant in real terms — no deflation needed.
     pub monthly_real_income_flow: Vec<f64>,
@@ -402,6 +401,132 @@ pub struct CashflowArrays {
     /// Face value of nominal spending; divide by the path's realized inflation index.
     pub monthly_nominal_spending_flow: Vec<f64>,
     pub lump_sum_by_month: Vec<f64>,
+}
+
+pub struct PathTape {
+    pub asset_returns: Vec<f64>,
+    pub inflation_rates: Vec<f64>,
+}
+
+pub struct PathEvaluation {
+    pub balances: Vec<f64>,
+    pub final_balance: f64,
+    pub cumulative_shortfall: f64,
+    pub depleted_months: usize,
+    pub depleted: bool,
+    pub annual_real_returns: Vec<f64>,
+}
+
+/// Runs all balance-dependent accounting against an exogenous return/inflation tape.
+/// The main simulation and every scenario replay share this evaluator, so nominal-flow
+/// deflation, dynamic withdrawals and annual gains tax are always recomputed.
+///
+/// `stop_contributions_at` removes only positive pre-retirement net cash flow by capping
+/// income at spending. Deficits and lump sums remain on their original schedule.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_path(
+    tape: &PathTape,
+    cashflows: &CashflowArrays,
+    current_savings: f64,
+    months: usize,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
+    annual_fee_percent: f64,
+    tax_on_gains_percent: f64,
+    stop_contributions_at: Option<usize>,
+    record_series: bool,
+) -> PathEvaluation {
+    let month_count = months
+        .min(tape.asset_returns.len())
+        .min(tape.inflation_rates.len());
+    let mut balances = if record_series {
+        vec![0.0; months]
+    } else {
+        Vec::new()
+    };
+    let mut balance = current_savings;
+    let mut depleted = false;
+    let mut cumulative_shortfall = 0.0;
+    let mut depleted_months = 0;
+    let mut yearly_pnl = 0.0;
+    let mut realized_inflation_index = 1.0;
+    let mut sequence_year_growth = 1.0;
+    let mut annual_real_returns = Vec::new();
+    let monthly_fee_factor = (1.0 - annual_fee_percent.clamp(0.0, 1.0) / 12.0).max(0.0);
+    let tax_rate = tax_on_gains_percent.clamp(0.0, 1.0);
+    let mut runner = WithdrawalRunner::new(strategy, retire_month);
+
+    for month in 0..month_count {
+        let monthly_inflation = tape.inflation_rates[month];
+        let inflation_factor = 1.0 + monthly_inflation;
+        let mut income = cashflows.monthly_real_income_flow[month]
+            + cashflows.monthly_nominal_income_flow[month] / realized_inflation_index;
+        let base_spending = cashflows.monthly_real_spending_flow[month]
+            + cashflows.monthly_nominal_spending_flow[month] / realized_inflation_index;
+
+        if stop_contributions_at.is_some_and(|stop| {
+            month >= stop && month < retire_month && income > base_spending
+        }) {
+            income = base_spending;
+        }
+
+        let effective_spending = runner.monthly_spending(month, balance, base_spending);
+        balance += income - effective_spending + cashflows.lump_sum_by_month[month];
+        if balance < 0.0 {
+            cumulative_shortfall += -balance;
+            depleted = true;
+            balance = 0.0;
+        }
+
+        let portfolio_growth_factor =
+            (1.0 + tape.asset_returns[month]) * monthly_fee_factor;
+        let pnl_month = balance * (portfolio_growth_factor - 1.0);
+        balance *= portfolio_growth_factor;
+        balance /= inflation_factor;
+        realized_inflation_index *= inflation_factor;
+        yearly_pnl = (yearly_pnl + pnl_month) / inflation_factor;
+
+        let mut real_growth_factor = portfolio_growth_factor / inflation_factor;
+        if month % 12 == 11 || month == month_count - 1 {
+            if balance > 0.0 && yearly_pnl > 0.0 && tax_rate > 0.0 {
+                let tax = (yearly_pnl * tax_rate).min(balance);
+                let tax_factor = (balance - tax) / balance;
+                balance -= tax;
+                real_growth_factor *= tax_factor;
+            }
+            yearly_pnl = 0.0;
+        }
+
+        if balance <= 0.0 {
+            depleted = true;
+            balance = 0.0;
+        }
+
+        if record_series && month >= retire_month {
+            sequence_year_growth *= real_growth_factor;
+            let retirement_month_index = month - retire_month;
+            if retirement_month_index % 12 == 11 || month == month_count - 1 {
+                annual_real_returns.push(sequence_year_growth - 1.0);
+                sequence_year_growth = 1.0;
+            }
+        }
+
+        if balance == 0.0 {
+            depleted_months += 1;
+        }
+        if record_series {
+            balances[month] = balance;
+        }
+    }
+
+    PathEvaluation {
+        balances,
+        final_balance: balance,
+        cumulative_shortfall,
+        depleted_months,
+        depleted,
+        annual_real_returns,
+    }
 }
 
 pub fn expected_inflation_index_at_age(input: &RetirementInput, age: f64) -> f64 {
@@ -501,7 +626,8 @@ pub fn build_cashflow_arrays(
         monthly_real_spending_flow[m as usize] = real_spending / 12.0;
         monthly_nominal_spending_flow[m as usize] = nominal_spending / 12.0;
 
-        // Expected-index versions, retained for the replay paths.
+        // Expected-index versions retained for diagnostics/compatibility. Exact paths use
+        // the split real/nominal arrays above.
         let income = income_at_age(age, income_sources, inflation_index) / 12.0;
         let spending = spending_at_age(age, spending_periods, inflation_index) / 12.0;
         monthly_income_flow[m as usize] = income;

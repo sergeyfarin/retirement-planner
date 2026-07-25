@@ -203,25 +203,30 @@ because anchoring returns to current yields is exactly a moment-targeting operat
 
 #### Where the default block length comes from
 
-`blockLength` is the main control over how sustained simulated downturns are, so it is
-chosen by a published procedure rather than by taste. `scripts/analyze-block-length.mjs`
-(`pnpm run data:retirement:blocklength`) implements the automatic block-length selection of
-**Politis & White (2004)** with the **Patton, Politis & White (2009)** correction, matching
-the reference implementations in `np::b.star` and R's `blocklength::pwsd`. The script
-self-validates against AR(1) series with known dependence before reporting anything.
+`blockLength` is the main control over how long historical runs remain intact. There is no
+single estimator that makes it optimal for every retirement output. As one diagnostic,
+`scripts/analyze-block-length.mjs` (`pnpm run data:retirement:blocklength`) implements the
+automatic block-length selection of **Politis & White (2004)** with the **Patton, Politis &
+White (2009)** correction. Exact tests cover the corrected `m_hat` convention, fallback
+behaviour, invalid inputs, and the published theoretical AR(1) circular-bootstrap values.
 
-On the shipped data it returns a median optimal length of **2.9 months** (range 1.0–12.7
-across regions and allocations). The default of 6 sits just above that median: inside the
-procedure's range, and leaning slightly long, which preserves a little more dependence for
-path simulation than the point estimate.
+On the shipped data PWSD returns a median of **2.9 months** (range 1.0–12.7 across regions
+and allocations). That range describes different time series; it is **not** a confidence
+interval for a universal default. The current default remains 6 months as a provisional,
+slightly longer baseline, not because PWSD selects six.
 
 > Note for readers comparing against other tools: practitioner planning tooling sometimes
 > uses much longer blocks (e.g. a 120-month average with the stationary bootstrap). That is
-> not a contradiction — PWSD optimises estimation of the variance of a *statistic*, whereas
-> very long blocks aim to reproduce multi-year *path* dynamics. These monthly series carry
-> little short-lag autocorrelation (the procedure's `m_hat` is 1 almost everywhere), so the
-> data-driven answer for this estimator is short. Re-run the script whenever the market data
-> is refreshed.
+> not a contradiction — PWSD optimises long-run-variance estimation for a *statistic*,
+> whereas a retirement planner cares about drawdown duration, sequence risk and ruin. These
+> monthly series carry little short-lag autocorrelation (`m_hat` is 1 almost everywhere), so
+> PWSD's answer is short for its objective. It does not prove that short blocks reproduce
+> multi-year retirement paths. Re-run it when data changes and treat length as a sensitivity.
+
+Before calling the default calibrated, compare a grid such as 3/6/12/24/60/120 months on
+source-versus-resampled rolling 1/3/5/10-year return tails, drawdown depth and duration, and
+representative-plan success/FI-target sensitivity. Material variation is model uncertainty,
+not Monte Carlo sampling noise.
 
 > **Measured limitation of the regime layer in Mode A (2026-07-21).** After removing the
 > sampling bias, the regime-conditioned bootstrap was compared against a plain circular
@@ -319,6 +324,10 @@ modelling decision (TODO 0.15), not a bug.
 > not as a guarantee about realized annual σ.** Realized annual σ runs roughly 0.3–1.5pp
 > above the requested figure depending on region, in the conservative direction.
 
+The results show both the **requested** annual moments captured for the run and the
+**effective** moments measured from the transformed annual bootstrap source, so this
+residual is visible for the selected portfolio and region rather than hidden in methodology.
+
 ### 4.4.1 "Use today's yields" — Current-Conditions Assumptions
 
 Historical averages are a poor forecast of *bond* returns: much of the 1960–2026 bond
@@ -388,10 +397,10 @@ for each month m in [0 .. totalMonths):
     9. balance /= (1 + monthly_inflation);  yearly_pnl /= (1 + monthly_inflation)
    10. At each year boundary (and final partial year):
           tax = taxOnGainsPercent × max(0, yearly_pnl)
-          balance −= tax  (also folded into that month's growth factor for replay)
+          balance −= tax
           yearly_pnl = 0
    11. if balance ≤ 0: balance = 0, mark depleted
-   12. Record balance and growth factor
+   12. Record balance; retain the exogenous asset-return/inflation tape for exact replays
 ```
 
 ### 5.1 Cash Flow Model
@@ -405,9 +414,8 @@ for each month m in [0 .. totalMonths):
     before that month's deflation. Balances and nominal flows therefore share one price
     index; previously the flows used $(1+\mu)^{m/12}$ while balances compounded the
     monthly draws.
-  - The ruin-surface and Coast-FIRE **replays** still use the expected index for nominal
-    items: the stored growth factors bake inflation into a single number, so per-path
-    realized inflation cannot be recovered during a replay (§7).
+  - Scenario replays consume the same realized inflation tape as the main path and rerun
+    this accounting, so nominal items use the correct path-specific price index everywhere.
 - **Income sources**: identical structure; default salary `[currentAge, retirementAge)`, default pension `[67, simulateUntilAge)`
 - **Lump-sum events**: one-time addition/subtraction at a specific age
 
@@ -489,7 +497,9 @@ For large simulation counts (10,000+), storing all balances per month per simula
 
 This guarantees a uniform random sample per month, and bounds memory at `K × months × 8 bytes` **regardless of simulation count** — ≈26 MB for the default 35→90 horizon, ≈47 MB at the maximum 12→110 horizon. Percentile accuracy at K=5,000 is excellent (±0.5% for P10–P90).
 
-Growth factors for the ruin surface replay are capped at 2000 rows (~11.5 MB), matching the 2000-path subsampling used by `build_ruin_surface` (raised from 800 in 2026-07 to keep heatmap tail-probability SE under ~±1%).
+Exogenous return/inflation tapes for scenario replay are capped at 2000 paths (~23 MB at
+720 months), matching the subsampling used by `build_ruin_surface`. Replays rerun the same
+accounting evaluator as the main simulation, including realized inflation and gains tax.
 
 ---
 
@@ -563,20 +573,19 @@ All three assume an accumulation phase still lies ahead. When the plan is alread
 drawdown the P95 target is computed differently and Coast FIRE is reported as `null` — see
 §7.6.
 
-**Coast FIRE.** "Stopping contributions" is modelled as **net-zero cash flow** from that
-age until retirement: you still cover spending from work — the coast/barista case — so the
-portfolio neither grows by contribution nor shrinks by withdrawal, it simply compounds.
-Retirement age and retirement spending are unchanged.
+**Coast FIRE.** From the candidate age onward, the engine removes only positive monthly
+pre-retirement contributions (`max(income − spending, 0)`). Deficit months and lump sums
+remain scheduled. This handles irregular cash flows without making Coast FIRE erase a
+future expense. Retirement age and retirement spending are unchanged.
 
-It reuses the ruin-surface replay (§7.4): the stored per-path growth factors are re-run
-against a modified cash-flow schedule, and the coast month is found by binary search,
-which is valid because success is monotone non-decreasing in the coast month — all growth
-factors are positive, so contributing longer leaves every path with at least as much
-money. That makes it ~6 replays rather than fresh simulations, and it inherits the same
-approximation caveat as the ruin surface.
+It reuses the exact ruin-surface replay (§7.4). With fixed spending, moving the date later
+only restores non-negative contributions, so binary search is valid. Adaptive withdrawal
+policies can react to higher wealth by spending more, so those strategies scan every
+candidate month instead of assuming monotonicity. Nominal cash flows, dynamic spending and
+tax are recomputed on each replay.
 
 Reported as `null` in two cases, both surfaced explicitly in the UI rather than hidden:
-when the user is not a net saver before retirement (there are no contributions to stop),
+when there are no positive pre-retirement contributions to stop,
 and when 95% is unreachable even by contributing right up to retirement.
 
 ### 7.3 Ruin Analysis
@@ -589,16 +598,12 @@ and when 95% is unreachable even by contributing right up to retirement.
 
 Simulations are sorted by mean real return in the first 10 post-retirement years, then grouped into 5 quintiles. For each: mean early return, ruin probability, ending median balance. This directly validates the Kitces/Pfau sequence-of-returns thesis.
 
-**Where the window starts.** The annual real-return series begins at the *current* age, so
-the window is offset by `retireMonth`. Annual returns are accumulated into calendar-style
-buckets (months `12k..12k+11`), and a fractional retirement offset is **floored** onto the
-bucket that *contains* the retirement month — retiring at month 30 starts the window at
-bucket 2. Flooring keeps a crash landing on the retirement date inside the window, which is
-the exact scenario the analysis exists to show; rounding up would exclude it, at the cost of
-mixing a few pre-retirement months into the first bucket. When the horizon leaves fewer than
-10 years after retirement the window shortens to what remains, and for someone already
-retired (`retireMonth == 0`, §7.6) it is simply the first 10 years from today — which is
-the one case where the old unconditional slice was right.
+**Where the window starts.** Annual real returns are bucketed relative to the exact
+retirement month. Retiring at month 30 makes months 30–41 the first sequence-risk year,
+months 42–53 the second, and so on. This includes a crash on the retirement date without
+mixing any accumulation months into the first bucket. When fewer than 10 years remain the
+window shortens to the available post-retirement period; for someone already retired
+(`retireMonth == 0`, §7.6), it begins today.
 
 **Why not the first 10 years from today.** Those are two different questions, and only the
 post-retirement one is sequence risk. Before retirement a net saver is *buying*, so an early
@@ -622,7 +627,10 @@ A 5×5 grid of ruin probabilities across:
 
 (5×1, spending only, when the plan is already in drawdown — see §7.6.)
 
-Each cell replays the stored growth factors (subsampled to 2000 paths max) with recomputed cashflow arrays. Note: income source `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged. This is a documented fast approximation.
+Each cell replays up to 2000 stored exogenous return/inflation paths through the same
+accounting evaluator as the main simulation. Nominal cash flows use realized inflation;
+dynamic withdrawals and balance-dependent gains tax are recomputed. Income source
+`is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged.
 
 **Sampling precision.** Because each cell is a proportion over `sampleCount` replayed
 paths, it carries binomial error $SE=\sqrt{p(1-p)/N}$ — at N=2000 that is up to ±2.2% at
@@ -672,10 +680,9 @@ whether the plan survives. That is a number that looks like an answer and is not
 already-retired branch turns the question around instead — hold the paths fixed, vary the
 capital — and bisects for the smallest starting capital clearing 95%
 (`findRequiredStartingCapital`). Success is monotone non-decreasing in starting capital
-along fixed paths, so the bisection is exact up to its tolerance. It reuses the ruin-surface
-replay and therefore inherits the same caveat: nominal cashflows are deflated by *expected*
-rather than realized inflation, making it slightly optimistic on high-inflation paths
-relative to the headline success probability.
+along fixed paths, so the bisection is exact up to its tolerance. It reuses the same exact
+path evaluator as the main simulation, recomputing realized-inflation cash flows,
+withdrawal decisions and balance-dependent gains tax at each candidate capital.
 
 **Why the ruin surface loses an axis.** Sweeping retirement age for someone already retired
 would clamp every candidate to `currentAge + 1 … +6` and caption the result "retire later".
@@ -739,7 +746,7 @@ simplifications.
 | Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |
 | Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
 | Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
-| Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed 2026-07-21 (§5.1); replays still use the expected index (§7) |
+| Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed in main paths 2026-07-21 and exact scenario replays 2026-07-25 (§5.1, §7) |
 | Regime block bootstrap is mean-preserving | Simulated returns track the source series (all four regions within ±0.07pp/yr) | Fixed 2026-07-21 (§4.3 Mode A); guarded by a regression test |
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |

@@ -163,6 +163,7 @@ const scenarios: Array<{
   input: RetirementInput;
   retireMonth?: number;
   incomeSources?: IncomeSource[];
+  spendingPeriods?: SpendingPeriod[];
 }> = [
   {
     name: 'historical monthly bootstrap, fixed spending',
@@ -210,6 +211,19 @@ const scenarios: Array<{
   {
     name: 'zero fees and zero tax',
     input: baseInput({ annualFeePercent: 0, taxOnGainsPercent: 0 })
+  },
+  {
+    name: 'fractional retirement-month sequence window',
+    input: baseInput({ retirementAge: RETIREMENT_AGE + 0.5 }),
+    retireMonth: RETIRE_MONTH + 6
+  },
+  {
+    name: 'Coast FIRE with positive contributions followed by deficits',
+    input: baseInput({ currentSavings: 2_000_000 }),
+    spendingPeriods: [
+      { id: 'early', label: 'Early living', fromAge: 40, toAge: 48, yearlyAmount: 42000, inflationAdjusted: true },
+      { id: 'later', label: 'Later living', fromAge: 48, toAge: 78, yearlyAmount: 82000, inflationAdjusted: true }
+    ]
   },
   {
     // Exercises all three already-retired branches at once: the collapsed ruin-surface
@@ -261,11 +275,12 @@ describe('cross-engine simulation parity', () => {
   for (const scenario of scenarios) {
     it(`matches for: ${scenario.name}`, () => {
       const scenarioIncome = scenario.incomeSources ?? incomeSources;
+      const scenarioSpending = scenario.spendingPeriods ?? spendingPeriods;
       const scenarioRetireMonth = scenario.retireMonth ?? RETIRE_MONTH;
 
       const ts = runMonteCarloSimulation(
         scenario.input,
-        spendingPeriods,
+        scenarioSpending,
         scenarioIncome,
         lumpSumEvents,
         MONTHS,
@@ -273,7 +288,7 @@ describe('cross-engine simulation parity', () => {
       );
       const rust = run_monte_carlo(
         scenario.input,
-        spendingPeriods,
+        scenarioSpending,
         scenarioIncome,
         lumpSumEvents,
         MONTHS,
@@ -337,6 +352,14 @@ describe('cross-engine simulation parity', () => {
           rust.stats.returnMoments[key],
           ts.stats.returnMoments[key],
           `returnMoments.${key}`
+        );
+      }
+
+      for (const key of ['arithmeticMean', 'stdDev', 'skewness', 'kurtosis'] as const) {
+        expectClose(
+          rust.stats.requestedReturnMoments[key],
+          ts.stats.requestedReturnMoments[key],
+          `requestedReturnMoments.${key}`
         );
       }
 

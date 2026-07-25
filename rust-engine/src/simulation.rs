@@ -2,14 +2,14 @@ use crate::calculations::{percentile, summarize, PercentileSeries, RandomSource}
 use crate::engine::{
     clamp_annual_return, clamp_monthly_return, spread_annual_return_across_months,
     draw_monthly_return_shaped, draw_student_t, initial_regime_state,
-    student_t_degrees_from_kurtosis, transition_regime_state, ReturnMoments, SimulationResult,
-    SummaryStats,
+    student_t_degrees_from_kurtosis, transition_regime_state, RequestedReturnMoments,
+    ReturnMoments, SimulationResult, SummaryStats,
 };
 use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
-    build_cashflow_arrays, detect_regimes, detect_regimes_monthly,
+    build_cashflow_arrays, detect_regimes, detect_regimes_monthly, evaluate_path,
     estimate_markov_stay_probabilities, monthly_returns_to_annual_series, spending_at_age,
-    WithdrawalRunner,
+    PathTape,
 };
 use crate::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_required_starting_capital,
@@ -133,13 +133,6 @@ pub fn run_monte_carlo_simulation(
         lump_sum_events,
         months,
     );
-    let monthly_income_flow = arrays.monthly_income_flow;
-    let monthly_spending_flow = arrays.monthly_spending_flow;
-    let monthly_real_income_flow = arrays.monthly_real_income_flow;
-    let monthly_nominal_income_flow = arrays.monthly_nominal_income_flow;
-    let monthly_real_spending_flow = arrays.monthly_real_spending_flow;
-    let monthly_nominal_spending_flow = arrays.monthly_nominal_spending_flow;
-    let lump_sum_by_month = arrays.lump_sum_by_month;
     let withdrawal_strategy = input.withdrawal_strategy.clone().unwrap_or_default();
     let retire_month_usize = (retire_month as usize).min(months as usize);
 
@@ -294,11 +287,11 @@ pub fn run_monte_carlo_simulation(
         .map(|_| Vec::with_capacity(RESERVOIR_K.min(sim_count)))
         .collect();
 
-    // Cap growth_factors at 2000 rows — build_ruin_surface only uses min(sim_count, 2000).
-    // ~11.5 MB at 720 months; keeps tail-probability SE in the heatmap under ~±1%.
+    // Cap exogenous path tapes at 2000 rows. Replays rerun all balance-dependent rules
+    // exactly while keeping tail-probability SE in the heatmap under roughly ±1%.
     const RUIN_SAMPLE_CAP: usize = 2000;
-    let growth_cap = sim_count.min(RUIN_SAMPLE_CAP);
-    let mut growth_factors: Vec<Vec<f64>> = Vec::with_capacity(growth_cap);
+    let replay_sample_count = sim_count.min(RUIN_SAMPLE_CAP);
+    let mut path_tapes: Vec<PathTape> = Vec::with_capacity(replay_sample_count);
 
     let mut final_balances = Vec::with_capacity(sim_count);
     let mut retire_balances = Vec::with_capacity(sim_count);
@@ -330,17 +323,11 @@ pub fn run_monte_carlo_simulation(
     }
 
     for sim in 0..sim_count {
-        let mut balance = input.current_savings;
-        let mut depleted = false;
-        let mut cumulative_shortfall = 0.0;
-        let mut depleted_months = 0;
-        let annual_fee_rate = input.annual_fee_percent.clamp(0.0, 1.0);
-        let tax_on_gains_rate = input.tax_on_gains_percent.clamp(0.0, 1.0);
-        let monthly_fee_factor = (1.0 - annual_fee_rate / 12.0).max(0.0);
         let mut regime_state = initial_regime_state(monthly_markov.0, monthly_markov.1, &mut rng);
-        let mut annual_real_returns = Vec::new();
-        let mut sim_balances = vec![0.0_f64; months_usize];
-        let mut sim_growth = vec![1.0_f64; months_usize];
+        let mut tape = PathTape {
+            asset_returns: vec![0.0; months_usize],
+            inflation_rates: vec![0.0; months_usize],
+        };
 
         let mut block_remaining = 0;
         let mut current_history_index = 0;
@@ -366,16 +353,6 @@ pub fn run_monte_carlo_simulation(
                 &mut rng,
             );
         }
-
-        let mut annual_asset_return = 0.0;
-        let mut annual_inflation = 0.0;
-        let mut yearly_pnl = 0.0;
-        let mut withdrawal_runner = WithdrawalRunner::new(&withdrawal_strategy, retire_month_usize);
-        // Cumulative realized inflation through month m−1. Nominal cash flows are fixed in
-        // face value, so they are deflated by *this* rather than by the expected index —
-        // a fixed annuity really does lose purchasing power faster on a high-inflation
-        // path, which is the whole risk of holding one.
-        let mut realized_inflation_index = 1.0_f64;
 
         for m in 0..months as usize {
             if m > 0 {
@@ -432,13 +409,6 @@ pub fn run_monte_carlo_simulation(
                 active_monthly_asset_return = annual_mode_months[m % 12];
             }
 
-            // Year-boundary reset must run in every mode (including monthly calibration),
-            // otherwise annual_real_returns accumulates since simulation start instead of per year.
-            if m > 0 && m % 12 == 0 {
-                annual_asset_return = 0.0;
-                annual_inflation = 0.0;
-            }
-
             let stress_drift = if regime_state == 0 {
                 0.0
             } else {
@@ -463,10 +433,6 @@ pub fn run_monte_carlo_simulation(
                     )
             };
 
-            let monthly_portfolio_growth_factor =
-                (1.0 + monthly_asset_return) * monthly_fee_factor;
-            let monthly_portfolio_return_after_costs = monthly_portfolio_growth_factor - 1.0;
-
             let monthly_inflation = if let Some(series) = historical_monthly_inflation {
                 // Same index as the return sampled this month, so the pair comes from
                 // one real historical month. The regime inflation spread is deliberately
@@ -488,102 +454,52 @@ pub fn run_monte_carlo_simulation(
                 )
             };
 
-            annual_asset_return =
-                (1.0 + annual_asset_return) * (1.0 + monthly_portfolio_return_after_costs) - 1.0;
-            annual_inflation = (1.0 + annual_inflation) * (1.0 + monthly_inflation) - 1.0;
-
-            // Nominal items are divided by the index accumulated through month m−1: the
-            // flow is applied before this month's deflation below, so it enters in
-            // pre-month-m money.
-            let income_this_month = monthly_real_income_flow[m]
-                + monthly_nominal_income_flow[m] / realized_inflation_index;
-            let base_spending_this_month = monthly_real_spending_flow[m]
-                + monthly_nominal_spending_flow[m] / realized_inflation_index;
-            let effective_spending =
-                withdrawal_runner.monthly_spending(m, balance, base_spending_this_month);
-            balance += income_this_month - effective_spending + lump_sum_by_month[m];
-            // Record the cash deficit at the moment it occurs, before investment growth
-            // and deflation touch it. A negative balance is unfunded spending, not an
-            // invested position: scaling it by the month's market return would make the
-            // same €100 of unmet spending register as €50 in a −50% month and €200 in a
-            // +100% month.
-            if balance < 0.0 {
-                cumulative_shortfall += -balance;
-                depleted = true;
-                balance = 0.0;
-            }
-            let pnl_month = balance * (monthly_portfolio_growth_factor - 1.0);
-            balance *= monthly_portfolio_growth_factor;
-            balance /= 1.0 + monthly_inflation;
-            realized_inflation_index *= 1.0 + monthly_inflation;
-            // Track the year's investment P&L (net of fees, gross of inflation) in the
-            // same deflated units as the balance, so nominal gains are taxed in
-            // today's-money terms at year end.
-            yearly_pnl = (yearly_pnl + pnl_month) / (1.0 + monthly_inflation);
-            sim_growth[m] = monthly_portfolio_growth_factor / (1.0 + monthly_inflation);
-
-            // Annual net-gain taxation: at each year boundary (and the final partial
-            // year), tax the positive net annual P&L. Losses are untaxed and not
-            // carried forward. Applied as a multiplicative factor so the ruin-surface
-            // replay of sim_growth carries the tax correctly.
-            if m % 12 == 11 || m == months as usize - 1 {
-                if balance > 0.0 && yearly_pnl > 0.0 && tax_on_gains_rate > 0.0 {
-                    let tax = (yearly_pnl * tax_on_gains_rate).min(balance);
-                    let tax_factor = (balance - tax) / balance;
-                    balance -= tax;
-                    sim_growth[m] *= tax_factor;
-                    annual_asset_return = (1.0 + annual_asset_return) * tax_factor - 1.0;
-                }
-                yearly_pnl = 0.0;
-            }
-
-            // Growth, deflation and tax cannot drive a non-negative balance below zero,
-            // so the only remaining case is an exactly-emptied portfolio.
-            if balance <= 0.0 {
-                depleted = true;
-                balance = 0.0;
-            }
-
-            if m % 12 == 11 || m == months as usize - 1 {
-                annual_real_returns
-                    .push((1.0 + annual_asset_return) / (1.0 + annual_inflation).max(0.0001) - 1.0);
-            }
-
-            if balance == 0.0 {
-                depleted_months += 1;
-            }
-            sim_balances[m] = balance;
+            tape.asset_returns[m] = monthly_asset_return;
+            tape.inflation_rates[m] = monthly_inflation;
         }
+
+        let evaluation = evaluate_path(
+            &tape,
+            &arrays,
+            input.current_savings,
+            months_usize,
+            &withdrawal_strategy,
+            retire_month_usize,
+            input.annual_fee_percent,
+            input.tax_on_gains_percent,
+            None,
+            true,
+        );
 
         let retire_index = (retire_month as usize)
             .saturating_sub(1)
             .min((months as usize).saturating_sub(1));
-        retire_balances.push(sim_balances[retire_index]);
-        final_balances.push(balance);
-        shortfall_totals.push(cumulative_shortfall);
-        depleted_years_series.push((depleted_months as f64) / 12.0);
-        depleted_flags.push(depleted);
-        annual_real_returns_by_sim.push(annual_real_returns);
+        retire_balances.push(evaluation.balances[retire_index]);
+        final_balances.push(evaluation.final_balance);
+        shortfall_totals.push(evaluation.cumulative_shortfall);
+        depleted_years_series.push((evaluation.depleted_months as f64) / 12.0);
+        depleted_flags.push(evaluation.depleted);
+        annual_real_returns_by_sim.push(evaluation.annual_real_returns);
 
         // Reservoir sampling: insert this sim's balances into per-month reservoirs
         for m in 0..months_usize {
             if sim < RESERVOIR_K {
-                reservoirs[m].push(sim_balances[m]);
+                reservoirs[m].push(evaluation.balances[m]);
             } else {
                 // Reservoir replacement with probability K/(sim+1)
                 let j = (rng.random() * (sim + 1) as f64).floor() as usize;
                 if j < RESERVOIR_K {
-                    reservoirs[m][j] = sim_balances[m];
+                    reservoirs[m][j] = evaluation.balances[m];
                 }
             }
         }
 
-        // Only keep growth_factors for the first RUIN_SAMPLE_CAP simulations
+        // Only retain tapes used by the exact scenario replays.
         if sim < RUIN_SAMPLE_CAP {
-            growth_factors.push(sim_growth);
+            path_tapes.push(tape);
         }
 
-        let success = !depleted && balance > 0.0;
+        let success = !evaluation.depleted && evaluation.final_balance > 0.0;
         success_flags.push(success);
         if success {
             success_count += 1;
@@ -615,16 +531,16 @@ pub fn run_monte_carlo_simulation(
     // README §7.6.
     let target_fi_p95 = if already_retired {
         find_required_starting_capital(
-            &growth_factors,
-            &monthly_income_flow,
-            &monthly_spending_flow,
-            &lump_sum_by_month,
-            growth_cap,
+            &path_tapes,
+            &arrays,
+            replay_sample_count,
             months,
             &withdrawal_strategy,
             retire_month_usize,
             0.95,
             target_fi_swr,
+            input.annual_fee_percent,
+            input.tax_on_gains_percent,
         )
     } else {
         find_retirement_balance_target(&retire_balances, &success_flags, 0.95)
@@ -700,7 +616,6 @@ pub fn run_monte_carlo_simulation(
         &annual_real_returns_by_sim,
         &final_balances,
         &depleted_flags,
-        retire_month_usize,
     );
 
     let ruin_surface = build_ruin_surface(
@@ -708,9 +623,9 @@ pub fn run_monte_carlo_simulation(
         spending_periods,
         income_sources,
         lump_sum_events,
-        &growth_factors,
+        &path_tapes,
         months,
-        growth_cap,
+        replay_sample_count,
         &withdrawal_strategy,
     );
 
@@ -719,9 +634,9 @@ pub fn run_monte_carlo_simulation(
         spending_periods,
         income_sources,
         lump_sum_events,
-        &growth_factors,
+        &path_tapes,
         months,
-        growth_cap,
+        replay_sample_count,
         &withdrawal_strategy,
         retire_month_usize,
         0.95,
@@ -735,6 +650,12 @@ pub fn run_monte_carlo_simulation(
         success_probability: (success_count as f64) / (sim_count as f64),
         fi_probability_swr: (fi_count_swr as f64) / (sim_count as f64),
         fi_probability_p95: (fi_count_p95 as f64) / (sim_count as f64),
+        requested_return_moments: RequestedReturnMoments {
+            arithmetic_mean: target_annual_mean,
+            std_dev: target_annual_std,
+            skewness: input.return_skewness,
+            kurtosis: input.return_kurtosis,
+        },
         return_moments,
         sequence_risk,
         ruin_surface,

@@ -112,10 +112,10 @@ scenario is byte-identical, confirming the real-terms path is untouched.
 precomputed array — with nominal items it is path-dependent — and instead receives the
 month's real-terms spending from the caller.
 
-**Known limitation, unchanged:** the ruin-surface and Coast-FIRE replays still use the
-expected index for nominal items. Stored growth factors bake inflation into a single
-number, so per-path realized inflation cannot be recovered during a replay. This is part
-of the documented replay approximation (README §7).
+**Follow-up fixed 2026-07-25:** simulations now retain exogenous monthly asset-return and
+inflation tapes. The main simulation, ruin surface, Coast FIRE and required-capital search
+all call one exact path evaluator, which recomputes nominal deflation, withdrawal strategy,
+fees and balance-dependent annual tax for the scenario being evaluated.
 **Files:** `rust-engine/src/{engine2,simulation,stats}.rs`, `src/lib/retirementEngine.ts`
 
 ### 0.4 Historical bootstrap severs the return–inflation correlation — ✅ FIXED 2026-07-21
@@ -423,7 +423,7 @@ after 0.11 moved them ~57%); rejected option 2 (measured ineffective). README §
 assumptions table already state that clustering comes from the block bootstrap rather than
 the regime layer. **The follow-on question worth real effort is block length — see 0.13.**
 
-### 0.13 `blockLength = 6` was an unexamined magic number — ✅ RESOLVED 2026-07-21 (kept at 6, now cited)
+### 0.13 `blockLength = 6` was an unexamined magic number — 🟡 PARTLY RESOLVED (PWSD diagnostic added; product calibration open)
 **Found while resolving 0.12.** The default block length appears as a bare `6` in three
 places (`simulation.rs`, `retirementEngine.ts`, `RetirementPlanner.svelte`) with no stated
 justification anywhere in the code or docs. It is the single biggest lever on simulated
@@ -499,17 +499,19 @@ a retirement simulation needs.
 
 ---
 
-#### Resolved 2026-07-21 — the guess is now a citation
+#### Updated 2026-07-25 — PWSD is a diagnostic, not the product objective
 
 `scripts/analyze-block-length.mjs` implements Politis & White (2004) with the Patton,
-Politis & White (2009) correction, following the reference implementations (`np::b.star`,
-R `blocklength::pwsd`). Run it with `pnpm run data:retirement:blocklength`; re-run whenever
-the market data is refreshed.
+Politis & White (2009) correction. Its equations and parameter defaults follow `np::b.star`;
+the corrected run convention for `m_hat` follows current R `blocklength::pwsd`. Run it with
+`pnpm run data:retirement:blocklength`; re-run whenever the market data is refreshed.
 
-**The implementation is validated before it is trusted**, against cases whose answer is
-known in advance — the block length rises monotonically with AR(1) dependence
-(φ = 0 → 2.9, 0.3 → 4.7, 0.5 → 8.8, 0.8 → 15.0) and the ratio b_CB / b_SB reproduces the
-analytic value (2 / (4/3))^(1/3) = 1.1447 to four decimals.
+**Validation was strengthened after review.** The former checks were circular/fragile: the
+CB/SB ratio was forced by constants in the same implementation, and monotonicity across four
+differently seeded samples was not a known-answer test. `scripts/analyze-block-length.test.mjs`
+now pins the corrected `m_hat` convention and no-run fallback, rejects degenerate inputs,
+and reproduces the published corrected theoretical AR(1) circular-bootstrap values. The
+command-line AR(1) output remains only a smoke diagnostic.
 
 **Result on the shipped data — b_CB, the fixed-length circular bootstrap figure:**
 
@@ -521,33 +523,29 @@ analytic value (2 / (4/3))^(1/3) = 1.1447 to four decimals.
 
 Across all regions × allocations: min 1.0, **median 2.9**, max 12.7.
 
-**This overturns the expectation set earlier in this item.** The data-driven procedure says
-roughly **3 months**, not the ~120 that practitioner planning tooling uses. The existing
-default of 6 is therefore already in the right region — within a factor of two of the
-PWSD median, and comfortably inside its cross-sectional range.
+**Interpretation:** PWSD says roughly **3 months** for its long-run-variance objective. The
+existing default of 6 is close to that diagnostic, but the 1.0–12.7 cross-sectional range is
+not a confidence interval and cannot validate one universal default.
 
-**Why the literature appeared to disagree, resolved:** PWSD optimises estimation of the
-variance *of a scalar statistic*, and these monthly series carry very little short-lag
-autocorrelation (m_hat = 1 for almost every region and allocation), so short blocks suffice
-for that objective. The 120-month figure targets a different objective — reproducing
-multi-year path dynamics. The two numbers answer different questions, and PWSD is the one
-with a defensible estimator behind it.
+**Why the figures differ:** PWSD optimises long-run-variance estimation for a scalar
+statistic. Long blocks target a different objective: reproducing multi-year path dynamics.
+The planner needs the latter too, so PWSD is evidence about one property rather than the
+final selection rule.
 
-**Consequence for the variance-ratio finding above:** the flat VR term structure at block 6
-is largely *unavoidable* at any PWSD-defensible block length, because the dependence simply
-is not there at short lags. Combined with the fact that the long-horizon source VR figures
-rest on ~6.6 non-overlapping windows and are noise-dominated, the earlier framing of this as
-a "deficiency" was too strong.
+**Consequence for the variance-ratio finding above:** short blocks will have a flat
+long-horizon VR term structure because they cut dependence at block boundaries. The source
+estimates are noisy, but that does not make the mismatch irrelevant to retirement paths.
 
-**Decision: keep the default at 6 months, now documented and cited.** It sits just above the
-PWSD median, which preserves marginally more dependence for path simulation than the
-point estimate — a defensible lean for a long-horizon planner — while staying within the
-procedure's range. Not changed to 3, because that would slightly *reduce* dependence
-preservation for no measured benefit and would churn user results again.
+**Interim decision: keep 6 months to avoid an uncalibrated result change, but label it
+provisional.** This is continuity, not proof of optimality.
 
-**Still open, optional:** the stationary bootstrap (geometric random block lengths) remains
-attractive on robustness grounds, being "less sensitive to block size misspecification".
-Lower priority now that the fixed length is shown to be defensible.
+**Required to close:** compare 3/6/12/24/60/120 months on rolling 1/3/5/10-year return tails,
+drawdown depth/duration, and representative retirement success and FI targets. State the
+loss function/trade-off before choosing the default; expose material variation as model
+uncertainty.
+
+**Still open:** include the stationary bootstrap (geometric random block lengths) in that
+comparison rather than assuming a fixed block is sufficient.
 
 **Do not** treat this as a bug fix. Unlike 0.11 there is no provably correct target; it is a
 modelling choice that should be made explicitly and disclosed, not silently changed.
@@ -555,14 +553,12 @@ modelling choice that should be made explicitly and disclosed, not silently chan
 `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`, README §4.3
 
 ### 0.14 Sequence-risk window measured the first ten years from *today*, not from retirement — ✅ FIXED 2026-07-25
-**Fix applied:** `build_sequence_risk_summary` / `buildSequenceRiskSummary` now take
-`retire_month` and slice the ten annual returns starting at the bucket containing
-retirement, instead of unconditionally taking the first ten. Convention (README §7.4):
-fractional offsets floor onto the bucket *containing* the retirement month, so a crash
-landing on the retirement date stays inside the window; the window shortens when the
-horizon leaves fewer than ten post-retirement years, and clamps to the last available year
-rather than emptying. `retireMonth == 0` reproduces the old behaviour, which was correct
-only for the already-retired.
+**Fix applied:** each simulation now compounds retirement-relative annual return buckets
+before `build_sequence_risk_summary` / `buildSequenceRiskSummary` selects the first ten.
+Retiring at month 30 makes months 30–41 the first year, so a crash on the retirement date
+stays inside the window without mixing in months 24–29 from accumulation. The window
+shortens when fewer than ten post-retirement years remain. `retireMonth == 0` reproduces
+the old start point, which was correct only for the already-retired case.
 
 **Original issue:** the annual real-return series starts at the current age and
 `retire_month` was never passed in, so for a 35-year-old retiring at 65 the quintiles
@@ -607,7 +603,7 @@ loosened:
   percent of current savings whether or not the plan survives. Replaced in this mode by
   `findRequiredStartingCapital` / `find_required_starting_capital`: bisection over starting
   capital against the stored paths, which is the question a retiree actually has. Monotone,
-  so the bisection is exact to tolerance; inherits the replay's expected-inflation caveat.
+  so the bisection is exact to tolerance and uses the shared exact path evaluator.
 - **Ruin surface** would have clamped its retirement-age axis to `currentAge + 1..+6` and
   captioned it "retire later", but with no salary a later retirement age only moves when
   the withdrawal strategy starts. Collapsed to 5×1 over spending, and the chart relabels
@@ -625,6 +621,13 @@ the component, where unticking is the only thing that needs it.
 **Worth remembering:** the pre-existing `retireMonth == 0` handling in `find_coast_age` and
 the 0.14 sequence-risk window was written for a case the UI could not produce. Documenting
 an unreachable branch is how it stays correct long enough to become reachable.
+
+**Follow-up fixes (2026-07-25):** required-capital bracketing now expands until a verified
+successful bound is found and fails explicitly at invalid inputs or finite-number limits;
+it no longer returns the unverified result of an arbitrary 24th doubling. Sequence-risk
+returns are now compounded in retirement-relative 12-month buckets, eliminating the
+fractional-age mix of pre- and post-retirement months. The results also display requested
+and effective annual return moments side by side.
 **Files:** `src/lib/retirementEngine.ts`, `rust-engine/src/stats.rs`,
 `rust-engine/src/simulation.rs`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`,
 `PlannerOutputCards.svelte`, `PlannerSecondaryPlot.svelte`, `PlannerTimelinePlot.svelte`,
@@ -944,28 +947,23 @@ of the serialization work). Enables bookmark/share and side-by-side scenario com
 while still clearing the 95% success target. Shown in the FI-targets card ("Coast FIRE:
 stop saving at age 55 and still clear 95%, if work still covers spending").
 
-**Modelling choice:** "stopping contributions" is net-zero cash flow from the coast age
-until retirement — you still cover spending from work (the coast/barista case), so the
-portfolio neither grows by contribution nor shrinks by withdrawal, it just compounds.
-Retirement age and retirement spending are unchanged.
+**Modelling choice, strengthened 2026-07-25:** after the candidate coast age, remove only
+positive monthly pre-retirement contributions (`max(income − spending, 0)`). Deficit months
+and lump sums remain scheduled. Retirement age and retirement spending are unchanged.
 
-**Cost:** as the TODO predicted, near-zero. It reuses the ruin-surface replay trick
-(stored per-path growth factors re-run against a modified cash-flow schedule) and binary
-searches the coast month, so it costs ~6 replays rather than fresh simulations. The
-search is sound because success is monotone non-decreasing in the coast month — every
-growth factor is positive, so contributing for longer leaves every path with at least as
-much money.
+**Cost:** it reuses the capped ruin-surface path tapes. Fixed spending uses a binary search.
+Adaptive strategies can respond to extra wealth by raising spending, so they scan every
+candidate month; this costs more but does not assume a monotonic success function that the
+withdrawal policy can invalidate.
 
-**Returns null, deliberately, in two cases:** when the user is not a net saver before
-retirement (there are no contributions to stop, and "stopping" would *help* them, which
-would invert the monotonicity the search relies on), and when 95% is unreachable even by
-contributing right up to retirement. The UI shows an explicit "n/a" line for the latter
-rather than hiding the metric.
+**Returns null, deliberately, in two cases:** when there are no positive pre-retirement
+contributions to stop, and when 95% is unreachable even by contributing right up to
+retirement. The UI shows an explicit "n/a" line for the latter.
 
-**Inherits the ruin-surface caveat:** the stored growth factors carry a tax factor
-computed on the original balance path. That factor is scale-invariant but not invariant
-to a changed contribution pattern, so this is a fast approximation in exactly the same way
-the ruin surface is (README §7).
+**Exact replay follow-up (2026-07-25):** stored tapes now contain exogenous returns and
+inflation rather than derived post-tax growth factors. Coast, ruin-surface and capital
+replays use the main path evaluator, so nominal flows and tax respond to the replayed
+balance and contribution schedule.
 
 **Found while wiring it up:** `Option::None` was crossing the wasm boundary as `undefined`
 rather than `null`, so the declared `coastAge: number | null` type was a lie and every
@@ -1082,7 +1080,8 @@ series is trimmed there (annual moments still use full market history).
 Expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior.
 
 ### 6.2 Ruin Surface Accuracy (S) — PARTIALLY DONE (cap raised 2026-07-20, precision surfaced 2026-07-21)
-**Done:** cap raised 800→2000 in both engines (~11.5 MB of growth factors at 720 months).
+**Done:** cap raised 800→2000 in both engines. The retained return/inflation tapes use
+~23 MB at 720 months and enable exact accounting replays.
 Precision is now reported rather than merely bounded — per-cell 95% margins on hover and
 a caption giving the worst case; at N=2000 that is ±2.2% for mid-range cells and under
 ±1% for cells near 0% or 100% (see 3.1).

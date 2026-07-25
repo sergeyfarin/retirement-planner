@@ -34,12 +34,13 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test:unit": "vitest",
-		"test": "pnpm run test:unit -- --run",
+		"test": "pnpm run test:blocklength && pnpm run test:unit -- --run",
+		"test:blocklength": "node --test scripts/analyze-block-length.test.mjs",
 		"data:retirement:import": "node scripts/import-retirement-market-data.mjs",
 		"data:retirement:preprocess": "node scripts/preprocess-retirement-market-data.mjs",
 		"data:retirement:refresh": "pnpm run data:retirement:import && pnpm run data:retirement:preprocess",
 		"test:engines": "vitest run --project server",
-		"data:retirement:blocklength": "node scripts/analyze-block-length.mjs"
+		"data:retirement:blocklength": "pnpm run test:blocklength && node scripts/analyze-block-length.mjs"
 	},
 	"files": [
 		"dist",
