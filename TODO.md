@@ -373,30 +373,133 @@ labels being resampled, so choosing a pool with the stationary probability is eq
 sampling unconditionally. Measured persistence confirms it: the regime is the same at
 consecutive block starts 56.5% of the time against 55.4% by chance, because crisis runs
 (~3.1 months) are shorter than the 6-month block, so the chain mixes completely inside one
-block. The regime state is simply never consulted at a moment when it carries information.
+block. The regime state is never consulted at a moment when it carries information.
 
-**What this means.** The clustering and sequence risk the model produces are real, but they
-come from the **block bootstrap** replaying genuine historical runs — not from the regime
-switching. The old sampler's apparent regime "effect" was the 0.11 bias. README §4.1/§4.3
-and §10 now say so rather than crediting the regime layer.
+---
 
-**Options, needs a decision:**
-1. **Accept and relabel** — Mode A is a circular block bootstrap; drop the regime machinery
-   from that path and keep it for Mode C's parametric generator, where it genuinely drives
-   the process. Simplest, and removes code that implies more than it delivers.
-2. **Make regimes bite** — require regime runs long relative to `blockLength` (e.g. detect
-   regimes on 12-month windows so crisis runs span several blocks), or specify the
-   transition matrix independently of the empirical label frequencies. This would make
-   crisis persistence a real modelled effect rather than an artifact, but it deliberately
-   moves the simulated distribution away from the source, so it must be explicit and
-   documented.
-3. Leave as is, documented.
+#### Measurements added 2026-07-21 (these correct two earlier claims in this item)
 
-Worth resolving before any further calibration work: option 2 in particular would
-re-introduce a deliberate deviation from the historical mean, which must not be confused
-with the accidental one that 0.11 removed.
-**Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/engine2.rs` (regime detection),
-`src/lib/retirementEngine.ts`
+**(a) The model is NOT under-producing multi-year bear markets.** This was the stated worry
+behind "make regimes bite". It is false:
+
+| | history's *worst* 36m window | simulated worst-36m, P05 of paths |
+|---|---|---|
+| EUR | −38.2% | **−40.3%** |
+| USD | −18.4% | **−29.8%** |
+
+Block recombination already chains bad runs that never occurred consecutively, so simulated
+multi-year drawdowns are *more* severe than anything in the historical record. Sequence risk
+is present and if anything generous.
+
+**(b) Option 2 was measured, and it does essentially nothing.** Re-detecting regimes on an
+18-month window with a looser threshold (crisis runs 3.2 → 4.2 months) moved worst-36m P05
+from −40.3% to **−40.5%**. Meanwhile blockLength 6 → 24 moved it to **−41.9%**.
+**Block length, not regime persistence, is the lever on drawdown severity.**
+
+**Correction to this item's earlier text:** it claimed option 2 "deliberately moves the
+simulated distribution away from the source". That was wrong — the longer-run variant stays
+mean-preserving (+0.02pp). It does not trade accuracy for realism; it simply has no effect.
+
+**(c) The regime layer is not dead code — it is live outside the default path:**
+
+| path | regimes drive returns? | drive inflation? |
+|---|---|---|
+| Historical, default (joint CPI) | ✗ (measured) | ✗ |
+| Historical + "Use today's yields" | ✗ | **✓ crisis spread** |
+| Parametric (Mode C) | **✓ fully** | **✓** |
+
+So "remove the regime machinery from Mode A" is not free: it would break the crisis
+inflation spread that the current-conditions preset relies on (2.8).
+
+**(d) Literature check.** The one recognised motivation for regime-conditioned resampling is
+avoiding bootstrap samples that straddle a **structural break**, which would "generate
+implausible scenarios". That justification does not apply here: `detect_regimes_monthly`
+finds *recurring* volatility states, not permanent structural breaks, and the pools are
+recombined freely across the whole sample either way.
+
+**Decision: option 3 — document, change nothing.** Rejected option 1 (removal breaks live
+inflation behaviour, is a one-way door, and would churn every user's results again days
+after 0.11 moved them ~57%); rejected option 2 (measured ineffective). README §4.3 and the
+assumptions table already state that clustering comes from the block bootstrap rather than
+the regime layer. **The follow-on question worth real effort is block length — see 0.13.**
+
+### 0.13 `blockLength = 6` is an unexamined magic number, and it flattens the term structure of risk (M) — found 2026-07-21
+**Found while resolving 0.12.** The default block length appears as a bare `6` in three
+places (`simulation.rs`, `retirementEngine.ts`, `RetirementPlanner.svelte`) with no stated
+justification anywhere in the code or docs. It is the single biggest lever on simulated
+long-horizon risk, so it deserves a deliberate, documented choice.
+
+**Diagnostic — variance ratio** (Lo & MacKinlay). VR(k) = Var(k-month return) / (k ×
+Var(1-month return)); VR = 1 is a random walk, < 1 mean reversion, > 1 trending. A block
+bootstrap can only carry dependence up to about its block length; past that it glues
+independent blocks together and the term structure goes flat. Measured on 60/30/10:
+
+| series | VR 12m | VR 36m | VR 60m | VR 120m |
+|---|---|---|---|---|
+| **EUR source** | 1.21 | 1.10 | 1.06 | **0.94** |
+| resampled, block 6m | 1.13 | 1.15 | 1.14 | 1.13 |
+| resampled, block 120m | 1.21 | 1.12 | 1.03 | **0.89** |
+| **USD source** | 1.11 | 1.01 | 1.11 | **1.36** |
+| resampled, block 6m | 1.05 | 1.06 | 1.07 | 1.08 |
+| **WORLD source** | 1.22 | 1.13 | 1.18 | **1.46** |
+| resampled, block 6m | 1.14 | 1.17 | 1.18 | 1.18 |
+
+**The finding: at block 6 the variance ratio is flat across every horizon — a shape no
+region actually exhibits.** Longer blocks track the source term structure markedly better.
+
+**But the bias direction is not uniform, which matters.** EUR mean-reverts at 10 years
+(0.94), so short blocks *overstate* its long-horizon risk — the direction Cogneau &
+Zakamulin warn about. USD and WORLD trend at 10 years (1.36, 1.46), so short blocks
+*understate* theirs. There is no single "conservative" error here.
+
+**And the long-horizon source estimates are weak.** With 792 months, VR(120) rests on ~6.6
+non-overlapping windows; this is exactly the small-sample fragility that dogged the
+Fama-French / Poterba-Summers mean-reversion literature. The 1.36 and 1.46 figures should
+not be taken at face value.
+
+**The real trade-off is bias against sample diversity:**
+
+| block | non-overlapping blocks available (n=792) |
+|---|---|
+| 6m | 132 |
+| 24m | 33 |
+| 60m | 13 |
+| 120m | **6** |
+
+At 120 months the simulation is recombining six distinct decades — barely more diverse than
+cFIREsim-style historical sequencing, with correspondingly high sampling error.
+
+**Literature does not give one answer, because the answer depends on the objective:**
+- Hall, Horowitz & Jing rules of thumb target estimating the variance *of a statistic*:
+  n^(1/3) ≈ **9 months** here, n^(1/5) ≈ 4. Close to the current 6.
+- Politis & White (2004), corrected by Patton, Politis & White (2009), give a data-driven
+  optimal block length from the correlogram. This is the defensible way to pick it, and
+  there are reference implementations (the R `blocklength` package; Patton's MATLAB code).
+- Practitioner tooling for *financial planning* specifically uses far longer blocks —
+  Portfolio Optimizer's worked example uses a 120-month average with the stationary
+  bootstrap, justified as capturing "time-varying volatility and mean reversion".
+
+The gap between ~9 and ~120 is not a contradiction: the short rules optimise estimation of a
+scalar statistic, while long blocks aim to reproduce multi-year path dynamics, which is what
+a retirement simulation needs.
+
+**Suggested work, in order:**
+1. Implement Politis-White automatic block-length selection on each region's series and
+   report what it suggests. Cheap, and it replaces a guess with a citation.
+2. Decide the default deliberately between that number and a longer planning-oriented value;
+   document the reasoning and the diversity trade-off in README §4.3.
+3. Consider the **stationary bootstrap** (Politis & Romano 1994) — geometric random block
+   lengths rather than fixed — which the literature notes is "less sensitive to block size
+   misspecification". That robustness is attractive precisely because the right value is
+   uncertain here.
+4. Surface `blockLength` in the UI as what it actually is: the control over how sustained
+   simulated downturns are. It is currently buried in Advanced tuning with a purely
+   mechanical description.
+
+**Do not** treat this as a bug fix. Unlike 0.11 there is no provably correct target; it is a
+modelling choice that should be made explicitly and disclosed, not silently changed.
+**Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`,
+`RetirementPlanner.svelte`, `PlannerInputPanel.svelte`, README §4.3
 
 ## Priority 1 — Engineering Health
 
