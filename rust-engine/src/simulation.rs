@@ -162,11 +162,6 @@ pub fn run_monte_carlo_simulation(
 
     let stay_growth = crate::engine::clamp_transition_probability(input.regime_model.stay_growth);
     let stay_crisis = crate::engine::clamp_transition_probability(input.regime_model.stay_crisis);
-    let growth_mean = input.regime_model.growth_mean;
-    let growth_std = input.regime_model.growth_std.max(0.0);
-    let crisis_mean = input.regime_model.crisis_mean;
-    let crisis_std = input.regime_model.crisis_std.max(0.0);
-
     let mut bootstrap_history = vec![];
     if use_historical_bootstrap {
         if let Some(hist) = &input.historical_annual_returns {
@@ -282,6 +277,10 @@ pub fn run_monte_carlo_simulation(
     let annual_detected_regimes = detect_regimes(&effective_annual_history);
     let annual_regime_bootstrap_pool =
         bootstrap_pool_by_regime(&effective_annual_history, &annual_detected_regimes);
+    // Estimate annual transitions from the labels that formed these pools. Reusing the
+    // input template can assign a different stationary crisis share and reweight the two
+    // pool means away from the calibrated unconditional mean.
+    let annual_markov = estimate_markov_stay_probabilities(&annual_detected_regimes);
 
     let monthly_detected_regimes = if use_monthly_calibration {
         detect_regimes_monthly(&effective_monthly_history)
@@ -369,6 +368,7 @@ pub fn run_monte_carlo_simulation(
 
     for sim in 0..sim_count {
         let mut regime_state = initial_regime_state(monthly_markov.0, monthly_markov.1, &mut rng);
+        let mut annual_regime_state = 0;
         let mut tape = PathTape {
             asset_returns: vec![0.0; months_usize],
             inflation_rates: vec![0.0; months_usize],
@@ -384,7 +384,9 @@ pub fn run_monte_carlo_simulation(
         // sampled annual return (see spread_annual_return_across_months).
         let mut annual_mode_months = [0.0_f64; 12];
         if !use_monthly_calibration {
-            let pool = if regime_state == 0 {
+            annual_regime_state =
+                initial_regime_state(annual_markov.0, annual_markov.1, &mut rng);
+            let pool = if annual_regime_state == 0 {
                 &annual_regime_bootstrap_pool.growth
             } else {
                 &annual_regime_bootstrap_pool.crisis
@@ -439,7 +441,13 @@ pub fn run_monte_carlo_simulation(
                 block_remaining -= 1;
             } else {
                 if m > 0 && m % 12 == 0 {
-                    let pool = if regime_state == 0 {
+                    annual_regime_state = transition_regime_state(
+                        annual_regime_state,
+                        annual_markov.0,
+                        annual_markov.1,
+                        &mut rng,
+                    );
+                    let pool = if annual_regime_state == 0 {
                         &annual_regime_bootstrap_pool.growth
                     } else {
                         &annual_regime_bootstrap_pool.crisis
@@ -457,29 +465,10 @@ pub fn run_monte_carlo_simulation(
                 active_monthly_asset_return = annual_mode_months[m % 12];
             }
 
-            let stress_drift = if regime_state == 0 {
-                0.0
-            } else {
-                (crisis_mean - growth_mean) * 0.1
-            };
-            let stress_noise = if regime_state == 0 {
-                growth_std * 0.04
-            } else {
-                crisis_std * 0.08
-            };
-
-            let monthly_asset_return = if use_monthly_calibration || use_historical_bootstrap {
-                active_monthly_asset_return
-            } else {
-                active_monthly_asset_return
-                    + draw_monthly_return_shaped(
-                        stress_drift,
-                        stress_noise,
-                        input.return_skewness,
-                        input.return_kurtosis,
-                        &mut rng,
-                    )
-            };
+            // The annual pool draw is already regime-conditioned and calibrated. The old
+            // parametric-only monthly crisis overlay counted the regime twice and changed
+            // both the mean and volatility after calibration.
+            let monthly_asset_return = active_monthly_asset_return;
 
             let monthly_inflation = if let Some(series) = historical_monthly_inflation {
                 // Same index as the return sampled this month, so the pair comes from

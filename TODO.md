@@ -43,6 +43,24 @@ Item numbers refer to the detailed entries below.
 
 These bias current results **materially pessimistic** and should land before new features.
 
+### 0.18 Annual regime pools sampled with mismatched template weights — ✅ FIXED 2026-07-26
+
+Annual-mode return pools were formed from detected growth/crisis labels, but pool selection
+used the input template's Markov probabilities. In parametric Mode C, one measured targeted
+pool contained 30.3% crisis observations while the template chain occupied crisis only
+18.0% of the time. With pool means of −4.64% and +12.06%, that changed the expected sampled
+arithmetic return from 7.00% to 9.06% before volatility drag.
+
+Annual return sampling now has its own annual-frequency chain estimated from the same labels
+that form the pools. The existing monthly chain remains separate for inflation, so annual
+stay probabilities are not incorrectly applied as monthly probabilities. The redundant
+parametric monthly crisis return overlay was also removed: the selected annual draw is
+already regime-conditioned, and adding another drift/noise layer changed its calibrated
+moments a second time. Both engines have generated-wealth regression tests across the
+reported failing seeds; these tests inspect realized path CAGR rather than merely repeating
+the calibration-pool moment check from 0.16. The shipped historical monthly path was never
+affected; the correction also covers the annual-only historical fallback.
+
 ### 0.17 Reversed withdrawal bounds panic the Wasm engine — ✅ FIXED 2026-07-26
 
 Share links accepted finite `spendingFloor` and `spendingCeiling` values without enforcing

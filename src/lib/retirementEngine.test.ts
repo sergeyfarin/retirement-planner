@@ -208,6 +208,26 @@ describe('parametric calibration pool', () => {
       expect(result.stats.returnMoments.stdDev).toBeCloseTo(input.returnVariability, 12);
     }
   });
+
+  it('does not reweight detected regime pools above the requested return', () => {
+    for (const seed of [1, 3, 5]) {
+      const input = {
+        ...parametricInput(seed),
+        currentSavings: 1_000_000,
+        inflationMean: 0,
+        inflationVariability: 0,
+        simulations: 600
+      };
+      const years = input.simulateUntilAge - input.currentAge;
+      const result = runMonteCarloSimulation(input, [], [], [], years * 12, years * 12);
+      const medianCagr = (result.stats.finalMedian / input.currentSavings) ** (1 / years) - 1;
+
+      // This is deliberately a generated-path assertion. The calibration-pool test above
+      // could pass while a mismatched Markov chain sampled the crisis pool too rarely.
+      expect(medianCagr).toBeLessThan(input.meanReturn);
+      expect(Math.abs(medianCagr - result.stats.returnMoments.geometricMean)).toBeLessThan(0.01);
+    }
+  });
 });
 
 describe('annual net-gain taxation', () => {

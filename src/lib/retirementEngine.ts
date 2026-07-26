@@ -1319,11 +1319,6 @@ export function runMonteCarloSimulation(
   const retireMonthClamped = Math.min(months, Math.max(0, retireMonth));
   const stayGrowth = clampTransitionProbability(input.regimeModel.stayGrowth);
   const stayCrisis = clampTransitionProbability(input.regimeModel.stayCrisis);
-  const growthMean = input.regimeModel.growthMean;
-  const growthStd = Math.max(0, input.regimeModel.growthStd);
-  const crisisMean = input.regimeModel.crisisMean;
-  const crisisStd = Math.max(0, input.regimeModel.crisisStd);
-
   const bootstrapHistory =
     useHistoricalBootstrap && input.historicalAnnualReturns && input.historicalAnnualReturns.length >= 25
       ? input.historicalAnnualReturns
@@ -1362,6 +1357,10 @@ export function runMonteCarloSimulation(
 
   const annualDetectedRegimes = detectRegimes(effectiveAnnualHistory);
   const annualRegimeBootstrapPool = bootstrapPoolByRegime(effectiveAnnualHistory, annualDetectedRegimes);
+  // Annual-mode returns must use transitions estimated from the same labels that split
+  // the annual pools. Using the input template here can give the chain a different
+  // stationary crisis share from the pools and therefore change their combined mean.
+  const annualMarkov = estimateMarkovStayProbabilities(annualDetectedRegimes);
   const monthlyDetectedRegimes = useMonthlyCalibration ? detectRegimesMonthly(effectiveMonthlyHistory) : [];
   const monthlyRegimeBootstrapIndices = useMonthlyCalibration
     ? bootstrapIndicesByRegimeMonthly(effectiveMonthlyHistory, monthlyDetectedRegimes)
@@ -1419,6 +1418,7 @@ export function runMonteCarloSimulation(
       onProgress(sim / simCount);
     }
     let regimeState: 0 | 1 = initialRegimeState(monthlyMarkov.stayGrowth, monthlyMarkov.stayCrisis, rng);
+    let annualRegimeState: 0 | 1 = 0;
     const tape: PathTape = {
       assetReturns: new Float64Array(months),
       inflationRates: new Float64Array(months)
@@ -1432,7 +1432,8 @@ export function runMonteCarloSimulation(
     // sampled annual return (see spreadAnnualReturnAcrossMonths).
     let annualModeMonths: number[] = new Array(12).fill(0);
     if (!useMonthlyCalibration) {
-      const startPool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
+      annualRegimeState = initialRegimeState(annualMarkov.stayGrowth, annualMarkov.stayCrisis, rng);
+      const startPool = annualRegimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
       annualModeMonths = spreadAnnualReturnAcrossMonths(
         startPool[Math.floor(rng.random() * startPool.length)],
         targetMonthlyStd,
@@ -1465,7 +1466,13 @@ export function runMonteCarloSimulation(
         blockRemaining--;
       } else {
         if (m > 0 && m % 12 === 0) {
-          const regimePool = regimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
+          annualRegimeState = transitionRegimeState(
+            annualRegimeState,
+            annualMarkov.stayGrowth,
+            annualMarkov.stayCrisis,
+            rng
+          );
+          const regimePool = annualRegimeState === 0 ? annualRegimeBootstrapPool.growth : annualRegimeBootstrapPool.crisis;
           annualModeMonths = spreadAnnualReturnAcrossMonths(
             regimePool[Math.floor(rng.random() * regimePool.length)],
             targetMonthlyStd,
@@ -1478,19 +1485,10 @@ export function runMonteCarloSimulation(
         activeMonthlyAssetReturn = annualModeMonths[m % 12];
       }
 
-      const stressDrift = regimeState === 0 ? 0 : (crisisMean - growthMean) * 0.1;
-      const stressNoise = regimeState === 0 ? growthStd * 0.04 : crisisStd * 0.08;
-      const monthlyAssetReturn = useMonthlyCalibration
-        ? activeMonthlyAssetReturn
-        : useHistoricalBootstrap
-          ? activeMonthlyAssetReturn
-          : activeMonthlyAssetReturn + drawMonthlyReturnShaped(
-            stressDrift,
-            stressNoise,
-            input.returnSkewness,
-            input.returnKurtosis,
-            rng
-          );
+      // Annual-mode draws are already regime-conditioned and their pool is calibrated to
+      // the requested moments. A second monthly crisis overlay double-counted regimes and
+      // moved the generated distribution away from those calibrated moments.
+      const monthlyAssetReturn = activeMonthlyAssetReturn;
       // Joint bootstrap: take inflation from the same historical month as the return so
       // the pair keeps its real-world correlation; the regime spread is not applied on
       // top, since the historical series already embeds that co-movement.

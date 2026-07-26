@@ -112,6 +112,44 @@ fn parametric_pool_matches_requested_moments() {
 }
 
 #[test]
+fn parametric_paths_do_not_overweight_the_growth_pool() {
+    for seed in [1.0, 3.0, 5.0] {
+        let mut input = base_input();
+        input.mean_return = 0.07;
+        input.current_savings = 1_000_000.0;
+        input.inflation_mean = 0.0;
+        input.inflation_variability = 0.0;
+        input.simulations = 600.0;
+        input.seed = Some(seed);
+
+        let years = 30.0;
+        let result = run_monte_carlo_simulation(
+            &input,
+            &[],
+            &[],
+            &[],
+            (years * 12.0) as u32,
+            (years * 12.0) as u32,
+            None,
+        );
+        let median_cagr =
+            (result.stats.final_median / input.current_savings).powf(1.0 / years) - 1.0;
+
+        // Assert on generated wealth paths, not only the pre-sampling calibration pool.
+        // The latter still passed when template weights under-sampled crisis observations.
+        assert!(
+            median_cagr < input.mean_return,
+            "seed {seed}: median CAGR {median_cagr:.4} exceeded arithmetic mean"
+        );
+        assert_close(
+            median_cagr,
+            result.stats.return_moments.geometric_mean,
+            0.01,
+        );
+    }
+}
+
+#[test]
 fn output_series_have_the_requested_shape() {
     let plan = plan();
     let result = run(&plan);

@@ -284,7 +284,10 @@ not Monte Carlo sampling noise.
   year moves.
   $$
 
-- Regime transitions use annualized-to-monthly probabilities: $p_m = p_a^{1/12}$
+- Annual return-pool selection uses an annual-frequency Markov chain estimated from the
+  detected annual labels. Inflation keeps a separate monthly chain derived from the input
+  template; mixing those chains would either reweight the return pools or apply annual
+  persistence at monthly frequency.
 
 > **Fixed 2026-07-21 (TODO 0.7).** Mode B previously repeated one constant monthly rate
 > for all twelve months, so a path that dipped below zero mid-year and recovered by
@@ -308,6 +311,11 @@ not Monte Carlo sampling noise.
   volatility before it is split into regime pools. This retains the generated ordering,
   tails and regime clustering while preventing one pool's sampling error from becoming a
   fixed return-level offset shared by every simulation path.
+- Annual pool selection uses transition probabilities estimated from those same detected
+  labels, so its stationary weights remain consistent with the growth/crisis split. The
+  sampled annual return is then spread across twelve months without an additional regime
+  shock; it is already regime-conditioned, and a second overlay would double-count the
+  crisis effect and invalidate the calibrated moments.
 
 > **Fixed 2026-07-26.** Previously the 120-year pool was used as drawn. Its mean error
 > (about $\sigma/\sqrt{120}$, or 1.4pp at 15% volatility) was frozen across the entire run
@@ -315,6 +323,14 @@ not Monte Carlo sampling noise.
 > effective 5.01% solely because of the seed's one calibration draw. Parametric effective
 > mean and volatility now match the request (apart from safety-clamp effects at extreme
 > inputs); the seed continues to control ordering and higher moments.
+
+> **Fixed 2026-07-26.** Pool targeting alone did not guarantee that generated paths kept
+> those moments: detected labels could put 30% of the pool in crisis while the unrelated
+> template chain selected crisis only 18% of the time. In a measured 7.00% pool this
+> reweighting implied a 9.06% sampled arithmetic return. Annual pool selection now estimates
+> its chain from the pool's own labels, independently of the monthly inflation chain, and
+> the redundant parametric crisis overlay has been removed. Regression tests measure
+> generated wealth-path CAGR across seeds rather than only inspecting the source pool.
 
 ### 4.4 Moment Targeting (Optional)
 
