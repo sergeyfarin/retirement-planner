@@ -19,7 +19,6 @@
 		type SimulationResult,
 		type SpendingPeriod,
 		type SummaryStats,
-		type WithdrawalStrategy,
 		type WithdrawalStrategyKind
 	} from './retirementEngine';
 	import {
@@ -41,6 +40,12 @@
 	import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
 	import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
 	import { buildActionableRecommendations } from './actionableHeadline';
+	import {
+		SHARE_INPUT_SCALARS,
+		decodeShareHash,
+		parseShareState,
+		toBase64Url
+	} from './shareState';
 	import './retirement.css';
 
 	// ─── Types ──────────────────────────────────────────────────────────────────
@@ -1590,34 +1595,6 @@
 	// shared link reproduces the exact displayed result. Derived fields (regime model,
 	// effective moments, historical series) are rebuilt on restore, not serialized.
 
-	function toBase64Url(json: string): string {
-		const bytes = new TextEncoder().encode(json);
-		let bin = '';
-		for (const b of bytes) bin += String.fromCharCode(b);
-		return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-	}
-
-	function fromBase64Url(value: string): string {
-		const b64 = value.replaceAll('-', '+').replaceAll('_', '/');
-		const bin = atob(b64);
-		return new TextDecoder().decode(Uint8Array.from(bin, (ch) => ch.charCodeAt(0)));
-	}
-
-	const SHARE_INPUT_SCALARS = [
-		'currentAge',
-		'retirementAge',
-		'simulateUntilAge',
-		'currentSavings',
-		'equityBondCorrelation',
-		'annualFeePercent',
-		'taxOnGainsPercent',
-		'blockLength',
-		'inflationCrisisSpread',
-		'safeWithdrawalRate',
-		'simulations',
-		'seed'
-	] as const;
-
 	function buildShareState() {
 		const scalars: Record<string, number> = {};
 		for (const key of SHARE_INPUT_SCALARS) {
@@ -1650,106 +1627,43 @@
 		};
 	}
 
-	function sanitizeCashflowRows<T extends { id?: unknown; label?: unknown }>(
-		rows: unknown,
-		numericKeys: string[]
-	): T[] | null {
-		if (!Array.isArray(rows)) return null;
-		const out: T[] = [];
-		for (const raw of rows) {
-			if (!raw || typeof raw !== 'object') return null;
-			const row = raw as Record<string, unknown>;
-			for (const key of numericKeys) {
-				if (typeof row[key] !== 'number' || !Number.isFinite(row[key])) return null;
-			}
-			out.push({
-				...row,
-				id: typeof row.id === 'string' ? row.id : crypto.randomUUID(),
-				label: typeof row.label === 'string' ? row.label : ''
-			} as T);
-		}
-		return out;
-	}
+	/**
+	 * Seats a validated payload (see `parseShareState`) into component state. Order matters:
+	 * the currency's reference defaults overwrite the same fields the payload restores, so
+	 * they have to be loaded between the currency and the overlay.
+	 */
+	function applyShareState(state: unknown): boolean {
+		const restored = parseShareState(state, (code) =>
+			CURRENCIES.some((currency) => currency.code === code)
+		);
+		if (!restored) return false;
 
-	function applyShareState(state: Record<string, unknown>): boolean {
-		if (!state || state.v !== 1) return false;
-
-		if (
-			typeof state.c === 'string' &&
-			CURRENCIES.some((currency) => currency.code === state.c)
-		) {
-			selectedCurrencyCode = state.c as CurrencyCode;
-		}
-		if (state.m === 'historical' || state.m === 'parametric') {
-			input.simulationMode = state.m;
-		}
-		input.historicalMomentTargeting = state.t === 1;
-
-		if (state.ws && typeof state.ws === 'object') {
-			const ws = state.ws as Record<string, unknown>;
-			const kind = ws.kind;
-			const restored: WithdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY };
-			if (kind === 'fixed' || kind === 'guardrails' || kind === 'percentOfPortfolio') {
-				restored.kind = kind;
-			}
-			for (const key of [
-				'guardrailBand',
-				'adjustment',
-				'withdrawalPercent',
-				'spendingFloor',
-				'spendingCeiling'
-			] as const) {
-				const value = ws[key];
-				if (typeof value === 'number' && Number.isFinite(value)) restored[key] = value;
-			}
-			input.withdrawalStrategy = restored;
-		}
+		if (restored.currencyCode) selectedCurrencyCode = restored.currencyCode as CurrencyCode;
+		if (restored.simulationMode) input.simulationMode = restored.simulationMode;
+		input.historicalMomentTargeting = restored.momentTargeting;
+		if (restored.withdrawalStrategy) input.withdrawalStrategy = restored.withdrawalStrategy;
 
 		// Load currency defaults + dataset series first, then overlay shared values.
 		lastAppliedReferenceCurrency = selectedCurrencyCode;
 		applyReferenceDefaults(selectedCurrencyCode);
 
-		if (typeof state.sb === 'number' && Number.isFinite(state.sb)) {
-			stockBoundaryPercent = clamp(Math.round(state.sb), 0, 100);
-		}
-		if (typeof state.bb === 'number' && Number.isFinite(state.bb)) {
-			bondBoundaryPercent = clamp(Math.round(state.bb), 0, 100);
-		}
+		if (restored.stockBoundaryPercent !== null) stockBoundaryPercent = restored.stockBoundaryPercent;
+		if (restored.bondBoundaryPercent !== null) bondBoundaryPercent = restored.bondBoundaryPercent;
 
-		if (state.pm && typeof state.pm === 'object') {
-			const restored: Record<string, number> = {};
-			for (const [key, value] of Object.entries(state.pm as Record<string, unknown>)) {
-				if (typeof value === 'number' && Number.isFinite(value)) restored[key] = value;
-			}
-			parametricMetrics = { ...parametricMetrics, ...restored };
-		}
-		if (state.pi && typeof state.pi === 'object') {
-			const pi = state.pi as Record<string, unknown>;
-			if (typeof pi.mean === 'number' && Number.isFinite(pi.mean)) parametricInflationMean = pi.mean;
-			if (typeof pi.std === 'number' && Number.isFinite(pi.std))
-				parametricInflationVariability = pi.std;
-			if (typeof pi.skew === 'number' && Number.isFinite(pi.skew))
-				parametricInflationSkewness = pi.skew;
-			if (typeof pi.kurt === 'number' && Number.isFinite(pi.kurt))
-				parametricInflationKurtosis = pi.kurt;
-		}
+		parametricMetrics = { ...parametricMetrics, ...restored.parametricMetrics };
+		const pi = restored.parametricInflation;
+		if (pi.mean !== undefined) parametricInflationMean = pi.mean;
+		if (pi.std !== undefined) parametricInflationVariability = pi.std;
+		if (pi.skew !== undefined) parametricInflationSkewness = pi.skew;
+		if (pi.kurt !== undefined) parametricInflationKurtosis = pi.kurt;
 
-		if (state.i && typeof state.i === 'object') {
-			const scalars = state.i as Record<string, unknown>;
-			for (const key of SHARE_INPUT_SCALARS) {
-				const value = scalars[key];
-				if (typeof value === 'number' && Number.isFinite(value)) {
-					(input as Record<string, unknown>)[key] = value;
-				}
-			}
-		}
+		// Already clamped to the bounds the input handlers enforce at edit time: a link must
+		// not be able to seat the app in a state the UI could not have produced.
+		Object.assign(input, restored.scalars);
 
-		const sp = sanitizeCashflowRows<SpendingPeriod>(state.sp, ['fromAge', 'toAge', 'yearlyAmount']);
-		if (sp && sp.length > 0) spendingPeriods = sp;
-		const is = sanitizeCashflowRows<IncomeSource>(state.is, ['fromAge', 'toAge', 'yearlyAmount']);
-		if (is && is.length > 0) incomeSources = is;
-		const ls = sanitizeCashflowRows<LumpSumEvent>(state.ls, ['age', 'amount']);
-		if (ls) lumpSumEvents = ls;
+		if (restored.spendingPeriods) spendingPeriods = restored.spendingPeriods;
+		if (restored.incomeSources) incomeSources = restored.incomeSources;
+		if (restored.lumpSumEvents) lumpSumEvents = restored.lumpSumEvents;
 
 		// Rebuild effective moments, regime model and historical series for the
 		// restored currency/allocation/mode.
@@ -1773,13 +1687,9 @@
 	}
 
 	function restoreFromShareHash() {
-		try {
-			const match = window.location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
-			if (!match) return;
-			const decoded = JSON.parse(fromBase64Url(match[1])) as Record<string, unknown>;
-			applyShareState(decoded);
-		} catch (err) {
-			console.warn('Ignoring invalid share-link payload', err);
+		const decoded = decodeShareHash(window.location.hash);
+		if (decoded && !applyShareState(decoded)) {
+			console.warn('Ignoring share-link payload this version cannot read');
 		}
 	}
 

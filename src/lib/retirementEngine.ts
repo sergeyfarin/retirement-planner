@@ -1395,13 +1395,23 @@ export function runMonteCarloSimulation(
 
   const growthProb = getGrowthStationaryProbability(stayGrowth, stayCrisis);
   const crisisProb = 1 - growthProb;
-  const requestedInflationSpread = input.inflationCrisisSpread ?? 0.015;
+  // Floored at 0 (mirrored in the Rust engine): the input handler clamps this, restored
+  // share links do not, and a negative spread would put crisis-regime mean inflation below
+  // growth-regime mean inflation — inverting the model instead of failing.
+  const requestedInflationSpread = Math.max(0, input.inflationCrisisSpread ?? 0.015);
   const maxInflationSpread = Math.sqrt((input.inflationVariability ** 2) / (growthProb * crisisProb));
   const effectiveInflationSpread = Math.min(requestedInflationSpread, maxInflationSpread * 0.8);
   const growthInflationMean = input.inflationMean - crisisProb * effectiveInflationSpread;
   const crisisInflationMean = input.inflationMean + growthProb * effectiveInflationSpread;
 
-  const blockLength = input.blockLength ?? 6;
+  // Normalized to a positive integer for the same reason the Rust engine does it (see
+  // simulation.rs): the worker boundary and restored share links accept 0, and an
+  // unnormalized 0 or fraction makes the two engines disagree about how often a block is
+  // redrawn even though neither crashes here.
+  const requestedBlockLength = input.blockLength ?? 6;
+  const blockLength = Number.isFinite(requestedBlockLength)
+    ? Math.max(1, Math.floor(requestedBlockLength))
+    : 6;
   const progressUpdateInterval = Math.max(10, Math.floor(simCount / 100));
 
   for (let sim = 0; sim < simCount; sim++) {

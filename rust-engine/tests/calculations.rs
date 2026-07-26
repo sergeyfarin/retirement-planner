@@ -35,6 +35,36 @@ fn seed_is_truncated_to_u32_like_javascript() {
 }
 
 #[test]
+fn out_of_range_and_half_integer_seeds_wrap_the_way_javascript_does() {
+    // Share links carry arbitrary numbers in the seed field, and the TS engine reduces
+    // them with `Math.round(seed) >>> 0`. Two places used to disagree: Rust's float-to-int
+    // casts saturate rather than wrap, and `f64::round` breaks ties away from zero while
+    // `Math.round` breaks them upward. Both engines must land on the same PRNG state, which
+    // `enginesParity.test.ts` checks stream-for-stream; these are the native-side anchors.
+
+    // ToUint32(1e30) is 0: the f64 is a multiple of 2^47, so every low bit is already clear.
+    let mut huge = RandomSource::new(Some(1e30));
+    let mut zero = RandomSource::new(Some(0.0));
+    assert_eq!(huge.random(), zero.random());
+
+    // Negative seeds wrap into the top of the range instead of saturating at 0.
+    let mut negative = RandomSource::new(Some(-3.0));
+    let mut wrapped = RandomSource::new(Some(4294967293.0));
+    assert_eq!(negative.random(), wrapped.random());
+
+    // Round-half-up: Math.round(-2.5) is -2, not -3.
+    let mut half = RandomSource::new(Some(-2.5));
+    let mut up = RandomSource::new(Some(-2.0));
+    assert_eq!(half.random(), up.random());
+
+    // ...but the nearest double below 0.5 still rounds to 0, which a naive
+    // `(s + 0.5).floor()` would get wrong.
+    let mut just_under = RandomSource::new(Some(0.49999999999999994));
+    let mut down = RandomSource::new(Some(0.0));
+    assert_eq!(just_under.random(), down.random());
+}
+
+#[test]
 fn normal_draws_match_requested_moments() {
     let mut rng = RandomSource::new(Some(99.0));
     let n = 200_000;

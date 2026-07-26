@@ -342,14 +342,23 @@ pub fn run_monte_carlo_simulation(
 
     let growth_prob = crate::engine::get_growth_stationary_probability(stay_growth, stay_crisis);
     let crisis_prob = 1.0 - growth_prob;
-    let requested_inflation_spread = input.inflation_crisis_spread.unwrap_or(0.015);
+    // Floored at 0 for the same reason the block length is floored at 1: the input handler
+    // clamps it, restored share links do not, and a negative spread would put the crisis
+    // regime's mean inflation *below* the growth regime's — silently inverting the model
+    // rather than failing. Mirrored in the TS engine.
+    let requested_inflation_spread = input.inflation_crisis_spread.unwrap_or(0.015).max(0.0);
     let max_inflation_spread =
         (input.inflation_variability.powi(2) / (growth_prob * crisis_prob)).sqrt();
     let effective_inflation_spread = requested_inflation_spread.min(max_inflation_spread * 0.8);
     let growth_inflation_mean = input.inflation_mean - crisis_prob * effective_inflation_spread;
     let crisis_inflation_mean = input.inflation_mean + growth_prob * effective_inflation_spread;
 
-    let block_length = input.block_length.unwrap_or(6);
+    // Floored at 1: the UI's `min="1"` is not an invariant at this boundary (the field can be
+    // cleared, and share links carry arbitrary numbers), and a zero block would set
+    // `block_remaining = 0` and then underflow the `usize` below — a debug panic, and in
+    // release a wrap to `usize::MAX` that silently replays one endless block. A block of 1
+    // means "redraw every month", which is what a zero-length block degenerates to anyway.
+    let block_length = input.block_length.unwrap_or(6).max(1);
 
     let progress_step = (sim_count / 10).max(1);
 
@@ -409,7 +418,10 @@ pub fn run_monte_carlo_simulation(
                 // costing 0.64-1.29pp/yr of return depending on the region. Letting blocks
                 // finish also preserves more of the autocorrelation the block bootstrap
                 // exists to capture. See TODO 0.11.
-                if block_remaining <= 0 {
+                // `== 0`, not `<= 0`: the counter is a `usize`. The old signed-looking
+                // comparison is what made the underflow below easy to miss, and clippy
+                // flags it as always-true-or-always-false.
+                if block_remaining == 0 {
                     let index_pool = if regime_state == 0 {
                         &monthly_regime_bootstrap_indices.growth
                     } else {

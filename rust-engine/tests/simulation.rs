@@ -540,19 +540,41 @@ fn retiring_on_the_final_month_does_not_index_past_the_horizon() {
 }
 
 #[test]
-#[ignore = "known defect: blockLength = 0 underflows `block_remaining` in simulation.rs"]
-fn a_zero_block_length_does_not_panic() {
-    // `min=\"1\"` in the UI is not a guarantee — the field can be cleared and share links
-    // carry arbitrary values across the wasm boundary. In monthly-calibration mode a zero
-    // block sets `block_remaining = 0` and then decrements it, which underflows the usize.
-    // Un-ignore once the block length is floored at 1.
-    let mut plan = plan();
-    plan.input.block_length = Some(0);
-    plan.input.historical_monthly_returns = Some(
-        (0..600)
-            .map(|month| 0.006 + 0.03 * ((month as f64 * 0.37).sin()))
-            .collect(),
+fn a_negative_crisis_inflation_spread_is_floored_at_zero() {
+    // The input handler clamps this at 0; a restored share link does not. A negative spread
+    // would put crisis-regime mean inflation below growth-regime mean inflation, inverting
+    // the model silently, so both engines floor it — making it equivalent to no spread.
+    let mut negative = plan();
+    negative.input.inflation_crisis_spread = Some(-0.02);
+    let mut none = plan();
+    none.input.inflation_crisis_spread = Some(0.0);
+
+    assert_eq!(
+        run(&negative).stats.final_median,
+        run(&none).stats.final_median
     );
-    let result = run(&plan);
-    assert!(result.stats.final_median.is_finite());
+}
+
+#[test]
+fn a_zero_block_length_does_not_panic() {
+    // `min="1"` in the UI is not a guarantee — the field can be cleared and share links
+    // carry arbitrary values across the wasm boundary. A zero block used to set
+    // `block_remaining = 0` and then decrement it, underflowing the usize. It is now
+    // floored at 1, so a zero block behaves exactly like a one-month block.
+    let history: Vec<f64> = (0..600)
+        .map(|month| 0.006 + 0.03 * ((month as f64 * 0.37).sin()))
+        .collect();
+
+    let mut zero = plan();
+    zero.input.block_length = Some(0);
+    zero.input.historical_monthly_returns = Some(history.clone());
+    let zero_result = run(&zero);
+    assert!(zero_result.stats.final_median.is_finite());
+
+    let mut one = plan();
+    one.input.block_length = Some(1);
+    one.input.historical_monthly_returns = Some(history);
+    let one_result = run(&one);
+
+    assert_eq!(zero_result.stats.final_median, one_result.stats.final_median);
 }

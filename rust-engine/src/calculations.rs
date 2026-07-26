@@ -19,7 +19,26 @@ impl RandomSource {
     pub fn new(seed: Option<f64>) -> Self {
         let state = if let Some(s) = seed {
             if s.is_finite() {
-                Some((s.round() as i64) as u32)
+                // `Math.round(seed) >>> 0` in the TS engine, which is ToUint32: reduce the
+                // rounded value modulo 2^32. A plain `as i64 as u32` cast agrees for every
+                // seed the UI produces but not in general — Rust's float-to-int casts
+                // saturate, so a seed past i64::MAX became u32::MAX here while JS wrapped it
+                // to something else entirely, and the two engines then drew different paths
+                // from the same share link. `rem_euclid` is exact at these magnitudes and
+                // handles negative seeds the same way ToUint32 does.
+                //
+                // The rounding itself also has to be JS's: `Math.round` is round-half-up
+                // (`Math.round(-2.5) === -2`) where Rust's `f64::round` is round-half-away
+                // (`-3.0`). They differ only on an exact half, where `s + 0.5` is exactly
+                // representable, so the branch below is precise — and falling back to
+                // `f64::round` elsewhere keeps the `0.49999999999999994` case that a naive
+                // `(s + 0.5).floor()` would get wrong.
+                let rounded = if s.fract().abs() == 0.5 {
+                    (s + 0.5).floor()
+                } else {
+                    s.round()
+                };
+                Some(rounded.rem_euclid(4294967296.0) as u32)
             } else {
                 None
             }

@@ -330,6 +330,61 @@ describe('regime bootstrap is mean-preserving', () => {
   }, 30_000);
 });
 
+describe('degenerate block lengths are normalized', () => {
+  // The UI's `min="1"` is not an invariant at the engine boundary: the field can be cleared
+  // and a restored share link carries whatever number was in the URL. Zero used to panic the
+  // Rust engine on a `usize` underflow while this engine quietly redrew a block every month,
+  // so the same input produced two different simulations. Both engines now floor the block at
+  // 1, which is what a zero-length block degenerates to anyway.
+  const series = Array.from({ length: 600 }, (_, month) => 0.006 + 0.03 * Math.sin(month * 0.37));
+
+  function blockInput(blockLength: number | undefined): RetirementInput {
+    return {
+      simulationMode: 'historical',
+      currentAge: 40, retirementAge: 60, simulateUntilAge: 70,
+      currentSavings: 250_000,
+      meanReturn: 0.07, returnVariability: 0.14, returnSkewness: 0, returnKurtosis: 3,
+      equityBondCorrelation: 0,
+      inflationMean: 0.02, inflationVariability: 0.01, inflationSkewness: 0, inflationKurtosis: 3,
+      inflationCrisisSpread: 0.015,
+      annualFeePercent: 0, taxOnGainsPercent: 0,
+      // Small and short on purpose: every assertion here is an exact-equality comparison
+      // between two runs, so extra paths buy nothing but suite time.
+      safeWithdrawalRate: 0.04, simulations: 120, seed: 8675309,
+      blockLength,
+      regimeModel: {
+        stayGrowth: 0.92, stayCrisis: 0.68,
+        growthMean: 0.09, growthStd: 0.14, crisisMean: -0.12, crisisStd: 0.24
+      },
+      historicalMonthlyReturns: series
+    };
+  }
+
+  const MONTHS = (70 - 40) * 12;
+  const RETIRE_MONTH = (60 - 40) * 12;
+  const run = (blockLength: number | undefined) =>
+    runMonteCarloSimulation(blockInput(blockLength), [], [], [], MONTHS, RETIRE_MONTH);
+
+  it('treats a zero block length as a one-month block', () => {
+    const zero = run(0);
+    expect(zero.stats.finalMedian).toBeTypeOf('number');
+    expect(Number.isFinite(zero.stats.finalMedian)).toBe(true);
+    expect(zero.stats.finalMedian).toBe(run(1).stats.finalMedian);
+  });
+
+  it('floors a negative block length at one month', () => {
+    expect(run(-6).stats.finalMedian).toBe(run(1).stats.finalMedian);
+  });
+
+  it('truncates a fractional block length toward the shorter block', () => {
+    expect(run(6.7).stats.finalMedian).toBe(run(6).stats.finalMedian);
+  });
+
+  it('falls back to the default when the block length is not a number', () => {
+    expect(run(Number.NaN).stats.finalMedian).toBe(run(undefined).stats.finalMedian);
+  });
+});
+
 describe('nominal cashflows deflated by realized inflation', () => {
   // TODO 0.3. Nominal (non-inflation-adjusted) items used to be divided by a deterministic
   // (1+inflationMean)^years index computed once outside the simulation, while balances were
@@ -929,7 +984,10 @@ describe('withdrawal strategies', () => {
 
     expect(guardrails.stats.successProbability).toBeGreaterThan(fixed.stats.successProbability);
     expect(percent.stats.successProbability).toBeGreaterThanOrEqual(fixed.stats.successProbability);
-  });
+    // Three full runs, so this sits close enough to vitest's 5s default that it times out
+    // when the browser project runs alongside this one. Same scheduling contention as the
+    // long-horizon sampler test above, same remedy.
+  }, 30_000);
 
   it('omitting the strategy behaves like fixed spending', () => {
     const noStrategy = runMonteCarloSimulation(stressedInput(undefined), spending, [], [], months, retireMonth);

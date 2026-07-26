@@ -201,6 +201,30 @@ const scenarios: Array<{
     input: baseInput({ historicalMomentTargeting: true, meanReturn: 0.047, returnVariability: 0.14 })
   },
   {
+    // A degenerate value the worker boundary and share-link restoration both accept. It once
+    // panicked the Rust engine (usize underflow) while the TS engine redrew every month; both
+    // now floor it at 1, so the two must agree on the same normalized simulation.
+    name: 'zero block length normalized to one month',
+    input: baseInput({ blockLength: 0 })
+  },
+  {
+    // Both engines floor the spread at 0; without that a restored share link (the input
+    // handler clamps, restoration did not) inverts the growth/crisis inflation means.
+    name: 'negative crisis inflation spread floored at zero',
+    input: baseInput({ inflationCrisisSpread: -0.02 })
+  },
+  {
+    // A seed past i64::MAX: TS reduces it modulo 2^32 (`>>> 0`), while Rust's float cast
+    // used to saturate to u32::MAX, so the same link drew different paths in each engine.
+    name: 'seed outside the u32 range wraps identically',
+    input: baseInput({ seed: 1e30 })
+  },
+  {
+    // `Math.round` is round-half-up; Rust's `f64::round` is round-half-away-from-zero.
+    name: 'negative half-integer seed rounds identically',
+    input: baseInput({ seed: -2.5 })
+  },
+  {
     name: 'annual bootstrap fallback (no monthly history)',
     input: baseInput({ historicalMonthlyReturns: undefined })
   },
@@ -258,6 +282,19 @@ describe('seeded PRNG parity', () => {
     const rng = createRandomSource(seed);
     const ts = Array.from({ length: 64 }, () => rng.random());
     expect(rust).toEqual(ts);
+  });
+
+  it('normalizes adversarial seeds to the same PRNG state in both engines', () => {
+    // Everything a share link can carry in the seed field, not just the integers the UI
+    // generates. TS does `Math.round(seed) >>> 0`; Rust has to reproduce ToUint32 exactly,
+    // including the modulo for out-of-range magnitudes and JS's round-half-up.
+    const seeds = [0, -1, -7, 2.5, -2.5, 0.49999999999999994, 2 ** 32, 2 ** 32 + 5, 1e30, -1e30];
+    for (const seed of seeds) {
+      const rust = Array.from(debug_random_sequence(seed, 8));
+      const rng = createRandomSource(seed);
+      const ts = Array.from({ length: 8 }, () => rng.random());
+      expect(rust, `seed ${seed}`).toEqual(ts);
+    }
   });
 
   it('produces an identical standard-normal stream in both engines', () => {
