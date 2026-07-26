@@ -3,7 +3,7 @@ use crate::engine::{
     clamp_annual_return, clamp_monthly_return, spread_annual_return_across_months,
     draw_monthly_return_shaped, draw_student_t, initial_regime_state,
     student_t_degrees_from_kurtosis, transition_regime_state, RequestedReturnMoments,
-    ReturnMoments, SimulationResult, SummaryStats,
+    ReturnMoments, SimulationResult, SummaryStats, WealthCdf,
 };
 use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
@@ -604,6 +604,17 @@ pub fn run_monte_carlo_simulation(
 
     let final_percentiles = summarize(&final_balances);
     let retire_percentiles = summarize(&retire_balances);
+    let mut sorted_final_balances = final_balances.clone();
+    sorted_final_balances.sort_by(|a, b| a.total_cmp(b));
+    let final_wealth_probabilities: Vec<f64> =
+        (0..=100).map(|index| index as f64 / 100.0).collect();
+    let final_wealth_cdf = WealthCdf {
+        balances: final_wealth_probabilities
+            .iter()
+            .map(|probability| percentile(&sorted_final_balances, *probability))
+            .collect(),
+        probabilities: final_wealth_probabilities,
+    };
 
     let simulation = SimulationResult {
         months,
@@ -612,6 +623,7 @@ pub fn run_monte_carlo_simulation(
         percentiles: percentile_series,
         final_percentiles: final_percentiles.clone(),
         retire_percentiles: retire_percentiles.clone(),
+        final_wealth_cdf,
     };
 
     let shortfall_percentiles = summarize(&shortfall_totals);

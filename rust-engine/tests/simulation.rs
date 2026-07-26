@@ -153,6 +153,13 @@ fn percentile_bands_are_ordered_at_every_month() {
     }
     assert!(result.simulation.final_percentiles.p10 <= result.simulation.final_percentiles.p90);
     assert!(result.simulation.retire_percentiles.p10 <= result.simulation.retire_percentiles.p90);
+
+    let cdf = &result.simulation.final_wealth_cdf;
+    assert_eq!(cdf.balances.len(), 101);
+    assert_eq!(cdf.probabilities.len(), 101);
+    assert_eq!(cdf.probabilities.first(), Some(&0.0));
+    assert_eq!(cdf.probabilities.last(), Some(&1.0));
+    assert!(cdf.balances.windows(2).all(|pair| pair[0] <= pair[1]));
 }
 
 #[test]

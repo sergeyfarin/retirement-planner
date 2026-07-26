@@ -977,9 +977,14 @@ parity assertion on both the null-ness and the value.
 **Files:** `rust-engine/src/{stats,engine,simulation,lib}.rs`, `src/lib/retirementEngine.ts`,
 `PlannerOutputCards.svelte`
 
-### 4.3 Terminal Wealth CDF Plot (M)
-**Action:** Add a CDF plot for final simulated balances (e.g., Year 30 wealth). The existing CDF only shows the single-year input return distribution. Visualizing the massive log-normal right-tail skew of 30-year compounded outcomes is highly informative.
-**Files:** `RetirementPlanner.svelte`, `PlannerSecondaryPlot.svelte`
+### 4.3 Terminal Wealth CDF Plot (M) — ✅ SHIPPED 2026-07-26
+**Shipped:** The results view now leads with “How much might I have left?” and plots 101
+evenly spaced quantiles of final simulated wealth. The technical CDF terminology is kept out
+of the primary label; the axis and hover copy explain the probability in plain language.
+Sequence risk remains available as a collapsible deeper view titled “How much does the timing
+of market gains and losses matter?”, with plain-language return-group labels and an explanation
+of why early retirement losses matter.
+**Files:** `RetirementPlanner.svelte`, `PlannerSecondaryPlot.svelte`, both simulation engines
 
 ### 4.4 Regime Visualization in Timeline Chart (M)
 **Action:** Shade the background of the timeline fan chart to reflect whether the median path was in Crisis or Growth regime for each year. Builds user intuition about sequence risk.

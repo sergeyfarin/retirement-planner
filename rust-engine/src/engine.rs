@@ -40,6 +40,15 @@ pub struct SimulationResult {
     pub percentiles: PercentileSeries<Vec<f64>>,
     pub final_percentiles: PercentileSeries<f64>,
     pub retire_percentiles: PercentileSeries<f64>,
+    /// 101 evenly spaced quantiles of ending wealth for the outcome CDF.
+    pub final_wealth_cdf: WealthCdf,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WealthCdf {
+    pub balances: Vec<f64>,
+    pub probabilities: Vec<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -172,6 +172,11 @@ export type SimulationResult = {
   percentiles: PercentileSeries<number[]>;
   finalPercentiles: PercentileSeries<number>;
   retirePercentiles: PercentileSeries<number>;
+  /** 101 evenly spaced quantiles of ending wealth for the outcome CDF. */
+  finalWealthCdf: {
+    balances: number[];
+    probabilities: number[];
+  };
 };
 
 export type SummaryStats = {
@@ -1537,7 +1542,15 @@ export function runMonteCarloSimulation(
     retireMonth,
     percentiles: percentileSeries,
     finalPercentiles: summarize(finalBalances),
-    retirePercentiles: summarize(retireBalances)
+    retirePercentiles: summarize(retireBalances),
+    finalWealthCdf: (() => {
+      const sorted = [...finalBalances].sort((a, b) => a - b);
+      const probabilities = Array.from({ length: 101 }, (_, index) => index / 100);
+      return {
+        balances: probabilities.map((probability) => percentile(sorted, probability)),
+        probabilities
+      };
+    })()
   };
 
   const shortfallPercentiles = summarize(shortfallTotals);

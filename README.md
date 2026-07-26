@@ -17,7 +17,7 @@ The calculator projects portfolio balances from a starting age through a configu
 | Cash flows | Age-gated income/spending periods + lump-sum events, all in real terms |
 | Withdrawals | Fixed real spending, Guyton-Klinger guardrails, or percent-of-portfolio (§5.1.1) |
 | Reproducibility | Optional seeded PRNG (`mulberry32`); default unseeded behavior when no seed is provided |
-| Output | Percentile fan chart, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis |
+| Output | Percentile fan chart, terminal-wealth distribution, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis |
 | Multi-asset | Three-asset allocation (stocks / bonds / cash) with configurable equity-bond correlation |
 | Performance | All simulation runs in a Web Worker with real-time progress reporting; nothing simulates on the main thread (the old noisy live preview was replaced by the stale-results flow, §2) |
 

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import type { SummaryStats } from '../retirementEngine';
+	import type { SimulationResult, SummaryStats } from '../retirementEngine';
 
 	let {
 		Plotly,
 		plotReady = false,
+		simulation = null,
 		stats = null,
 		simulateUntilAge = 0,
 		currencySymbol = '$',
@@ -13,6 +14,7 @@
 	}: {
 		Plotly: any;
 		plotReady?: boolean;
+		simulation?: SimulationResult | null;
 		stats?: SummaryStats | null;
 		simulateUntilAge?: number;
 		currencySymbol?: string;
@@ -21,6 +23,7 @@
 	} = $props();
 
 	let ruinSurfaceEl: HTMLDivElement | null = $state(null);
+	let terminalWealthEl: HTMLDivElement | null = $state(null);
 	let sequenceRiskEl: HTMLDivElement | null = $state(null);
 
 	// Precision of the heatmap. Each cell replays `sampleCount` stored paths, a cap that
@@ -42,6 +45,12 @@
 	});
 
 	$effect(() => {
+		if (plotReady && Plotly && terminalWealthEl && simulation?.finalWealthCdf?.balances.length) {
+			drawTerminalWealthChart();
+		}
+	});
+
+	$effect(() => {
 		if (plotReady && Plotly && ruinSurfaceEl && stats?.ruinSurface) {
 			drawRuinSurfaceChart();
 		}
@@ -56,6 +65,9 @@
 	onDestroy(() => {
 		if (Plotly && ruinSurfaceEl) {
 			Plotly.purge(ruinSurfaceEl);
+		}
+		if (Plotly && terminalWealthEl) {
+			Plotly.purge(terminalWealthEl);
 		}
 		if (Plotly && sequenceRiskEl) {
 			Plotly.purge(sequenceRiskEl);
@@ -236,13 +248,78 @@
 		return buildYAxisTicksForRange(0, maxValue, 8);
 	}
 
+	function drawTerminalWealthChart() {
+		if (!Plotly || !terminalWealthEl || !simulation?.finalWealthCdf) return;
+
+		const { balances, probabilities } = simulation.finalWealthCdf;
+		const balanceTicks = buildYAxisTicksForRange(
+			Math.min(...balances, 0),
+			Math.max(...balances, 0),
+			6
+		);
+		const trace = {
+			type: 'scatter',
+			mode: 'lines',
+			x: balances,
+			y: probabilities,
+			line: { color: '#2563eb', width: 3, shape: 'hv' },
+			fill: 'tozeroy',
+			fillcolor: 'rgba(37, 99, 235, 0.10)',
+			customdata: balances.map((value) => fmtHoverCompactCurrency(value)),
+			hovertemplate:
+				'%{y:.0%} of simulations ended with<br>%{customdata} or less<extra></extra>'
+		};
+
+		const layout = {
+			height: 260,
+			margin: { t: 10, l: 54, r: 16, b: 48 },
+			showlegend: false,
+			paper_bgcolor: 'transparent',
+			plot_bgcolor: 'rgba(255,255,255,0.45)',
+			xaxis: {
+				title: {
+					text: `Balance at age ${simulateUntilAge} (${currencySymbol})`,
+					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+				},
+				tickvals: balanceTicks.values,
+				ticktext: balanceTicks.labels,
+				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
+				showgrid: true,
+				gridcolor: '#e2e8f0',
+				fixedrange: true
+			},
+			yaxis: {
+				title: {
+					text: 'Chance of this amount or less',
+					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+				},
+				tickformat: '.0%',
+				range: [0, 1],
+				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
+				fixedrange: true
+			},
+			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
+			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
+		};
+
+		void Plotly.react(terminalWealthEl, [trace], layout, {
+			responsive: true,
+			displayModeBar: false
+		});
+	}
+
 	function drawSequenceRiskChart() {
 		if (!Plotly || !sequenceRiskEl || !stats?.sequenceRisk?.length) return;
 
-		const buckets = stats.sequenceRisk.map((row) =>
-			row.bucketLabel
-				.replace(' (worst early sequence)', ' (worst)')
-				.replace(' (best early sequence)', ' (best)')
+		const plainLanguageBuckets = [
+			'Worst early returns',
+			'Below-average early returns',
+			'Typical early returns',
+			'Above-average early returns',
+			'Best early returns'
+		];
+		const buckets = stats.sequenceRisk.map(
+			(_row, index) => plainLanguageBuckets[index] ?? `Group ${index + 1}`
 		);
 		const ruinProbabilities = stats.sequenceRisk.map((row) => row.ruinProbability);
 		const endingMedians = stats.sequenceRisk.map((row) => row.endingMedian);
@@ -327,12 +404,38 @@
 
 		void Plotly.react(sequenceRiskEl, traces, layout, config);
 	}
+
+	function handleSequenceRiskToggle(event: Event) {
+		if ((event.currentTarget as HTMLDetailsElement).open) {
+			drawSequenceRiskChart();
+		}
+	}
 </script>
 
-{#if stats}
+{#if stats && simulation}
+	<div class="card chart-card">
+		<p class="chart-question">How much might I have left?</p>
+		<p class="chart-explainer">
+			See the range of balances the simulations reached by age {simulateUntilAge}. Hover over the
+			line to read the chance of ending with that amount or less.
+		</p>
+		<div class="terminal-wealth-chart" bind:this={terminalWealthEl}></div>
+	</div>
+
+	{#if stats.sequenceRisk?.length}
+		<details class="card chart-card advanced-chart" ontoggle={handleSequenceRiskToggle}>
+			<summary>How much does the timing of market gains and losses matter?</summary>
+			<p class="chart-explainer">
+				This groups simulations by returns during the first ten years after retirement. Early losses
+				can do more damage because withdrawals leave less invested for a recovery. This is often called
+				sequence risk.
+			</p>
+			<div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
+		</details>
+	{/if}
+
 	<div class="card chart-card chart-card-ruin">
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
-		<!-- <div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div> -->
 		{#if surfaceSampleCount > 0}
 			<p
 				class="note"

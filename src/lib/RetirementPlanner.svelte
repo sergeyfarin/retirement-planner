@@ -2236,6 +2236,7 @@
 					<PlannerSecondaryPlot
 						{Plotly}
 						{plotReady}
+						{simulation}
 						{stats}
 						simulateUntilAge={input.simulateUntilAge}
 						currencySymbol={selectedCurrency.symbol}

@@ -318,6 +318,17 @@ describe('cross-engine simulation parity', () => {
         );
       }
 
+      expectSeriesClose(
+        rust.simulation.finalWealthCdf.balances,
+        ts.simulation.finalWealthCdf.balances,
+        'finalWealthCdf.balances'
+      );
+      expectSeriesClose(
+        rust.simulation.finalWealthCdf.probabilities,
+        ts.simulation.finalWealthCdf.probabilities,
+        'finalWealthCdf.probabilities'
+      );
+
       // Coast age is nullable, so compare the null-ness first, then the value.
       expect(rust.stats.coastAge === null).toBe(ts.stats.coastAge === null);
       if (ts.stats.coastAge !== null && rust.stats.coastAge !== null) {
