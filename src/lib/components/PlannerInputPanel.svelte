@@ -1,4 +1,17 @@
 <script lang="ts">
+	import type {
+		CurrencyCode,
+		HistoricalRegionDataset,
+		InvestmentMetricInputs
+	} from '../calculations';
+	import type { CurrencyOption } from '../plannerTypes';
+	import type {
+		IncomeSource,
+		LumpSumEvent,
+		RetirementInput,
+		SpendingPeriod
+	} from '../retirementEngine';
+
 	let {
 		CURRENCIES = [],
 		selectedCurrencyCode = $bindable(),
@@ -48,7 +61,6 @@
 		onInvestmentMetricChange,
 		onInflationMetricChange,
 		onSimulationSettingsChange,
-		resetAssumptionsToCurrencyDefaults,
 		resetStockMetricsToDefault,
 		resetBondMetricsToDefault,
 		resetBankMetricsToDefault,
@@ -60,25 +72,25 @@
 		alreadyRetired = false,
 		onAlreadyRetiredChange = () => {}
 	}: {
-		CURRENCIES?: any[];
-		selectedCurrencyCode: any;
-		selectedCurrency: any;
-		input: any;
-		incomeSources?: any[];
-		spendingPeriods?: any[];
-		lumpSumEvents?: any[];
+		CURRENCIES?: CurrencyOption[];
+		selectedCurrencyCode: CurrencyCode;
+		selectedCurrency: CurrencyOption;
+		input: RetirementInput;
+		incomeSources?: IncomeSource[];
+		spendingPeriods?: SpendingPeriod[];
+		lumpSumEvents?: LumpSumEvent[];
 		stockBoundaryPercent?: number;
 		bondBoundaryPercent?: number;
 		stockAllocationPercent?: number;
 		bondAllocationPercent?: number;
 		bankAllocationPercent?: number;
-		investmentMetrics: any;
-		parametricMetrics: any;
+		investmentMetrics: InvestmentMetricInputs;
+		parametricMetrics: InvestmentMetricInputs;
 		parametricInflationMean?: number;
 		parametricInflationVariability?: number;
 		parametricInflationSkewness?: number;
 		parametricInflationKurtosis?: number;
-		selectedHistoricalRegion: any;
+		selectedHistoricalRegion: HistoricalRegionDataset | null;
 		historicalDataLoadError?: string;
 		showHistoricalMethodologyInfo?: boolean;
 		portfolioDisplaySkew?: number;
@@ -108,7 +120,6 @@
 		onInvestmentMetricChange: () => void;
 		onInflationMetricChange: () => void;
 		onSimulationSettingsChange: () => void;
-		resetAssumptionsToCurrencyDefaults: () => void;
 		resetStockMetricsToDefault: () => void;
 		resetBondMetricsToDefault: () => void;
 		resetBankMetricsToDefault: () => void;
@@ -159,7 +170,7 @@
 
 <section class="left-panel">
 	<div class="currency-switch" role="group" aria-label="Currency selection">
-		{#each CURRENCIES as c}
+		{#each CURRENCIES as c (c.code)}
 			<button
 				type="button"
 				class={`currency-btn currency-${c.code.toLowerCase()}`}

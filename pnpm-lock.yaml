@@ -13,7 +13,7 @@ importers:
 
   .:
     dependencies:
-      plotly.js-dist-min:
+      plotly.js-cartesian-dist-min:
         specifier: 3.7.0
         version: 3.7.0
     devDependencies:
@@ -1458,8 +1458,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  plotly.js-dist-min@3.7.0:
-    resolution: {integrity: sha512-IRWNnBJZmKss3URDnicBK2nvt/VTSi/MD1GnUscAYFjwSuN6g/CTde5R1UC0RYtblehj8rkT4BL8r05e/c8j5Q==}
+  plotly.js-cartesian-dist-min@3.7.0:
+    resolution: {integrity: sha512-kfQjcAXXByRlskP8JsrlGYRPOvB+kOehZk/qBNewgr9SOMEnBN5nwEnUGOAQ0EEgYdQX51z3VZ81aBnDgSr9Bw==}
 
   pngjs@7.0.0:
     resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
@@ -2925,7 +2925,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  plotly.js-dist-min@3.7.0: {}
+  plotly.js-cartesian-dist-min@3.7.0: {}
 
   pngjs@7.0.0: {}
 

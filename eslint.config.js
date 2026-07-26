@@ -34,6 +34,15 @@ export default defineConfig(
 				parser: ts.parser,
 				svelteConfig
 			}
+		},
+		rules: {
+			// `no-useless-assignment` reads a rune declaration as a plain assignment. The value
+			// in `let { x = $bindable(0) } = $props()` is the fallback used when the parent does
+			// not bind the prop — it is consumed by the runtime, not by a later statement in this
+			// file, so the rule reports every bindable default with a non-trivial fallback. There
+			// is no per-case fix short of annotating each one, and the rule's real targets
+			// (genuinely dead assignments) are already covered by `no-unused-vars` here.
+			'no-useless-assignment': 'off'
 		}
 	}
 );

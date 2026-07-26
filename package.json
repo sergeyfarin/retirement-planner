@@ -92,6 +92,6 @@
 		"vitest-browser-svelte": "3.0.0"
 	},
 	"dependencies": {
-		"plotly.js-dist-min": "3.7.0"
+		"plotly.js-cartesian-dist-min": "3.7.0"
 	}
 }

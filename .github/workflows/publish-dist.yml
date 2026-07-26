@@ -43,7 +43,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "ressim-benchmark-cache"
+          shared-key: 'ressim-benchmark-cache'
           workspaces: rust-engine -> target
 
       - name: Build wasm package
@@ -52,6 +52,16 @@ jobs:
 
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
+
+      # Formatting and lint run before the tests: they are seconds rather than minutes, and
+      # a failure here says nothing about the engine, so failing fast keeps the signal clear.
+      - name: Lint
+        run: pnpm run lint
+
+      # Type check. `svelte-check` catches prop and template type errors that neither eslint
+      # nor `vite build` reports, because the build transpiles without checking types.
+      - name: Type check
+        run: pnpm run check
 
       # Engine tests, including the TS<->Rust cross-engine parity suite. These need the
       # wasm package built above but no browser, so they run before the dist build and

@@ -12,6 +12,7 @@ Phased implementation order for making the planner shareable with a wider audien
 Item numbers refer to the detailed entries below.
 
 **Phase 1 — Correctness (engine & data): ✅ COMPLETED 2026-07-20**
+
 1. ✅ Dividend adjustment for US/UK/World equity series (0.1)
 2. ✅ Annual net-gain taxation replacing monthly upside-only tax (0.2)
 3. ✅ Unify effective-moments source between UI code paths (0.10)
@@ -19,21 +20,12 @@ Item numbers refer to the detailed entries below.
 5. ✅ Month-contiguity assertion in preprocessing (0.9)
 6. ✅ Raise ruin-surface sample cap 800 → 2000 (6.2)
 
-**Phase 2 — UX for a wider audience: ✅ COMPLETED 2026-07-20**
-7. ✅ Age field labels: "Current age" / "Retire at age" / "Plan until age"
-8. ✅ Plain-language headline sentence above output cards ("In 99 of 100 simulated futures…")
-9. ✅ Progressive disclosure: assumptions card collapsed by default behind a one-line summary
-10. ✅ URL-shareable scenarios including the seed (4.1)
+**Phase 2 — UX for a wider audience: ✅ COMPLETED 2026-07-20** 7. ✅ Age field labels: "Current age" / "Retire at age" / "Plan until age" 8. ✅ Plain-language headline sentence above output cards ("In 99 of 100 simulated futures…") 9. ✅ Progressive disclosure: assumptions card collapsed by default behind a one-line summary 10. ✅ URL-shareable scenarios including the seed (4.1)
 
-**Phase 3 — Modeling upgrades:**
-11. ✅ Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1)
-12. ✅ Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1)
-13. ✅ "Current conditions" expected-return preset via moment targeting (yield-anchored means,
-    historical shape) — see 2.8
+**Phase 3 — Modeling upgrades:** 11. ✅ Withdrawal strategies: Guyton-Klinger guardrails + percent-of-portfolio (2.1) 12. ✅ Joint (return, inflation) block bootstrap + regional CPI data (0.4 / 5.1) 13. ✅ "Current conditions" expected-return preset via moment targeting (yield-anchored means,
+historical shape) — see 2.8
 
-**Phase 4 — Engineering health:**
-14. ✅ Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
-15. ✅ De-duplicate planner-local math (1.2) — also fixed a latent regime-model divergence
+**Phase 4 — Engineering health:** 14. ✅ Cross-engine parity test asserting intermediate series, not just summary stats (1.1) 15. ✅ De-duplicate planner-local math (1.2) — also fixed a latent regime-model divergence
 
 **Phase 5 — Publication gates: ✅ COMPLETED 2026-07-26**
 
@@ -56,6 +48,18 @@ strangers at the tool, and none of them were tracked as TODO items.
     failures.
 18. ✅ **Bound the "work N months longer" advice** to the axis that supports it — see 6.2.
 19. ✅ **State the tax simplification in the UI**, not only in README §10 — see 2.3.
+20. ✅ **Ship the cartesian Plotly bundle.** `plotly.js-dist-min` carried the geo and mapbox
+    modules, and with them mapbox, OpenStreetMap, carto, openmaptiles and geoserveis hosts —
+    unreachable for this app's traces, but present in the shipped output and therefore
+    something a reader had to take on trust. `plotly.js-cartesian-dist-min` registers
+    scatter, bar and heatmap (verified against the bundle's trace registry, along with the
+    absence of `choropleth`/`scattergeo`/`scattermapbox`) and drops the bundle from 4.7 MB to
+    1.4 MB. Only an inert `topojsonURL` schema default and licence strings remain. The
+    browser suite renders every chart against the new bundle.
+21. ✅ **Make `pnpm lint` pass, then have CI enforce it.** The repo's own lint gate was red —
+    29 unformatted files and 48 eslint errors — and no workflow step ran it, so it could only
+    get worse. Now zero, with `lint` and `check` (svelte-check) steps added ahead of the
+    engine tests. See 1.9 for what the errors turned out to be.
 
 **Explicitly declined:** mortality-weighted ruin (2.2) — see rationale there.
 
@@ -108,6 +112,7 @@ pool's requested mean/std seed-invariant for ordinary inputs. Rust and TypeScrip
 regression coverage checks several seeds. README §4.3 Mode C documents the behavior.
 
 ### 0.1 US and UK equity series exclude dividends (M) — ✅ FIXED 2026-07-20
+
 **Fix applied:** decade-level synthetic dividend yield schedules added in
 `preprocess-retirement-market-data.mjs` for USD, GBP and WORLD (EUR already
 total-return); dataset regenerated. US equity now 12.0% arithmetic / 10.6% geometric
@@ -117,7 +122,7 @@ kept below for context.
 
 **Original issue:**
 **Current:** `scripts/import-retirement-market-data.mjs` builds equity returns from Stooq
-`^SPX` and `^UKX` monthly *price* closes. The EUR proxy uses `^DAX` (total-return by
+`^SPX` and `^UKX` monthly _price_ closes. The EUR proxy uses `^DAX` (total-return by
 construction) + `^CAC` with a synthetic +3%/yr dividend yield — but SPX and UKX get no
 dividend adjustment at all.
 **Impact:** US/GBP returns understated by ~2.5–3.5%/yr (dataset US arithmetic mean is
@@ -131,6 +136,7 @@ components (`^NKX`, `^HSI`) for the same issue. Update README §3.1 when fixed.
 **Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
 ### 0.2 Tax-on-gains model overstates drag ~3–4× (M) — ✅ FIXED 2026-07-20
+
 **Fix applied:** both engines now accumulate the year's investment P&L (net of fees,
 tracked in deflated units) and tax `rate × max(0, yearly_pnl)` at each year boundary and
 the final partial year, applied as a multiplicative factor so ruin-surface replay carries
@@ -140,7 +146,7 @@ taxation"). No loss carryforward v1; Box 3 wealth-tax mode remains 2.3. Original
 kept below for context.
 
 **Original issue:**
-**Current:** every *month* with a positive return is taxed at `taxOnGainsPercent`
+**Current:** every _month_ with a positive return is taxed at `taxOnGainsPercent`
 (default 15%) with no loss offset (`simulation.rs` ~line 406; same in TS engine).
 **Impact:** for a portfolio at ~4.6% monthly σ / ~0.6% monthly mean, the expected
 positive part is ~2.2%/month → effective drag ~4%/yr instead of the ~1%/yr a user means
@@ -151,14 +157,15 @@ carried forward), or fold into the three-bucket model (2.3). For NL users add a 
 wealth-tax mode (% of balance above threshold per year) instead of a gains tax.
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`, `PlannerInputPanel.svelte`, README §5.2
 
-### 0.3 Nominal cashflows deflated by *expected*, not realized, inflation (M) — ✅ FIXED 2026-07-21
+### 0.3 Nominal cashflows deflated by _expected_, not realized, inflation (M) — ✅ FIXED 2026-07-21
+
 **Observation confirmed before fixing:** `build_cashflow_arrays` divided nominal items by
 `(1+inflationMean)^years`, computed once outside the per-path loop, while balances were
 deflated by the stochastic per-path inflation. A fixed annuity therefore never lost
 purchasing power faster on a high-inflation path.
 
 **Fix applied:** cash flows are now split into a real part (inflation-adjusted items,
-constant in real terms) and the *face value* of nominal items. Each simulated month
+constant in real terms) and the _face value_ of nominal items. Each simulated month
 divides the nominal part by that path's realized cumulative inflation index. The index is
 taken through month m−1, because the flow is applied before that month's deflation and so
 enters in pre-month-m money — the same convention the old expected index encoded.
@@ -183,6 +190,7 @@ fees and balance-dependent annual tax for the scenario being evaluated.
 **Files:** `rust-engine/src/{engine2,simulation,stats}.rs`, `src/lib/retirementEngine.ts`
 
 ### 0.4 Historical bootstrap severs the return–inflation correlation — ✅ FIXED 2026-07-21
+
 **Fix applied:** regional monthly CPI is now stored per month alongside returns and the
 engines sample `(return, inflation)` from the same historical month, so both the
 correlation (USD: equity −0.08 / bond −0.17) and inflation persistence (AR(1) ≈ 0.62)
@@ -205,6 +213,7 @@ autocorrelation, fixing both problems at once. Keep the parametric path as fallb
 **Files:** data scripts, `structs.rs`, `simulation.rs`, planner wiring
 
 ### 0.5 Kurtosis blending biased low (S) — ✅ FIXED 2026-07-21
+
 **Fix applied:** `blendPortfolioMetrics` now includes the cross terms of the fourth
 moment of a sum — `12ρ(a_s³a_b + a_s a_b³) + 6a_s²a_b²(1+2ρ²) + 6a_c²·Var(equity+bond)`
 on top of `Σaᵢ⁴κᵢ`, where `aᵢ = wᵢσᵢ`. Exact for jointly normal components (checked
@@ -218,13 +227,13 @@ kurtosis **1.5 for a blend of independent normals** — thinner than normal — 
 error scales with how balanced the portfolio is, so it hit conservative allocations
 hardest, i.e. precisely the people near or in retirement:
 
-| EUR allocation | old κ | fixed κ |
-|---|---|---|
-| 100 / 0 / 0 | 2.719 | 2.719 (unchanged — no cross terms) |
-| 60 / 30 / 10 | 2.750 | 2.717 (−1%; equity term dominates) |
-| 30 / 60 / 10 | 1.975 | 2.881 (+46%) |
-| 20 / 40 / 40 | 1.738 | 2.896 (+67%) |
-| 0 / 50 / 50 | 2.398 | 3.276 (+37%) |
+| EUR allocation | old κ | fixed κ                            |
+| -------------- | ----- | ---------------------------------- |
+| 100 / 0 / 0    | 2.719 | 2.719 (unchanged — no cross terms) |
+| 60 / 30 / 10   | 2.750 | 2.717 (−1%; equity term dominates) |
+| 30 / 60 / 10   | 1.975 | 2.881 (+46%)                       |
+| 20 / 40 / 40   | 1.738 | 2.896 (+67%)                       |
+| 0 / 50 / 50    | 2.398 | 3.276 (+37%)                       |
 
 **Tests:** four cases in `retirementEngine.test.ts` — any blend of uncorrelated normals
 returns exactly 3, correlated normals also return exactly 3 (ρ from −0.5 to 0.9), a
@@ -237,6 +246,7 @@ only mildly approximate under correlation. Left as is; documented in README §6.
 **Files:** `src/lib/calculations.ts`, README §6.2
 
 ### 0.6 Seed & fingerprint nits (S) — ✅ FIXED 2026-07-20
+
 All three addressed: `input.seed ?? Math.floor(random)` so an explicit seed of `0` is
 honoured (verified in-browser — a run with seed 0 reports "Seed: 0"); the seed is part of
 `previewTriggerKey`, so changing it marks results stale; and the seed actually used is
@@ -246,6 +256,7 @@ run.
 **Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 0.7 Annual-mode bootstrap flattens intra-year volatility (S) — ✅ FIXED 2026-07-21
+
 **Fix applied:** annual mode no longer repeats one constant monthly rate for twelve
 months. Each month draws a Cornish-Fisher shaped multiplicative shock and the twelve
 shocks are renormalised to unit geometric mean, so the year compounds to **exactly** the
@@ -254,7 +265,7 @@ history are untouched — while the path within the year actually moves.
 
 **Measured effect** (25-year drawdown, 6% withdrawal rate, annual-only history): success
 77.3% → 76.5% at 42k spend and 62.1% → 61.3% at 50k, i.e. roughly 0.8pp of previously
-hidden *within-year* ruin, with the simulated annual mean return identical to four decimal
+hidden _within-year_ ruin, with the simulated annual mean return identical to four decimal
 places (4.2000% both ways), confirming the renormalisation preserves the draw.
 
 **Tests:** two in `retirementEngine.test.ts` — annual return moments are unchanged to 10
@@ -269,17 +280,18 @@ mode is now trustworthy rather than a documented trap.
 **Files:** `rust-engine/src/{engine,simulation}.rs`, `src/lib/retirementEngine.ts`, README §4.3
 
 ### 0.8 Sequence-risk annual accumulator never resets in monthly-bootstrap mode — ✅ FIXED 2026-07-20
+
 **Fix applied:** the year-boundary reset now runs unconditionally at every 12-month
 boundary in both engines, instead of only inside the annual-bootstrap branch. The values
 feeding `build_sequence_risk_summary` are once again single-year returns.
 **Worth remembering:** both engines carried this bug identically, so the parity suite
 (1.1) would have passed it. Parity guards divergence, not correctness — the fix came from
-reading the code, and only a test asserting a *known-correct* annual return would have
+reading the code, and only a test asserting a _known-correct_ annual return would have
 caught it independently.
 
 **Original issue:**
 **Current:** `annual_asset_return`/`annual_inflation` are reset to 0 only inside the
-`else if m % 12 == 0` branch (`simulation.rs` ~line 369), which is the *annual*-bootstrap
+`else if m % 12 == 0` branch (`simulation.rs` ~line 369), which is the _annual_-bootstrap
 path. Monthly calibration (`use_monthly_calibration`) takes an `if` branch above it and
 never resets these accumulators, yet all four shipped regions have ≥791 months of history
 so monthly mode is the actual production path. The TS mirror has the identical bug
@@ -296,6 +308,7 @@ engines share the bug.
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`
 
 ### 0.9 GBP raw series starts one month later than the other regions — ✅ CLOSED 2026-07-20
+
 Contiguity assertion added to `preprocess-retirement-market-data.mjs` (fails loud on any
 mid-series month gap; differing start dates remain allowed). Investigation details below.
 **Investigated:** `historical-market-data.json` has 792 monthly rows for WORLD/USD/EUR
@@ -308,17 +321,18 @@ processed series runs `1960-03..2026-01` (791 months) vs `1960-02..2026-01` (792
 for the others.
 **Impact:** none on simulation correctness — `monthly_returns_to_annual_series` groups
 each region's own series independently in contiguous 12-month chunks from its own start;
-no code path compares calendar months *across* regions. The only effect is that GBP's
+no code path compares calendar months _across_ regions. The only effect is that GBP's
 internal year-boundaries for regime detection/annual-return moments fall one calendar
 month later than the other three regions' — a cosmetic data-provenance footnote, not a
 correctness bug.
 **Action:** none required. Optionally note the one-month-shorter GBP coverage window
 next to the "coverage" string already shown in the UI (`selectedHistoricalRegion.coverage`)
-for full transparency, and add a preprocessing assertion that *would* fail loud if a
+for full transparency, and add a preprocessing assertion that _would_ fail loud if a
 future refresh introduces a genuine mid-series gap (not just a different start date).
 **Files:** `data/retirement/raw/gbp.csv` (informational only)
 
 ### 0.10 Effective mean/std come from two different methods depending on last-touched control — ✅ FIXED 2026-07-20
+
 **Fix applied:** both `applyReferenceDefaults` and `applyInvestmentAllocationMetrics` now
 use the same rule — realized blended-series moments only when the simulation actually
 bootstraps that series (historical mode, moment targeting off, ≥10 annual returns);
@@ -326,10 +340,10 @@ parametric blend otherwise. Original issue kept below for context.
 
 **Original issue:**
 **Current:** `applyReferenceDefaults` (currency switch) sets `input.meanReturn` /
-`returnVariability` from the moments of the *realized blended historical annual series*
+`returnVariability` from the moments of the _realized blended historical annual series_
 (`RetirementPlanner.svelte` ~line 1185). `applyInvestmentAllocationMetrics` (allocation
 slider drag, or any input-panel edit that calls it) instead sets them from the
-*parametric* blend of per-asset moments plus `input.equityBondCorrelation`
+_parametric_ blend of per-asset moments plus `input.equityBondCorrelation`
 (~line 1005). These do not agree — the parametric path uses the assumed correlation input
 while the realized series embeds the true historical stock/bond co-movement — so two
 users with identical final settings can get different simulation targets depending on
@@ -343,18 +357,19 @@ same function.
 ---
 
 ### 0.11 Regime block bootstrap delivered ~0.85pp/yr less than the source series — ✅ FIXED 2026-07-21
+
 **Root cause, measured rather than assumed.** The sampler aborted the current block
 whenever the regime switched (`block_remaining <= 0 || regime_changed`). Because a freshly
-drawn block always *starts* on a month matching the new regime, and crisis runs are shorter
+drawn block always _starts_ on a month matching the new regime, and crisis runs are shorter
 than growth runs (stayCrisis ≈ 0.68 vs stayGrowth ≈ 0.84), crisis months were over-drawn. A
 replica of the sampler, instrumented to tally what it actually drew:
 
 | region | crisis months, source → sampled | annualised return, source → sampled |
-|---|---|---|
-| EUR | 33.5% → 35.4% (1.06×) | 7.68% → 6.79% (**−0.89pp**) |
-| USD | 35.0% → 37.0% (1.06×) | 9.38% → 8.67% (**−0.71pp**) |
-| GBP | 28.6% → 31.2% (1.09×) | 9.54% → 8.26% (**−1.29pp**) |
-| WORLD | 33.3% → 35.3% (1.06×) | 9.58% → 8.94% (**−0.64pp**) |
+| ------ | ------------------------------- | ----------------------------------- |
+| EUR    | 33.5% → 35.4% (1.06×)           | 7.68% → 6.79% (**−0.89pp**)         |
+| USD    | 35.0% → 37.0% (1.06×)           | 9.38% → 8.67% (**−0.71pp**)         |
+| GBP    | 28.6% → 31.2% (1.09×)           | 9.54% → 8.26% (**−1.29pp**)         |
+| WORLD  | 33.3% → 35.3% (1.06×)           | 9.58% → 8.94% (**−0.64pp**)         |
 
 Decomposing against the crisis/growth mean spread showed the frequency shift alone explains
 **72–76%** of the gap in every region, confirming the mechanism rather than merely
@@ -366,26 +381,25 @@ block boundary. One condition, `block_remaining <= 0`.
 **It improved more than the mean.** Cutting blocks short was also destroying the
 autocorrelation the block bootstrap exists to preserve:
 
-| | source | old sampler | fixed |
-|---|---|---|---|
-| EUR lag-1 autocorrelation | 0.064 | 0.038 | **0.053** |
-| GBP lag-1 autocorrelation | 0.102 | 0.051 | **0.084** |
-| EUR monthly σ | 3.104% | 3.151% | **3.101%** |
+|                           | source | old sampler | fixed      |
+| ------------------------- | ------ | ----------- | ---------- |
+| EUR lag-1 autocorrelation | 0.064  | 0.038       | **0.053**  |
+| GBP lag-1 autocorrelation | 0.102  | 0.051       | **0.084**  |
+| EUR monthly σ             | 3.104% | 3.151%      | **3.101%** |
 
 **End-to-end through the real engine**, 55-year horizon, no fees/tax/cash flows:
 
-| region | source geometric real | engine median | gap |
-|---|---|---|---|
-| EUR | 4.20%/yr | 4.19%/yr | −0.01pp |
-| USD | 5.00%/yr | 5.00%/yr | 0.00pp |
-| GBP | 3.65%/yr | 3.71%/yr | +0.07pp |
-| WORLD | 5.27%/yr | 5.30%/yr | +0.03pp |
+| region | source geometric real | engine median | gap     |
+| ------ | --------------------- | ------------- | ------- |
+| EUR    | 4.20%/yr              | 4.19%/yr      | −0.01pp |
+| USD    | 5.00%/yr              | 5.00%/yr      | 0.00pp  |
+| GBP    | 3.65%/yr              | 3.71%/yr      | +0.07pp |
+| WORLD  | 5.27%/yr              | 5.30%/yr      | +0.03pp |
 
 **User-visible effect on the default EUR scenario:** median ending balance €1.4M → €2.2M
 (+57% over 55 years of compounding), chance of reaching FI by 62 93.2% → 96.3%, Coast FIRE
 age 55 → 50. Every number moves in the optimistic direction, because the old sampler was
 systematically pessimistic.
-
 
 **Cross-checked against the literature after the fix, because "it now matches the source
 mean" is not self-evidently the right target.**
@@ -397,7 +411,7 @@ mean" is not self-evidently the right target.**
   therefore this method's own design property, not a metric imposed after the fact.
 - In Hamilton-type Markov switching models the unconditional mean is the
   stationary-probability-weighted average of the regime means. Since the transition
-  probabilities here are *estimated from the detected labels*, the implied unconditional
+  probabilities here are _estimated from the detected labels_, the implied unconditional
   mean is the sample mean by construction. The old sampler contradicted its own chain: the
   chain implied 33.5% crisis months, the sampler delivered 35.4%.
 
@@ -421,14 +435,15 @@ multi-month state, this is the better side of the trade.
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`
 
 ### 0.12 The regime layer contributes nothing measurable in Mode A (M) — found 2026-07-21
+
 **Found while validating the 0.11 fix.** With the sampling bias removed, the
 regime-conditioned block bootstrap was compared against a plain circular block bootstrap
 with no regime conditioning whatsoever, same data and seed, 6,000 paths × 55 years:
 
-| EUR, blockLength 6 | mean gap | crisis freq | worst 12m, median | worst 12m, P05 |
-|---|---|---|---|---|
-| regime-conditioned | +0.01pp | 1.00× | −25.5% | −35.4% |
-| **no regimes at all** | +0.01pp | 1.00× | −25.6% | −35.0% |
+| EUR, blockLength 6    | mean gap | crisis freq | worst 12m, median | worst 12m, P05 |
+| --------------------- | -------- | ----------- | ----------------- | -------------- |
+| regime-conditioned    | +0.01pp  | 1.00×       | −25.5%            | −35.4%         |
+| **no regimes at all** | +0.01pp  | 1.00×       | −25.6%            | −35.0%         |
 
 Statistically indistinguishable, and the same holds for USD and at block lengths 3 and 2.
 
@@ -446,13 +461,13 @@ block. The regime state is never consulted at a moment when it carries informati
 **(a) The model is NOT under-producing multi-year bear markets.** This was the stated worry
 behind "make regimes bite". It is false:
 
-| | history's *worst* 36m window | simulated worst-36m, P05 of paths |
-|---|---|---|
-| EUR | −38.2% | **−40.3%** |
-| USD | −18.4% | **−29.8%** |
+|     | history's _worst_ 36m window | simulated worst-36m, P05 of paths |
+| --- | ---------------------------- | --------------------------------- |
+| EUR | −38.2%                       | **−40.3%**                        |
+| USD | −18.4%                       | **−29.8%**                        |
 
 Block recombination already chains bad runs that never occurred consecutively, so simulated
-multi-year drawdowns are *more* severe than anything in the historical record. Sequence risk
+multi-year drawdowns are _more_ severe than anything in the historical record. Sequence risk
 is present and if anything generous.
 
 **(b) Option 2 was measured, and it does essentially nothing.** Re-detecting regimes on an
@@ -466,11 +481,11 @@ mean-preserving (+0.02pp). It does not trade accuracy for realism; it simply has
 
 **(c) The regime layer is not dead code — it is live outside the default path:**
 
-| path | regimes drive returns? | drive inflation? |
-|---|---|---|
-| Historical, default (joint CPI) | ✗ (measured) | ✗ |
-| Historical + "Use today's yields" | ✗ | **✓ crisis spread** |
-| Parametric (Mode C) | **✓ fully** | **✓** |
+| path                              | regimes drive returns? | drive inflation?    |
+| --------------------------------- | ---------------------- | ------------------- |
+| Historical, default (joint CPI)   | ✗ (measured)           | ✗                   |
+| Historical + "Use today's yields" | ✗                      | **✓ crisis spread** |
+| Parametric (Mode C)               | **✓ fully**            | **✓**               |
 
 So "remove the regime machinery from Mode A" is not free: it would break the crisis
 inflation spread that the current-conditions preset relies on (2.8).
@@ -478,7 +493,7 @@ inflation spread that the current-conditions preset relies on (2.8).
 **(d) Literature check.** The one recognised motivation for regime-conditioned resampling is
 avoiding bootstrap samples that straddle a **structural break**, which would "generate
 implausible scenarios". That justification does not apply here: `detect_regimes_monthly`
-finds *recurring* volatility states, not permanent structural breaks, and the pools are
+finds _recurring_ volatility states, not permanent structural breaks, and the pools are
 recombined freely across the whole sample either way.
 
 **Decision: option 3 — document, change nothing.** Rejected option 1 (removal breaks live
@@ -488,6 +503,7 @@ assumptions table already state that clustering comes from the block bootstrap r
 the regime layer. **The follow-on question worth real effort is block length — see 0.13.**
 
 ### 0.13 `blockLength = 6` was an unexamined magic number — 🟡 PARTLY RESOLVED (PWSD diagnostic added; product calibration open)
+
 **Found while resolving 0.12.** The default block length appears as a bare `6` in three
 places (`simulation.rs`, `retirementEngine.ts`, `RetirementPlanner.svelte`) with no stated
 justification anywhere in the code or docs. It is the single biggest lever on simulated
@@ -498,23 +514,23 @@ Var(1-month return)); VR = 1 is a random walk, < 1 mean reversion, > 1 trending.
 bootstrap can only carry dependence up to about its block length; past that it glues
 independent blocks together and the term structure goes flat. Measured on 60/30/10:
 
-| series | VR 12m | VR 36m | VR 60m | VR 120m |
-|---|---|---|---|---|
-| **EUR source** | 1.21 | 1.10 | 1.06 | **0.94** |
-| resampled, block 6m | 1.13 | 1.15 | 1.14 | 1.13 |
-| resampled, block 120m | 1.21 | 1.12 | 1.03 | **0.89** |
-| **USD source** | 1.11 | 1.01 | 1.11 | **1.36** |
-| resampled, block 6m | 1.05 | 1.06 | 1.07 | 1.08 |
-| **WORLD source** | 1.22 | 1.13 | 1.18 | **1.46** |
-| resampled, block 6m | 1.14 | 1.17 | 1.18 | 1.18 |
+| series                | VR 12m | VR 36m | VR 60m | VR 120m  |
+| --------------------- | ------ | ------ | ------ | -------- |
+| **EUR source**        | 1.21   | 1.10   | 1.06   | **0.94** |
+| resampled, block 6m   | 1.13   | 1.15   | 1.14   | 1.13     |
+| resampled, block 120m | 1.21   | 1.12   | 1.03   | **0.89** |
+| **USD source**        | 1.11   | 1.01   | 1.11   | **1.36** |
+| resampled, block 6m   | 1.05   | 1.06   | 1.07   | 1.08     |
+| **WORLD source**      | 1.22   | 1.13   | 1.18   | **1.46** |
+| resampled, block 6m   | 1.14   | 1.17   | 1.18   | 1.18     |
 
 **The finding: at block 6 the variance ratio is flat across every horizon — a shape no
 region actually exhibits.** Longer blocks track the source term structure markedly better.
 
 **But the bias direction is not uniform, which matters.** EUR mean-reverts at 10 years
-(0.94), so short blocks *overstate* its long-horizon risk — the direction Cogneau &
+(0.94), so short blocks _overstate_ its long-horizon risk — the direction Cogneau &
 Zakamulin warn about. USD and WORLD trend at 10 years (1.36, 1.46), so short blocks
-*understate* theirs. There is no single "conservative" error here.
+_understate_ theirs. There is no single "conservative" error here.
 
 **And the long-horizon source estimates are weak.** With 792 months, VR(120) rests on ~6.6
 non-overlapping windows; this is exactly the small-sample fragility that dogged the
@@ -524,22 +540,23 @@ not be taken at face value.
 **The real trade-off is bias against sample diversity:**
 
 | block | non-overlapping blocks available (n=792) |
-|---|---|
-| 6m | 132 |
-| 24m | 33 |
-| 60m | 13 |
-| 120m | **6** |
+| ----- | ---------------------------------------- |
+| 6m    | 132                                      |
+| 24m   | 33                                       |
+| 60m   | 13                                       |
+| 120m  | **6**                                    |
 
 At 120 months the simulation is recombining six distinct decades — barely more diverse than
 cFIREsim-style historical sequencing, with correspondingly high sampling error.
 
 **Literature does not give one answer, because the answer depends on the objective:**
-- Hall, Horowitz & Jing rules of thumb target estimating the variance *of a statistic*:
+
+- Hall, Horowitz & Jing rules of thumb target estimating the variance _of a statistic_:
   n^(1/3) ≈ **9 months** here, n^(1/5) ≈ 4. Close to the current 6.
 - Politis & White (2004), corrected by Patton, Politis & White (2009), give a data-driven
   optimal block length from the correlogram. This is the defensible way to pick it, and
   there are reference implementations (the R `blocklength` package; Patton's MATLAB code).
-- Practitioner tooling for *financial planning* specifically uses far longer blocks —
+- Practitioner tooling for _financial planning_ specifically uses far longer blocks —
   Portfolio Optimizer's worked example uses a 120-month average with the stationary
   bootstrap, justified as capturing "time-varying volatility and mean reversion".
 
@@ -548,6 +565,7 @@ scalar statistic, while long blocks aim to reproduce multi-year path dynamics, w
 a retirement simulation needs.
 
 **Suggested work, in order:**
+
 1. Implement Politis-White automatic block-length selection on each region's series and
    report what it suggests. Cheap, and it replaces a guess with a citation.
 2. Decide the default deliberately between that number and a longer planning-oriented value;
@@ -559,7 +577,6 @@ a retirement simulation needs.
 4. Surface `blockLength` in the UI as what it actually is: the control over how sustained
    simulated downturns are. It is currently buried in Advanced tuning with a purely
    mechanical description.
-
 
 ---
 
@@ -579,11 +596,11 @@ command-line AR(1) output remains only a smoke diagnostic.
 
 **Result on the shipped data — b_CB, the fixed-length circular bootstrap figure:**
 
-| allocation | WORLD | USD | GBP | EUR |
-|---|---|---|---|---|
-| 100/0/0 | 2.7 | 1.0 | 1.8 | 2.4 |
-| 60/30/10 | 3.0 | 1.9 | 3.2 | 2.5 |
-| 20/40/40 | 4.6 | 12.7 | 5.4 | 3.6 |
+| allocation | WORLD | USD  | GBP | EUR |
+| ---------- | ----- | ---- | --- | --- |
+| 100/0/0    | 2.7   | 1.0  | 1.8 | 2.4 |
+| 60/30/10   | 3.0   | 1.9  | 3.2 | 2.5 |
+| 20/40/40   | 4.6   | 12.7 | 5.4 | 3.6 |
 
 Across all regions × allocations: min 1.0, **median 2.9**, max 12.7.
 
@@ -616,7 +633,8 @@ modelling choice that should be made explicitly and disclosed, not silently chan
 **Files:** `rust-engine/src/simulation.rs`, `src/lib/retirementEngine.ts`,
 `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`, README §4.3
 
-### 0.14 Sequence-risk window measured the first ten years from *today*, not from retirement — ✅ FIXED 2026-07-25
+### 0.14 Sequence-risk window measured the first ten years from _today_, not from retirement — ✅ FIXED 2026-07-25
+
 **Fix applied:** each simulation now compounds retirement-relative annual return buckets
 before `build_sequence_risk_summary` / `buildSequenceRiskSummary` selects the first ten.
 Retiring at month 30 makes months 30–41 the first year, so a crash on the retirement date
@@ -651,6 +669,7 @@ never have flagged it.
 `src/lib/retirementEngine.ts`, README §7.4
 
 ### 0.15 Already-retired users could not be modelled at all — ✅ SHIPPED 2026-07-25
+
 **Shipped:** an "I am already retired" tickbox that sets `retirementAge = currentAge`,
 disables the retirement-age field and drops the salary row. `validateSimulationInputs`
 previously rejected `retirementAge <= currentAge` outright, so `retireMonth == 0` — the
@@ -661,7 +680,7 @@ Now only `retirementAge < currentAge` is an error.
 phase and would have shipped as plausible-looking nonsense if the check had simply been
 loosened:
 
-- **FI Target (P95)** reads its answer off the spread of balances *at retirement*. That
+- **FI Target (P95)** reads its answer off the spread of balances _at retirement_. That
   spread exists only because paths accumulate differently; with `retireMonth == 0` it
   collapses to one month of return dispersion and the suffix-scan lands within a couple of
   percent of current savings whether or not the plan survives. Replaced in this mode by
@@ -698,9 +717,10 @@ and effective annual return moments side by side.
 README §7.6
 
 ### 0.15 Moment targeting converted annual targets to monthly with `M/12` and `S/√12` — ✅ PARTLY FIXED 2026-07-25
+
 **Fix applied:** `monthly_targets_for_annual_moments` / `monthlyTargetsForAnnualMoments`
 now invert 12-fold compounding in closed form, so the monthly targets fed to the
-retargeting transform are the ones whose compounding reproduces the requested *annual*
+retargeting transform are the ones whose compounding reproduces the requested _annual_
 moments. Verified exact in the iid limit (README §4.4) and round-trip tested analytically.
 The naive scaling is still used for `spread_annual_return_across_months`, where √12 is the
 right convention and cannot bias annual moments — that function renormalizes each year by
@@ -728,10 +748,11 @@ were right; the magnitudes and the per-region ranking were sampling noise.
 realized annual σ still exceeds the target by +0.29pp (USD) to +1.49pp (GBP) because the
 block bootstrap preserves serial dependence, which inflates annual variance above 12× the
 monthly variance (the same variance-ratio effect measured in 0.13). Options:
+
 1. **Leave it, document it** (current). The overshoot is in the conservative direction and
    preserving dependence is the entire purpose of the block bootstrap.
 2. **Deflate monthly σ by the measured variance ratio** so realized annual σ hits the
-   target. Coherent — the label says *annual*, and the correlation structure is preserved,
+   target. Coherent — the label says _annual_, and the correlation structure is preserved,
    only its scale changes. Costs a pilot bootstrap at setup, must be replicated
    bit-identically in both engines, and changes every existing user's numbers.
 3. Relabel the input as a monthly-derived target. Weakest: the input is annual everywhere
@@ -745,6 +766,7 @@ measured, disclosed change in the style of 0.11/0.13 — not folded in silently.
 ## Priority 1 — Engineering Health
 
 ### 1.1 Cross-engine parity test (S/M) — ✅ SHIPPED 2026-07-21
+
 **Shipped:** `src/lib/enginesParity.test.ts` runs the same seeded inputs through the TS
 reference engine and the Rust/WASM production engine and compares them at three levels:
 the PRNG streams (uniform + standard-normal, which turn out to be bit-identical), the
@@ -763,6 +785,7 @@ year-boundary reset bug (0.8) and a parity test would have passed it happily. Th
 against divergence, not against a faithfully-mirrored mistake.
 
 ### 1.2 De-duplicate planner-local math (S) — ✅ DONE 2026-07-21
+
 **Removed** 246 lines from `RetirementPlanner.svelte` (2,498 → 2,244): local copies of
 `clamp`, `getAllocationSplit`, `blendPortfolioMetrics`, `summarizeSeriesMoments`,
 `summarizeSeriesDistribution`, `sampleCorrelation`, `estimateEquityBondCorrelation`,
@@ -775,11 +798,11 @@ vestiges. ESLint errors in the file went 28 → 20 (none introduced).
 **A latent bug found in the process.** Only one local copy actually differed from
 `calculations.ts` — `buildRegimeModelFromPortfolio`:
 
-| | local copy | `calculations.ts` |
-|---|---|---|
-| spread | floored at `0.01`, **no cap** | capped at `0.8 × sqrt(σ²/(π_G·π_C))` |
-| target variance | floored at `1e-8` | raw `σ²` |
-| regime std devs | floored at `0.005` | unfloored |
+|                 | local copy                    | `calculations.ts`                    |
+| --------------- | ----------------------------- | ------------------------------------ |
+| spread          | floored at `0.01`, **no cap** | capped at `0.8 × sqrt(σ²/(π_G·π_C))` |
+| target variance | floored at `1e-8`             | raw `σ²`                             |
+| regime std devs | floored at `0.005`            | unfloored                            |
 
 `applyReferenceDefaults` (currency switch, and the initial mount) used the **local** copy
 while `applyInvestmentAllocationMetrics` (allocation slider) used the **imported** one —
@@ -800,6 +823,7 @@ cash via the slider, and at 100% cash after a currency switch — all three byte
 since the two implementations agree wherever the caps are not binding.
 
 ### 1.3 Decide the TS engine's fate (S) — ✅ DECIDED 2026-07-21
+
 **Decision: keep it as the reference implementation, guarded by the parity test (1.1).**
 It is now a tested asset rather than dead weight — it is far more readable than the Rust
 engine, it is what makes the parity suite possible at all, and it runs in plain Node
@@ -807,12 +831,13 @@ without a wasm build. The obligation that comes with the decision: **every engin
 must land in both engines in the same commit**, which the CI parity run now enforces.
 
 ### 1.4 "Success" is defined two different ways in the same result set — ✅ FIXED 2026-07-20
+
 **Fix applied:** `find_retirement_balance_target` (both engines) now takes explicit
 success flags computed with the same never-depleted definition as the headline success
 probability. Original issue kept below for context.
 
 **Original issue:**
-**Current:** `success_probability` requires the path to have *never* depleted
+**Current:** `success_probability` requires the path to have _never_ depleted
 (`simulation.rs` line 483 — ruin is sticky, matching the documented behavior in 2.7). The
 P95 FI target's implied success count instead only checks `ending_balance > 0`
 (`find_retirement_balance_target`, `stats.rs` line 228). A path that hits zero at 66 and
@@ -824,6 +849,7 @@ depleted paths recover by the end").
 **Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/stats.rs`
 
 ### 1.5 Dead pseudo-`imul` computation in the RNG (S) — ✅ FIXED 2026-07-20
+
 **Was:** `RandomSource::random` computed a throwaway approximation of `Math.imul` into a
 local `t`, discarded it via `let _ = …`, and then redid the calculation properly on the
 next lines. Purely dead, but exactly the kind of thing that makes a reader distrust an
@@ -831,16 +857,18 @@ RNG they are trying to audit.
 **Fix applied:** the dead statement is gone; `random()` is now four lines that mirror the
 JS `Math.imul` semantics directly, with a comment saying so. `cargo build` reports zero
 warnings.
-**Guarded by:** the parity suite (1.1) asserts the seeded uniform *and* standard-normal
+**Guarded by:** the parity suite (1.1) asserts the seeded uniform _and_ standard-normal
 streams are identical between the TS and Rust engines, so any future edit that changes
 RNG behaviour — dead code or not — fails CI.
 **Files:** `rust-engine/src/calculations.rs`
 
 ### 1.6 Repo hygiene before making the repo/link public (S) — ✅ DONE 2026-07-21
+
 **Stray files** (done 2026-07-20): `*:Zone.Identifier`, `fix-runes*.mjs` and `.build-log`
 removed from tracking and gitignored; the emptied `public/` tree removed.
 
 **Pre-public audit** (2026-07-21) — checked and clean:
+
 - No secrets, tokens or credentials in tracked files; `.npmrc` holds only `engine-strict`.
 - Nothing sensitive in git history (the only removed files were the empty Windows
   marker files and one-off migration scripts — not worth a history rewrite).
@@ -848,6 +876,7 @@ removed from tracking and gitignored; the emptied `public/` tree removed.
 - Largest tracked file is the 588 KB dataset — fine for a repo.
 
 **Licensing and metadata** (decided with the maintainer):
+
 - **AGPL-3.0-only**, full text in `LICENSE`, chosen so a hosted modified fork must
   publish its source. README §14 explains the §13 network clause and third-party data
   terms.
@@ -872,6 +901,7 @@ tags**. Until that happens the rewritten history exists only locally; GitHub sti
 the original, which is also the rollback path.
 
 ### 1.7 Data pipeline wrote to a directory the app never served (S) — ✅ FIXED 2026-07-21
+
 **Found while wiring the joint inflation bootstrap.** `preprocess-retirement-market-data.mjs`
 wrote to `public/assets/retirement/historical-market-data.json`, but SvelteKit serves
 `static/` (`kit.files.assets` default) and the planner fetches
@@ -886,6 +916,7 @@ by inspecting the generated file — the default currency (EUR) was the one regi
 dividend fix didn't change, which is why the stale data went unnoticed.
 
 ### 1.8 `fetchFredSeries` turned missing observations into 0 (S) — ✅ FIXED 2026-07-21
+
 `Number('')` is `0` and `Number.isFinite(0)` is true, so any month FRED reports as empty
 was silently stored as a 0 level/rate. It first surfaced as a bogus `0` US CPI for
 2025-10 (not published during the federal shutdown). Existing bond/cash series were
@@ -894,12 +925,51 @@ Now empty and `.` values are skipped explicitly. Short interior CPI gaps (≤3 m
 geometrically interpolated by the preprocess step and logged; longer gaps throw.
 **Files:** `scripts/import-retirement-market-data.mjs`, `scripts/preprocess-retirement-market-data.mjs`
 
+### 1.9 `pnpm lint` was red and CI never ran it — ✅ FIXED 2026-07-26
+
+The repo shipped a lint script that failed: 29 files off Prettier and 48 eslint errors. No
+workflow step invoked it, so nothing stopped the count from growing. Fixed rather than
+suppressed, because the errors were not noise:
+
+- **23 × `no-explicit-any`.** Almost all traced to one root cause: `plotly.js-dist-min`
+  ships no types, so `let Plotly: any` at the import site spread `any` through the props of
+  all three chart components. `src/types/plotly.js-cartesian-dist-min.d.ts` now declares the
+  four methods the app actually calls (`react`, `relayout`, `purge`, `register`) plus
+  `PlotlyHTMLElement` for the emitter Plotly attaches to its container. Traces and layouts
+  stay `Record<string, unknown>` — Plotly's schema is enormous and dynamic — but the surface
+  is pinned, so a mistyped method name is now a compile error. That alone cleared 12.
+  The rest were the input panel's props, which had real types available all along
+  (`RetirementInput`, `IncomeSource`, `SpendingPeriod`, `LumpSumEvent`,
+  `InvestmentMetricInputs`, `CurrencyCode`). `CurrencyOption` had to move out of
+  `RetirementPlanner.svelte` into `src/lib/plannerTypes.ts` first: a type declared inside a
+  component cannot be imported by another component, which is what pushed those props to
+  `any` in the first place.
+- **8 × `no-unused-vars`.** Genuine dead code, all removed. Worth noting one:
+  `stockRiskContribution`/`bondRiskContribution`/`bankRiskContribution` computed
+  `component² / returnVariability` — a variance divided by a standard deviation, so
+  dimensionally wrong. Never rendered. If a risk-contribution display is wanted later it
+  should divide by the variance.
+- **9 × `no-unused-expressions`.** A column of bare identifiers inside an `$effect`,
+  registering reactive dependencies for `drawRealReturnCdfChart`. Intentional, but
+  indistinguishable from dead code to a reader; now an explicitly named array, moved outside
+  the readiness guard so a change registers even before the chart element exists.
+- **`require-each-key`, `no-useless-mustaches`, `no-useless-escape`.** Fixed directly.
+- **4 × `no-useless-assignment`.** The only rule turned off, scoped to `.svelte` files with
+  the reason recorded in `eslint.config.js`: it reads `$bindable(0)` as a plain assignment
+  whose value is never read, when the fallback is consumed by the runtime.
+
+CI now runs `lint` and `check` (svelte-check, which catches prop and template type errors
+that neither eslint nor `vite build` reports, since the build transpiles without checking)
+ahead of the engine tests.
+**Files:** `eslint.config.js`, `.github/workflows/publish-dist.yml`,
+`src/types/plotly.js-cartesian-dist-min.d.ts`, `src/lib/plannerTypes.ts`, all four components
 
 ---
 
 ## Priority 2 — Enhanced Modeling Logic
 
 ### 2.1 Dynamic Spending Strategies (M) — ✅ SHIPPED 2026-07-20
+
 **Shipped:** `withdrawalStrategy` on the input with three modes — `fixed` (default),
 `guardrails` (Guyton-Klinger, rate-based band with configurable band/step/floor/ceiling),
 and `percentOfPortfolio` (spend a % of balance yearly, clamped to a floor/ceiling of
@@ -915,6 +985,7 @@ much their income actually varies year to year under each strategy.
 `src/lib/retirementEngine.ts`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 2.2 Mortality-Weighted Ruin — DECLINED (product decision, 2026-07-20)
+
 **Considered:** integrating a life table so each simulation draws a random death age and
 ruin is reported as "probability of ruin before death" (the actuarially standard framing;
 a fixed age-90 horizon overstates lived risk since many people don't reach it).
@@ -928,6 +999,7 @@ choice — no survival probabilities shown anywhere. Do not resurrect this item 
 explicit opt-in design that keeps death statistics out of the default experience.
 
 ### 2.3 Three-Bucket Tax Model (M) — 🟡 DISCLOSED 2026-07-26, not implemented
+
 **Current:** Flat `taxOnGainsPercent` on the year's net gains (0.2 replaced the old
 monthly upside-only formula).
 **Gap:** Lacks real-world retirement account structures (ISA, 401k, Roth, Dutch Box 3).
@@ -940,17 +1012,19 @@ the calculator substantially. What was not acceptable was shipping the simplific
 silently: "Tax on gains" reads like a capital-gains rate and is not one. A caveat now sits
 directly under the input in the assumptions table stating that it is one flat annual rate on
 gains whether or not anything was sold (closer to an annual wealth-style levy), that the base
-is the *real* rather than nominal gain so high-inflation paths are taxed too lightly, and
+is the _real_ rather than nominal gain so high-inflation paths are taxed too lightly, and
 that there are no account types, allowances, withdrawal ordering or RMDs — with the practical
 hint that a lower rate approximates a mostly-sheltered portfolio. README §10 carries the same
 two properties as separate rows.
 
 ### 2.4 Social Security / Pension Claiming Optimization (S)
+
 **Current:** Pension is a flat income from a fixed age.
 **Action:** Allow benefit amounts that vary by claiming age (e.g., US Social Security: 70% at 62, 100% at 67, 124% at 70). Show the optimal claiming age given the portfolio simulation.
 **Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 2.5 Glide-Path Allocation (M)
+
 **Current:** allocation is fixed for life.
 **Action:** add an "equity % at retirement" second slider with linear interpolation
 between now and retirement — covers most real behavior and interacts directly with the
@@ -958,11 +1032,13 @@ sequence-risk analysis already visualized. Simplest via monthly interpolation of
 portfolio weights applied to per-asset historical series.
 
 ### 2.6 Household / Couple Mode (M)
+
 Two people: different ages, incomes, pension start ages; later, couple mortality (2.2).
 The income/spending period structure already supports it — add a second default income
 row, label rows by person, adjust the FI-age framing.
 
 ### 2.7 Ruin Definition Nuance (S) — ✅ CORRECTED 2026-07-26
+
 Ruin now begins only when scheduled spending cannot be fully funded, evidenced by a
 positive cumulative shortfall. Merely holding a zero balance is not failure: a zero-savings
 path whose income exactly matches spending remains successful and reports zero depleted
@@ -980,10 +1056,11 @@ that spending went unfunded.
 ## Priority 3 — Convergence & Diagnostics
 
 ### 3.1 Monte Carlo Convergence Diagnostic (S) — ✅ SHIPPED 2026-07-20 (heatmap 2026-07-21)
+
 The survival card shows `Monte Carlo noise: ±1.96·SE` beneath the success probability,
 with $SE = \sqrt{p(1-p)/N}$ computed in `PlannerOutputCards.svelte` from the actual path
 count. **Corrected 2026-07-26:** this is no longer labelled "95% confidence", which
-overstated what the interval covers. It is explicitly an approximate 95% *run-to-run*
+overstated what the interval covers. It is explicitly an approximate 95% _run-to-run_
 range with data, assumptions and model fixed. Beside it, Historical mode reports the
 finite evidence base (source months and approximate non-overlapping block-length chunks)
 and says that region/sub-period/block-length robustness is not measured; Parametric mode
@@ -994,11 +1071,11 @@ margin on hover ("Survival 88.9% ±1.4%"), and a caption states the replay sampl
 the worst-case margin across cells (±2.2% at the 50% mid-range, tighter near 0%/100%).
 The caption also says the thing users would otherwise get wrong: this sample is capped
 independently of the "Simulations" setting, so raising that number sharpens the summary
-cards but *not* this chart. `RuinSurface` gained a `sampleCount` field in both engines so
+cards but _not_ this chart. `RuinSurface` gained a `sampleCount` field in both engines so
 the UI reads the real replay count instead of duplicating the cap constant; the parity
 suite asserts it.
 **Caveat recorded in the code:** cells share the same stored paths (common random
-numbers), so *differences* between neighbouring cells are steadier than each cell's
+numbers), so _differences_ between neighbouring cells are steadier than each cell's
 absolute margin implies — which is why the caption steers readers toward the shape of the
 trade-off rather than any single cell's value.
 **Files:** `src/lib/components/PlannerOutputCards.svelte`,
@@ -1006,12 +1083,13 @@ trade-off rather than any single cell's value.
 `src/lib/retirementEngine.ts`
 
 ### 3.2 Mode Transparency in UI (S) — PARTIALLY DONE 2026-07-21
+
 **Done:** the collapsed Assumptions summary names the active mode and dataset
 ("Euro area history 1961-2025 (adjusted) · 0.5% fees · 15% tax"); a badge appears when
 joint (return, inflation) sampling is active; and 0.10 removed the case where displayed
 moments could disagree with the simulation driver depending on which control was touched
 last, which was the substance of the old "warning text" ask.
-**Still open:** no explicit indicator of *which* moments the simulator is actually
+**Still open:** no explicit indicator of _which_ moments the simulator is actually
 targeting under moment targeting (the table shows per-asset inputs, not the blended
 portfolio target the bootstrap is shifted onto).
 **Files:** `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
@@ -1021,6 +1099,7 @@ portfolio target the bootstrap is shifted onto).
 ## Priority 4 — Product, Visualizations & UI
 
 ### 4.1 URL-Shareable Scenarios + A/B Compare (M) — ✅ sharing SHIPPED 2026-07-20; A/B compare still open
+
 **Shipped:** all inputs (scalars, mode, allocation, parametric metrics, cashflow rows)
 plus the displayed run's seed serialize to a versioned base64url `#s=` hash; "Copy share
 link" button appears after each run; the hash is parsed, validated and restored on load,
@@ -1033,6 +1112,7 @@ of the serialization work). Enables bookmark/share and side-by-side scenario com
 ("retire at 60 vs 64"). Every shared link is distribution.
 
 ### 4.2 Coast / Barista FIRE Metrics (S) — ✅ SHIPPED 2026-07-21
+
 **Shipped:** `SummaryStats.coastAge` — the earliest age at which contributions could stop
 while still clearing the 95% success target. Shown in the FI-targets card ("Coast FIRE:
 stop saving at age 55 and still clear 95%, if work still covers spending").
@@ -1068,6 +1148,7 @@ parity assertion on both the null-ness and the value.
 `PlannerOutputCards.svelte`
 
 ### 4.3 Terminal Wealth CDF Plot (M) — ✅ SHIPPED 2026-07-26
+
 **Shipped:** The results view now leads with “How much might I have left?” and plots 101
 evenly spaced quantiles of final simulated wealth. The technical CDF terminology is kept out
 of the primary label; the axis and hover copy explain the probability in plain language.
@@ -1077,15 +1158,17 @@ of why early retirement losses matter.
 **Files:** `RetirementPlanner.svelte`, `PlannerSecondaryPlot.svelte`, both simulation engines
 
 ### 4.4 Regime Visualization in Timeline Chart (M)
+
 **Action:** Shade the background of the timeline fan chart to reflect whether the median path was in Crisis or Growth regime for each year. Builds user intuition about sequence risk.
 **Files:** `PlannerTimelinePlot.svelte`
 
 ### 2.8 "Use today's yields" expected-return preset — ✅ SHIPPED 2026-07-21
+
 **Shipped:** raw CSVs gained a `bond_yield_pct` column (US GS10, UK/DE 10Y, WORLD as the
 same 50/20/30 blend used for bond returns), and the dataset exposes a per-region
 `currentConditions { asOf, bondYield, cashRate }`. `buildCurrentConditionsMetrics` builds
 forward assumptions the way institutional CMAs do: cash = current short rate, bonds =
-current long yield, equity = long yield + *historical* equity risk premium. Only means
+current long yield, equity = long yield + _historical_ equity risk premium. Only means
 move; volatility/skew/kurtosis stay historical. Applied via Historical-with-Adjustments
 so real sequencing survives. As of 2026-01 this takes EUR from 7.8% → 4.7% expected
 portfolio return and the default scenario from 99% → 75% success.
@@ -1100,10 +1183,12 @@ the concern is only that explicit user inflation edits would be ignored).
 **Files:** `scripts/*.mjs`, `src/lib/calculations.ts`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
 
 ### 4.5 Reverse-Engineered CAGR Input (M)
+
 **Action:** Allow users to input their desired geometric mean (CAGR) directly. The engine reverse-calculates the required arithmetic mean: $\mu_{arith} \approx \mu_{geom} + \sigma^2/2$.
 **Files:** `PlannerInputPanel.svelte`, `calculations.ts`
 
 ### 4.6 Extract Assumptions Metadata → "Data Sources" Modal (S) — PARTIALLY DONE
+
 **Done:** the "not financial advice" disclaimer footer ships (plus the AGPL source link,
 see 1.6), and a "more info" methodology panel already surfaces dataset coverage and
 per-asset sourcing inline.
@@ -1113,12 +1198,14 @@ curated research it holds (ranges, source citations) is still not fully displaye
 it out would also shrink the 2,300-line component, which pairs naturally with 1.2.
 
 ### 4.7 Localization (M)
+
 NL-first localization (AOW start age, Box 3 terminology, jaarruimte) — the one market
 where no good free tool does this properly. Coordinate the i18n approach with the
 heat-pump calculator in rekenraam-web.
 
 ### 4.8 Shortfall/depleted-years cards show P90-of-metric under a "P10" label — ✅ FIXED 2026-07-20
-Relabelled to "Worst 10% / Median / Best 10%", which describes the *outcome* percentile
+
+Relabelled to "Worst 10% / Median / Best 10%", which describes the _outcome_ percentile
 the numbers actually represent, with a tooltip spelling out that these are percentiles of
 simulated outcomes rather than of the metric itself.
 
@@ -1126,13 +1213,14 @@ simulated outcomes rather than of the metric itself.
 **Current:** `PlannerOutputCards.svelte` shows `stats.shortfallHigh` /
 `stats.depletedYearsHigh` (the **P90** of the underlying shortfall/depleted-years
 distribution) under a "P10" heading. The intent is defensible — a bad (P90) shortfall
-corresponds to a bad (P10) *outcome* — but with no explanation it reads as a labeling bug
+corresponds to a bad (P10) _outcome_ — but with no explanation it reads as a labeling bug
 to a numerate audience.
 **Action:** relabel as "worst 10% of outcomes" / "best 10% of outcomes" rather than raw
 percentile numbers that don't match the underlying stat's own percentile.
 **Files:** `src/lib/components/PlannerOutputCards.svelte`
 
 ### 4.9 Fan chart bands can be misread as individual paths — ✅ FIXED 2026-07-20
+
 The chart caption now states that each percentile line is computed independently for that
 month across all simulations, is not a single continuous scenario, and that reading
 "recovery time" off the gap between bands overstates how fast any one path recovers.
@@ -1151,6 +1239,7 @@ percentile outcome for that specific month, not one continuous scenario").
 ## Priority 5 — Data Quality & Coverage
 
 ### 5.1 Regional CPI Series (M) — ✅ SHIPPED 2026-07-21
+
 Monthly CPI per region now lives in the raw CSVs (`cpi_index` column) and in
 `historical-market-data.json` (`monthlySeries[].inflation`). Sources: US `CPIAUCSL`,
 UK `GBRCPIALLMINMEI`, Euro-area `CP0000EZ19M086NEST` level-matched onto German
@@ -1160,10 +1249,12 @@ market-data vintage. Known coverage limit: UK CPI ends 2025-03, so the GBP month
 series is trimmed there (annual moments still use full market history).
 
 ### 5.2 Extended Eurozone Proxy (M)
+
 **Action:** Add AEX (Netherlands) and IBEX (Spain) data from 1980s onward, stitched onto the DAX/CAC core to broaden geopolitical representation of the EUR equity proxy.
 **Files:** `scripts/import-retirement-market-data.mjs`
 
 ### 5.3 Factor Tilts (Small-Cap / Value) (M)
+
 **Action:** Incorporate small-cap or value datasets (e.g., Russell 2000) so users can model tilted factor portfolios with their distinct sequence-of-returns risk profiles.
 **Files:** `scripts/import-retirement-market-data.mjs`, `RetirementPlanner.svelte`
 
@@ -1172,9 +1263,11 @@ series is trimmed there (annual moments still use full market history).
 ## Priority 6 — Advanced / Deferred
 
 ### 6.1 Advanced Dual-Mode Controls (M)
+
 Expert controls for mode-specific calibration knobs and deterministic zero-vol override behavior.
 
 ### 6.2 Ruin Surface Accuracy (S) — PARTIALLY DONE (cap raised 2026-07-20, precision surfaced 2026-07-21)
+
 **Done:** cap raised 800→2000 in both engines. The retained return/inflation tapes use
 ~23 MB at 720 months and enable exact accounting replays.
 Precision is now reported rather than merely bounded — per-cell 95% margins on hover and
@@ -1213,8 +1306,8 @@ protection flow replacing the noisy 400-sim live preview.
 
 ## Effort Key
 
-| Label | Estimate |
-|---|---|
-| **S** (small) | < 2 hours |
+| Label          | Estimate  |
+| -------------- | --------- |
+| **S** (small)  | < 2 hours |
 | **M** (medium) | 2–6 hours |
-| **L** (large) | 6+ hours |
+| **L** (large)  | 6+ hours  |

@@ -1,4 +1,10 @@
 <script lang="ts">
+	import type {
+		PlotlyAnnotation,
+		PlotlyApi,
+		PlotlyHTMLElement,
+		PlotlyShape
+	} from 'plotly.js-cartesian-dist-min';
 	import { onDestroy } from 'svelte';
 	import { percentile as calcPercentile } from '../calculations';
 	import type {
@@ -21,7 +27,7 @@
 		fmtCompactValue,
 		fmtHoverCompactCurrency
 	}: {
-		Plotly: any;
+		Plotly: PlotlyApi | null;
 		plotReady?: boolean;
 		simulation?: SimulationResult | null;
 		stats?: SummaryStats | null;
@@ -36,6 +42,9 @@
 
 	let chartEl: HTMLDivElement | null = $state(null);
 	let relayoutHandlerAttached = false;
+	// Plotly locales are global to the bundle, so registering once per module is enough; the
+	// flag used to be stashed as an untyped property on the Plotly object itself.
+	let aposLocaleRegistered = false;
 	let applyingTickRelayout = false;
 	let defaultYAxisTickValues: number[] = [];
 	let defaultYAxisTickLabels: string[] = [];
@@ -99,7 +108,7 @@
 		return buildYAxisTicksForRange(0, maxValue, 8);
 	}
 
-	function restoreDefaultAxes(targetEl: any = chartEl) {
+	function restoreDefaultAxes(targetEl: HTMLElement | null = chartEl) {
 		if (!targetEl || !Plotly) return;
 		if (!Number.isFinite(defaultXAxisRange[0]) || !Number.isFinite(defaultXAxisRange[1])) return;
 		if (!Number.isFinite(defaultYAxisRange[0]) || !Number.isFinite(defaultYAxisRange[1])) return;
@@ -161,8 +170,13 @@
 
 	function ensureRelayoutHandler() {
 		if (!chartEl || relayoutHandlerAttached) return;
-		(chartEl as any).on('plotly_relayout', handleChartRelayout);
-		(chartEl as any).on('plotly_doubleclick', () => {
+		// Plotly attaches its event emitter to the container while rendering, so a plain
+		// HTMLDivElement genuinely has no `on` until then. This only runs after
+		// `Plotly.react` resolves (see drawChart), by which point it does — hence the widening
+		// cast rather than a direct one, which TypeScript rightly rejects.
+		const emitter = chartEl as unknown as PlotlyHTMLElement;
+		emitter.on('plotly_relayout', handleChartRelayout);
+		emitter.on('plotly_doubleclick', () => {
 			restoreDefaultAxes();
 			return false;
 		});
@@ -218,13 +232,13 @@
 
 	function drawChart(result: SimulationResult) {
 		if (!Plotly || !chartEl) return;
-		if (!(Plotly as any).__aposLocale) {
+		if (!aposLocaleRegistered) {
 			Plotly.register({
 				moduleType: 'locale',
 				name: 'apos',
 				format: { decimal: '.', thousands: "'", grouping: [3], currency: ['', ''] }
 			});
-			(Plotly as any).__aposLocale = true;
+			aposLocaleRegistered = true;
 		}
 		const { ages, percentiles: p } = result;
 		const lastAge = ages[ages.length - 1];
@@ -336,7 +350,7 @@
 		// series is drawdown; leave it unannotated. See README §7.6.
 		const alreadyRetired = retirementAge <= ages[0];
 
-		const shapes: any[] = alreadyRetired
+		const shapes: PlotlyShape[] = alreadyRetired
 			? []
 			: [
 					{
@@ -364,7 +378,7 @@
 			});
 		});
 
-		const annotations: any[] = lumpSumEvents
+		const annotations: PlotlyAnnotation[] = lumpSumEvents
 			.filter((event) => event.age >= ages[0] && event.age <= lastAge)
 			.map((event) => ({
 				x: event.age,
@@ -462,8 +476,8 @@
 				{
 					name: 'Reset axes',
 					title: 'Reset axes',
-					icon: (Plotly as any)?.Icons?.home ?? (Plotly as any)?.Icons?.autoscale,
-					click: (gd: any) => {
+					icon: Plotly?.Icons?.home ?? Plotly?.Icons?.autoscale,
+					click: (gd: HTMLElement) => {
 						restoreDefaultAxes(gd);
 					}
 				}

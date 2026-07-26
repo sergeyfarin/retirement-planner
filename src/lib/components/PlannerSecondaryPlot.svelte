@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
 	import { onDestroy } from 'svelte';
 	import type { SimulationResult, SummaryStats } from '../retirementEngine';
 
@@ -12,7 +13,7 @@
 		fmtCompactValue,
 		fmtHoverCompactCurrency
 	}: {
-		Plotly: any;
+		Plotly: PlotlyApi | null;
 		plotReady?: boolean;
 		simulation?: SimulationResult | null;
 		stats?: SummaryStats | null;
@@ -266,8 +267,7 @@
 			fill: 'tozeroy',
 			fillcolor: 'rgba(37, 99, 235, 0.10)',
 			customdata: balances.map((value) => fmtHoverCompactCurrency(value)),
-			hovertemplate:
-				'%{y:.0%} of simulations ended with<br>%{customdata} or less<extra></extra>'
+			hovertemplate: '%{y:.0%} of simulations ended with<br>%{customdata} or less<extra></extra>'
 		};
 
 		const layout = {
@@ -427,8 +427,8 @@
 			<summary>How much does the timing of market gains and losses matter?</summary>
 			<p class="chart-explainer">
 				This groups simulations by returns during the first ten years after retirement. Early losses
-				can do more damage because withdrawals leave less invested for a recovery. This is often called
-				sequence risk.
+				can do more damage because withdrawals leave less invested for a recovery. This is often
+				called sequence risk.
 			</p>
 			<div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
 		</details>
@@ -442,11 +442,11 @@
 				title="Each cell replays the same stored set of simulated market paths against that cell's retirement age and spending level. Because every cell reuses the same paths, differences between neighbouring cells are more reliable than each cell's own margin suggests."
 			>
 				Each cell is estimated from {surfaceSampleCount.toLocaleString()} simulated paths, so individual
-				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise (hover a cell
-				for its own margin; cells near 0% or 100% are more precise). This sample is capped
-				independently of the “Simulations” setting — raising that number sharpens the summary
-				cards above, not this chart. Read it for the shape of the trade-off between retiring
-				earlier and spending more, rather than for any single cell's exact value.
+				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise (hover a
+				cell for its own margin; cells near 0% or 100% are more precise). This sample is capped
+				independently of the “Simulations” setting — raising that number sharpens the summary cards
+				above, not this chart. Read it for the shape of the trade-off between retiring earlier and
+				spending more, rather than for any single cell's exact value.
 			</p>
 		{/if}
 	</div>

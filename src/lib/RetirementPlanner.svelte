@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
-	import { onDestroy, onMount, tick, untrack } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
+	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
+	import type { CurrencyOption } from './plannerTypes';
 	import { createSimulationWorker } from './workerHelper';
 	import type {
 		WorkerInputMessage,
@@ -18,12 +20,10 @@
 		type RetirementInput,
 		type SimulationResult,
 		type SpendingPeriod,
-		type SummaryStats,
-		type WithdrawalStrategyKind
+		type SummaryStats
 	} from './retirementEngine';
 	import {
 		blendPortfolioMetrics as calcBlendPortfolioMetrics,
-		buildPortfolioHistoricalMonthlyReturns as calcBuildPortfolioHistoricalMonthlyReturns,
 		buildPortfolioHistoricalMonthlySeries as calcBuildPortfolioHistoricalMonthlySeries,
 		buildCurrentConditionsMetrics as calcBuildCurrentConditionsMetrics,
 		buildPortfolioHistoricalReturns as calcBuildPortfolioHistoricalReturns,
@@ -40,23 +40,10 @@
 	import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
 	import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
 	import { buildActionableRecommendations } from './actionableHeadline';
-	import {
-		SHARE_INPUT_SCALARS,
-		decodeShareHash,
-		parseShareState,
-		toBase64Url
-	} from './shareState';
+	import { SHARE_INPUT_SCALARS, decodeShareHash, parseShareState, toBase64Url } from './shareState';
 	import './retirement.css';
 
 	// ─── Types ──────────────────────────────────────────────────────────────────
-
-	type CurrencyOption = {
-		code: CurrencyCode;
-		locale: string;
-		symbol: string;
-		buttonLabel: string;
-		flagAsset?: string;
-	};
 
 	type SourceLink = { label: string; url: string };
 
@@ -505,7 +492,7 @@
 	// ─── Reactive state ─────────────────────────────────────────────────────────
 
 	// svelte-ignore non_reactive_update
-	let Plotly: any = null;
+	let Plotly: PlotlyApi | null = null;
 	let plotReady = $state(false);
 	let realReturnCdfEl: HTMLDivElement | null = $state(null);
 
@@ -671,8 +658,6 @@
 		return decimals > 0 && decPart ? `${sign}${withSep}.${decPart}` : `${sign}${withSep}`;
 	}
 
-	const fmtCurrency = $derived((n: number) => `${selectedCurrency.symbol}\u00A0${fmtNum(n)}`);
-
 	function fmtCompactValue(value: number): string {
 		const abs = Math.abs(value);
 		if (abs >= 1_000_000) {
@@ -730,7 +715,7 @@
 	function parseNum(s: string): number {
 		const cleaned = String(s)
 			.replace(/'/g, '')
-			.replace(/[^\d.\-]/g, '');
+			.replace(/[^\d.-]/g, '');
 		const n = Number(cleaned);
 		return isNaN(n) ? 0 : n;
 	}
@@ -836,10 +821,7 @@
 	 * actually samples the realized historical series and the user is not overriding
 	 * inflation assumptions — otherwise their explicit inflation inputs would be ignored.
 	 */
-	function jointInflationSeries(
-		returns: number[],
-		inflation: number[]
-	): number[] | undefined {
+	function jointInflationSeries(returns: number[], inflation: number[]): number[] | undefined {
 		const eligible =
 			input.simulationMode === 'historical' &&
 			!input.historicalMomentTargeting &&
@@ -875,20 +857,6 @@
 	const stockAllocationPercent = $derived(clamp(stockBoundaryPercent, 0, 100));
 	const bondAllocationPercent = $derived(clamp(bondBoundaryPercent - stockBoundaryPercent, 0, 100));
 	const bankAllocationPercent = $derived(clamp(100 - bondBoundaryPercent, 0, 100));
-
-	const currentAllocation = $derived(calcGetAllocationSplit(stockBoundaryPercent, bondBoundaryPercent));
-	const stockRiskComponent = $derived(currentAllocation.stocks * activeMetrics.stockStd);
-	const bondRiskComponent = $derived(currentAllocation.bonds * activeMetrics.bondStd);
-	const bankRiskComponent = $derived(currentAllocation.bank * activeMetrics.bankStd);
-	const stockRiskContribution = $derived(
-		input.returnVariability > 0 ? stockRiskComponent ** 2 / input.returnVariability : 0
-	);
-	const bondRiskContribution = $derived(
-		input.returnVariability > 0 ? bondRiskComponent ** 2 / input.returnVariability : 0
-	);
-	const bankRiskContribution = $derived(
-		input.returnVariability > 0 ? bankRiskComponent ** 2 / input.returnVariability : 0
-	);
 
 	// ─── Moved Core inputs higher up to fix initialization refs ──────────────────
 
@@ -1021,10 +989,6 @@
 				monthlySeries.inflation
 			)
 		};
-	}
-
-	function resetAssumptionsToCurrencyDefaults() {
-		applyReferenceDefaults(selectedCurrencyCode);
 	}
 
 	const currentConditions = $derived(
@@ -1573,16 +1537,24 @@
 	});
 
 	$effect(() => {
-		if (plotReady && realReturnCdfEl) {
-			realReturnPercentiles;
-			realReturnCdfXTicks;
-			realReturn68Low;
-			realReturn68High;
-			realReturn95Low;
-			realReturn95High;
-			realReturnCdfMin;
-			realReturnCdfMax;
-			realReturnCdfSpan;
+		// `drawRealReturnCdfChart` reads these outside this tracked scope, so the effect would
+		// not re-run when they change unless it reads them itself. Collecting them into an
+		// array is that read — the previous form was a column of bare expression statements,
+		// which does the same thing but is indistinguishable from dead code to a reader or a
+		// linter. Kept outside the readiness guard so a change still registers before the
+		// chart element exists.
+		const chartInputs = [
+			realReturnPercentiles,
+			realReturnCdfXTicks,
+			realReturn68Low,
+			realReturn68High,
+			realReturn95Low,
+			realReturn95High,
+			realReturnCdfMin,
+			realReturnCdfMax,
+			realReturnCdfSpan
+		];
+		if (plotReady && realReturnCdfEl && chartInputs.length > 0) {
 			drawRealReturnCdfChart();
 		}
 	});
@@ -1649,7 +1621,8 @@
 		lastAppliedReferenceCurrency = selectedCurrencyCode;
 		applyReferenceDefaults(selectedCurrencyCode);
 
-		if (restored.stockBoundaryPercent !== null) stockBoundaryPercent = restored.stockBoundaryPercent;
+		if (restored.stockBoundaryPercent !== null)
+			stockBoundaryPercent = restored.stockBoundaryPercent;
 		if (restored.bondBoundaryPercent !== null) bondBoundaryPercent = restored.bondBoundaryPercent;
 
 		parametricMetrics = { ...parametricMetrics, ...restored.parametricMetrics };
@@ -1696,7 +1669,7 @@
 	}
 
 	onMount(async () => {
-		const module = await import('plotly.js-dist-min');
+		const module = await import('plotly.js-cartesian-dist-min');
 		Plotly = module.default ?? module;
 
 		try {
@@ -2025,7 +1998,6 @@
 		{onInvestmentMetricChange}
 		{onInflationMetricChange}
 		{onSimulationSettingsChange}
-		{resetAssumptionsToCurrencyDefaults}
 		{resetStockMetricsToDefault}
 		{resetBondMetricsToDefault}
 		{resetBankMetricsToDefault}
@@ -2058,9 +2030,10 @@
 							Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
 							results below.
 						{:else if resultStage === 'final'}
-							Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}{' '}Seed:
-								{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this
-								exact result).{/if}
+							Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}
+								Seed:
+								{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this exact
+								result).{/if}
 						{:else}
 							Click "Run Monte Carlo" to generate your retirement forecast.
 						{/if}
@@ -2108,12 +2081,17 @@
 					{#if stats.successProbability < FI_TARGET_SUCCESS_PROBABILITY && actionableRecommendations}
 						{#if actionableRecommendations.yearlySpendingReduction != null || actionableRecommendations.monthsLonger != null}
 							<span class="headline-action">
-								To reach {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% in the tested scenarios,
+								To reach {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% in the tested
+								scenarios,
 								{#if actionableRecommendations.yearlySpendingReduction != null}
-									spend <strong>{fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr less</strong>{#if actionableRecommendations.monthsLonger != null}, or{/if}
+									spend <strong
+										>{fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr less</strong
+									>{#if actionableRecommendations.monthsLonger != null}, or{/if}
 								{/if}
 								{#if actionableRecommendations.monthsLonger != null}
-									work <strong>{fmtNum(actionableRecommendations.monthsLonger)} months longer</strong>
+									work <strong
+										>{fmtNum(actionableRecommendations.monthsLonger)} months longer</strong
+									>
 								{/if}.
 							</span>
 						{/if}
@@ -2162,15 +2140,17 @@
 </div>
 
 <p class="disclaimer-footer">
-	This tool is for education and planning exploration only — it is not financial, tax, or
-	retirement advice, and its projections are not guarantees of future performance. Historical
-	market data does not predict future returns. Consult a qualified financial advisor before
-	making retirement decisions.
+	This tool is for education and planning exploration only — it is not financial, tax, or retirement
+	advice, and its projections are not guarantees of future performance. Historical market data does
+	not predict future returns. Consult a qualified financial advisor before making retirement
+	decisions.
 	<br />
 	<!-- AGPL-3.0 §13: network-served software must offer its users the corresponding source. -->
 	Open source (AGPL-3.0) —
-	<a href="https://github.com/sergeyfarin/retirement-planner" target="_blank" rel="noopener noreferrer"
-		>view or download the source</a
+	<a
+		href="https://github.com/sergeyfarin/retirement-planner"
+		target="_blank"
+		rel="noopener noreferrer">view or download the source</a
 	>.
 </p>
 
