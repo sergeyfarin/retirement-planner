@@ -910,9 +910,15 @@ after pension starts") or offer a "broke ever / broke at end" toggle.
 ## Priority 3 — Convergence & Diagnostics
 
 ### 3.1 Monte Carlo Convergence Diagnostic (S) — ✅ SHIPPED 2026-07-20 (heatmap 2026-07-21)
-The survival card now shows `±1.96·SE at 95% confidence (N simulations)` beneath the
-success probability, with $SE = \sqrt{p(1-p)/N}$ computed in `PlannerOutputCards.svelte`
-from the actual simulated count (e.g. "±0.4% at 95% confidence (20'000 simulations)").
+The survival card shows `Monte Carlo noise: ±1.96·SE` beneath the success probability,
+with $SE = \sqrt{p(1-p)/N}$ computed in `PlannerOutputCards.svelte` from the actual path
+count. **Corrected 2026-07-26:** this is no longer labelled "95% confidence", which
+overstated what the interval covers. It is explicitly an approximate 95% *run-to-run*
+range with data, assumptions and model fixed. Beside it, Historical mode reports the
+finite evidence base (source months and approximate non-overlapping block-length chunks)
+and says that region/sub-period/block-length robustness is not measured; Parametric mode
+says model robustness is not measured. The chunk count is descriptive, not an effective
+sample size. README §7.3 records the distinction.
 **Ruin-surface heatmap — ✅ also done 2026-07-21.** Each cell now reports its own binomial
 margin on hover ("Survival 88.9% ±1.4%"), and a caption states the replay sample size and
 the worst-case margin across cells (±2.2% at the 50% mid-range, tighter near 0%/100%).

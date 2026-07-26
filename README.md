@@ -611,6 +611,22 @@ and when 95% is unreachable even by contributing right up to retirement.
 - **Shortfall**: cumulative deficit for depleted paths (P10, P50, P90)
 - **Depleted years**: total years spent at zero balance (P10, P50, P90)
 
+The survival card separates two kinds of uncertainty that must not be conflated:
+
+- **Monte Carlo noise** is the approximate 95% run-to-run margin
+  $1.96\sqrt{p(1-p)/N}$ with the data, assumptions and model held fixed. Increasing `N`
+  reduces only this computational sampling noise.
+- **Evidence/model robustness is not estimated by that margin.** In Historical mode the UI
+  reports the number of source months and the corresponding count of non-overlapping
+  block-length chunks, while explicitly marking regional, sub-period and block-length
+  robustness as unmeasured. The chunk count describes the finite evidence base; it is not
+  an effective sample size because blocks overlap and returns remain dependent. Parametric
+  mode likewise prompts users to vary its return, inflation and model assumptions.
+
+Consequently the app does not label the Monte Carlo margin a confidence interval for the
+plan. A larger simulation count can make repeated runs agree closely while leaving the
+forecast no more trustworthy outside the single historical sample or chosen model.
+
 ### 7.4 Sequence-Risk Quintile Analysis
 
 Simulations are sorted by mean real return in the first 10 post-retirement years, then grouped into 5 quintiles. For each: mean early return, ruin probability, ending median balance. This directly validates the Kitces/Pfau sequence-of-returns thesis.

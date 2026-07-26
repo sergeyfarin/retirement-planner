@@ -32,15 +32,19 @@
 		return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
 	}
 
-	// Monte Carlo standard error of a proportion: SE = sqrt(p(1-p)/N).
-	// The ±1.96·SE band is the 95%-confidence margin on the success probability itself,
-	// i.e. how much this number would wobble across repeated runs at this sample size.
+	// Monte Carlo standard error of a proportion: SE = sqrt(p(1-p)/N). This measures only
+	// run-to-run numerical noise with the inputs, source data and model held fixed. It is not
+	// a confidence interval for the plan: more paths cannot reduce source-data/model uncertainty.
 	const successProbabilitySE = $derived(
 		simCount > 0 && stats
 			? Math.sqrt(
 					(stats.successProbability * (1 - stats.successProbability)) / simCount
 				)
 			: 0
+	);
+	const historicalMonths = $derived(input.historicalMonthlyReturns?.length ?? 0);
+	const historicalBlockChunks = $derived(
+		historicalMonths > 0 ? Math.floor(historicalMonths / Math.max(1, input.blockLength)) : 0
 	);
 </script>
 
@@ -180,11 +184,26 @@
 			{#if simCount > 0}
 				<div
 					class="note mono-value"
-					title="Standard error of the success probability estimate: sqrt(p(1-p)/N). A narrower band means more simulations were run and the number is more precise."
+					title="Approximate 95% run-to-run range from Monte Carlo sampling alone: 1.96 × sqrt(p(1-p)/N). It excludes uncertainty in the historical record, assumptions and model."
 				>
-					±{(successProbabilitySE * 1.96 * 100).toFixed(1)}% at 95% confidence ({fmtNum(
-						simCount
-					)} simulations)
+					Monte Carlo noise: ±{(successProbabilitySE * 1.96 * 100).toFixed(1)} percentage points (approx.
+					95% run-to-run range; {fmtNum(simCount)} paths)
+				</div>
+			{/if}
+			{#if input.simulationMode === 'historical' && historicalMonths > 0}
+				<div
+					class="note mono-value"
+					title="This is a description of the evidence base, not an effective sample-size calculation. Overlapping blocks and dependence mean the chunks are not independent."
+				>
+					Historical robustness: not measured — one regional record, {fmtNum(historicalMonths)}
+					months (about {fmtNum(historicalBlockChunks)} non-overlapping {fmtNum(
+						input.blockLength
+					)}-month chunks). Compare other regions, periods and block lengths.
+				</div>
+			{:else}
+				<div class="note mono-value">
+					Model robustness: not measured — vary return, inflation and model assumptions before
+					relying on this percentage.
 				</div>
 			{/if}
 			<div
