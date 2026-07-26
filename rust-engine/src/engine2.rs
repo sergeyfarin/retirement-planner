@@ -35,14 +35,20 @@ impl WithdrawalRunner {
             "percentOfPortfolio" => 2,
             _ => 0,
         };
+        let spending_floor = strategy.spending_floor.unwrap_or(0.6).max(0.0);
+        let spending_ceiling = strategy
+            .spending_ceiling
+            .unwrap_or(1.4)
+            .max(0.0)
+            .max(spending_floor);
         WithdrawalRunner {
             kind,
             retire_month,
             guardrail_band: strategy.guardrail_band.unwrap_or(0.2).max(0.01),
             adjustment: strategy.adjustment.unwrap_or(0.1).clamp(0.0, 0.9),
             withdrawal_percent: strategy.withdrawal_percent.unwrap_or(0.04).max(0.0),
-            spending_floor: strategy.spending_floor.unwrap_or(0.6).max(0.0),
-            spending_ceiling: strategy.spending_ceiling.unwrap_or(1.4).max(0.0),
+            spending_floor,
+            spending_ceiling,
             initialized: false,
             multiplier: 1.0,
             initial_rate: 0.0,

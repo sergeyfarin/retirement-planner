@@ -201,6 +201,32 @@ fn strategy_parameters_are_sanitised() {
 }
 
 #[test]
+fn reversed_spending_bounds_collapse_to_the_floor() {
+    for kind in ["guardrails", "percentOfPortfolio"] {
+        let hostile = WithdrawalStrategy {
+            kind: kind.to_string(),
+            spending_floor: Some(1.2),
+            spending_ceiling: Some(0.8),
+            ..WithdrawalStrategy::default()
+        };
+        let mut runner = WithdrawalRunner::new(&hostile, 0);
+
+        // URL and worker payloads are untrusted. Reversed finite bounds must not reach
+        // f64::clamp (which panics when min > max); the ceiling is raised to the floor.
+        assert_close(
+            runner.monthly_spending(0, 1_000_000.0, 3_000.0),
+            3_600.0,
+            1e-9,
+        );
+        assert_close(
+            runner.monthly_spending(12, 1_000.0, 3_000.0),
+            3_600.0,
+            1e-9,
+        );
+    }
+}
+
+#[test]
 fn missing_optional_strategy_fields_use_the_documented_defaults() {
     let bare = WithdrawalStrategy {
         kind: "percentOfPortfolio".to_string(),

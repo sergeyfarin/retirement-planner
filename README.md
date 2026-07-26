@@ -448,6 +448,9 @@ guardrail/variable-percentage withdrawal in the retirement-research literature. 
 regression test (`retirementEngine.test.ts`, "withdrawal strategies") asserts
 `guardrails ≥ fixed` and `percentOfPortfolio ≥ fixed` on a calibrated stressed scenario.
 Pre-retirement spending is always the planned amount regardless of strategy.
+Strategy bounds are sanitized at each engine boundary: negative values become zero and,
+if a supplied ceiling is below its floor, the ceiling is raised to the floor. This also
+keeps malformed share-link or worker inputs safe and deterministic across both engines.
 
 The SWR FI target uses the full future portfolio-funded spending schedule rather than only
 the retirement-date snapshot. Delayed pensions therefore fund later years, while temporary

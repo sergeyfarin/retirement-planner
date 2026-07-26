@@ -942,6 +942,21 @@ describe('withdrawal strategies', () => {
     expect(evaluation.finalBalance).toBeCloseTo(974_000, 6);
   });
 
+  it.each(['guardrails', 'percentOfPortfolio'] as const)(
+    'normalises reversed spending bounds for %s',
+    (kind) => {
+      const input = stressedInput({
+        kind,
+        spendingFloor: 1.2,
+        spendingCeiling: 0.8
+      });
+      input.currentSavings = 1_000_000;
+
+      const result = runMonteCarloSimulation(input, spending, [], [], 24, 0);
+      expect(Number.isFinite(result.stats.finalMedian)).toBe(true);
+    }
+  );
+
   it('values delayed and temporary retirement income on its actual schedule', () => {
     const input = stressedInput({ kind: 'fixed' });
     const delayedPension: IncomeSource[] = [

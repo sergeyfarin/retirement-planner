@@ -43,6 +43,16 @@ Item numbers refer to the detailed entries below.
 
 These bias current results **materially pessimistic** and should land before new features.
 
+### 0.17 Reversed withdrawal bounds panic the Wasm engine — ✅ FIXED 2026-07-26
+
+Share links accepted finite `spendingFloor` and `spendingCeiling` values without enforcing
+their ordering. Rust's `f64::clamp` panics when its minimum exceeds its maximum, while the
+TypeScript engine's nested min/max expression survived with different semantics. Both
+engine constructors now sanitize the floor first and raise the ceiling to at least that
+floor, protecting share links and direct worker payloads at the common trust boundary.
+Regression tests cover both dynamic strategies in both engines; README §5.1.1 documents
+the normalization rule.
+
 ### 0.16 Parametric pool freezes one sample's mean error across every path — ✅ FIXED 2026-07-26
 
 Parametric mode generated one 120-year synthetic history per run and bootstrapped every

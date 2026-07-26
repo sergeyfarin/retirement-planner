@@ -78,7 +78,7 @@ class WithdrawalRunner {
     this.adjustment = Math.min(0.9, Math.max(0, strategy.adjustment ?? 0.1));
     this.withdrawalPercent = Math.max(0, strategy.withdrawalPercent ?? 0.04);
     this.spendingFloor = Math.max(0, strategy.spendingFloor ?? 0.6);
-    this.spendingCeiling = Math.max(0, strategy.spendingCeiling ?? 1.4);
+    this.spendingCeiling = Math.max(this.spendingFloor, strategy.spendingCeiling ?? 1.4);
   }
 
   /**
