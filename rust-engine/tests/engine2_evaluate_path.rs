@@ -134,6 +134,25 @@ fn percent_of_portfolio_spends_a_share_of_the_balance_and_holds_it_for_the_year(
 }
 
 #[test]
+fn dynamic_strategies_apply_to_portfolio_funded_spending_only() {
+    let mut guardrails = WithdrawalRunner::new(&strategy("guardrails"), 0);
+    // Gross spending is 3,000/month, but pension income funds 2,000 of it. The initial
+    // withdrawal rate is therefore 12,000 / 1,000,000 = 1.2%, not 3.6%.
+    assert_eq!(
+        guardrails.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 2_000.0),
+        3_000.0
+    );
+    let cut = guardrails.monthly_spending_with_income(12, 500_000.0, 3_000.0, 2_000.0);
+    assert_close(cut, 2_000.0 + 1_000.0 * 0.9, 1e-9);
+
+    let mut percent = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
+    // The percentage is a portfolio withdrawal, and pension income is added to it to
+    // obtain total spending. The existing gross-spending guardrails still cap extremes.
+    let spend = percent.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 2_000.0);
+    assert_close(spend, 2_000.0 + 40_000.0 / 12.0, 1e-9);
+}
+
+#[test]
 fn percent_of_portfolio_is_clamped_by_the_floor_and_ceiling() {
     let mut runner = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
     runner.monthly_spending(0, 1_000_000.0, 3_000.0);

@@ -867,6 +867,37 @@ describe('withdrawal strategies', () => {
     const fixed = runMonteCarloSimulation(stressedInput({ kind: 'fixed' }), spending, [], [], months, retireMonth);
     expect(noStrategy.stats.finalMedian).toBeCloseTo(fixed.stats.finalMedian, 6);
   });
+
+  it('subtracts retirement income from the SWR target and treats percent withdrawals as portfolio-funded', () => {
+    const input = stressedInput({
+      kind: 'percentOfPortfolio',
+      withdrawalPercent: 0.04,
+      spendingFloor: 0.6,
+      spendingCeiling: 1.4
+    });
+    input.currentSavings = 1_000_000;
+    const pension: IncomeSource[] = [
+      { id: 'pension', label: 'State pension', fromAge: 60, toAge: 90, yearlyAmount: 30_000, inflationAdjusted: true }
+    ];
+
+    const result = runMonteCarloSimulation(input, spending, pension, [], months, retireMonth);
+    expect(result.stats.fiTargetSWR).toBe(250_000);
+
+    const oneYearCashflows = buildCashflowArrays(input, spending, pension, [], 12);
+    const evaluation = evaluatePath(
+      { assetReturns: new Float64Array(12), inflationRates: new Float64Array(12) },
+      oneYearCashflows,
+      1_000_000,
+      12,
+      input.withdrawalStrategy!,
+      0,
+      0,
+      0
+    );
+    // Total consumption is pension income plus a 4% portfolio withdrawal: the pension
+    // no longer gets banked while silently replacing part of the percentage withdrawal.
+    expect(evaluation.finalBalance).toBeCloseTo(960_000, 6);
+  });
 });
 
 describe('runMonteCarloSimulation smoke', () => {

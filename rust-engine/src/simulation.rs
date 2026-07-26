@@ -8,8 +8,8 @@ use crate::engine::{
 use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
     build_cashflow_arrays, detect_regimes, detect_regimes_monthly, evaluate_path,
-    estimate_markov_stay_probabilities, monthly_returns_to_annual_series, spending_at_age,
-    PathTape,
+    estimate_markov_stay_probabilities, income_at_age, monthly_returns_to_annual_series,
+    spending_at_age, PathTape,
 };
 use crate::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_required_starting_capital,
@@ -303,6 +303,7 @@ pub fn run_monte_carlo_simulation(
     let mut success_count = 0;
 
     let spending_at_retirement = spending_at_age(input.retirement_age, spending_periods, 1.0);
+    let income_at_retirement = income_at_age(input.retirement_age, income_sources, 1.0);
 
     let growth_prob = crate::engine::get_growth_stationary_probability(stay_growth, stay_crisis);
     let crisis_prob = 1.0 - growth_prob;
@@ -519,7 +520,10 @@ pub fn run_monte_carlo_simulation(
         cb(0.90);
     }
 
-    let target_fi_swr = spending_at_retirement / input.safe_withdrawal_rate.max(0.01);
+    let portfolio_funded_spending_at_retirement =
+        (spending_at_retirement - income_at_retirement).max(0.0);
+    let target_fi_swr =
+        portfolio_funded_spending_at_retirement / input.safe_withdrawal_rate.max(0.01);
     let already_retired = is_already_retired(input);
 
     // Already retired: every path starts from the same capital, so both the P95 target and

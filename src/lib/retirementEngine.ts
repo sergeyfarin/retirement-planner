@@ -66,7 +66,8 @@ class WithdrawalRunner {
   private multiplier = 1;
   private initialRate = 0;
   private initialAnnualSpending = 0;
-  private heldMonthlySpending = 0;
+  private initialAnnualPortfolioSpending = 0;
+  private heldMonthlyPortfolioSpending = 0;
 
   constructor(
     strategy: WithdrawalStrategy,
@@ -81,19 +82,21 @@ class WithdrawalRunner {
   }
 
   /**
-   * `base` is the month's planned spending already expressed in real terms. With nominal
+   * `base` and `income` are the month's planned cash flows expressed in real terms. With nominal
    * items deflated by that path's realized inflation it is path-dependent, so it can no
    * longer be read from a precomputed array.
    */
-  monthlySpending(m: number, balance: number, base: number): number {
+  monthlySpending(m: number, balance: number, base: number, income = 0): number {
     if (this.kind === 0 || m < this.retireMonth) return base;
 
     const isYearStart = (m - this.retireMonth) % 12 === 0;
+    const portfolioBase = Math.max(0, base - income);
     if (!this.initialized) {
       this.initialAnnualSpending = base * 12;
-      this.initialRate = balance > 0 ? this.initialAnnualSpending / balance : 0;
+      this.initialAnnualPortfolioSpending = portfolioBase * 12;
+      this.initialRate = balance > 0 ? this.initialAnnualPortfolioSpending / balance : 0;
       this.multiplier = 1;
-      this.heldMonthlySpending = base;
+      this.heldMonthlyPortfolioSpending = portfolioBase;
       this.initialized = true;
     }
 
@@ -102,7 +105,7 @@ class WithdrawalRunner {
 
     if (this.kind === 1) {
       if (isYearStart && balance > 0 && this.initialRate > 0) {
-        const currentAnnual = base * 12 * this.multiplier;
+        const currentAnnual = portfolioBase * 12 * this.multiplier;
         const currentRate = currentAnnual / balance;
         if (currentRate > this.initialRate * (1 + this.guardrailBand)) {
           this.multiplier *= 1 - this.adjustment;
@@ -111,15 +114,15 @@ class WithdrawalRunner {
         }
         this.multiplier = Math.min(this.spendingCeiling, Math.max(this.spendingFloor, this.multiplier));
       }
-      return base * this.multiplier;
+      return income + portfolioBase * this.multiplier;
     }
 
     if (isYearStart) {
       const targetAnnual = this.withdrawalPercent * Math.max(0, balance);
       const clamped = Math.min(ceilingAnnual, Math.max(floorAnnual, targetAnnual));
-      this.heldMonthlySpending = clamped / 12;
+      this.heldMonthlyPortfolioSpending = clamped / 12;
     }
-    return this.heldMonthlySpending;
+    return income + this.heldMonthlyPortfolioSpending;
   }
 }
 
@@ -732,7 +735,7 @@ export function evaluatePath(
       income = baseSpending;
     }
 
-    const effectiveSpending = runner.monthlySpending(month, balance, baseSpending);
+    const effectiveSpending = runner.monthlySpending(month, balance, baseSpending, income);
     balance += income - effectiveSpending + cashflows.lumpSumByMonth[month];
     if (balance < 0) {
       cumulativeShortfall += -balance;
@@ -1352,6 +1355,7 @@ export function runMonteCarloSimulation(
   let successCount = 0;
 
   const spendingAtRetirement = spendingAtAge(input.retirementAge, spendingPeriods);
+  const incomeAtRetirement = incomeAtAge(input.retirementAge, incomeSources);
 
   const growthProb = getGrowthStationaryProbability(stayGrowth, stayCrisis);
   const crisisProb = 1 - growthProb;
@@ -1484,7 +1488,8 @@ export function runMonteCarloSimulation(
     if (success) successCount++;
   }
 
-  const targetFISWR = spendingAtRetirement / Math.max(0.01, input.safeWithdrawalRate);
+  const portfolioFundedSpendingAtRetirement = Math.max(0, spendingAtRetirement - incomeAtRetirement);
+  const targetFISWR = portfolioFundedSpendingAtRetirement / Math.max(0.01, input.safeWithdrawalRate);
   const alreadyRetired = isAlreadyRetired(input);
 
   // Already retired: every path starts from the same capital, so both the P95 target and

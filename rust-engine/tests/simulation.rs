@@ -186,6 +186,30 @@ fn the_swr_target_is_spending_at_retirement_divided_by_the_rate() {
 }
 
 #[test]
+fn the_swr_target_subtracts_income_active_at_retirement() {
+    let plan = plan();
+    let incomes = [
+        income(40.0, 65.0, 90_000.0, true),
+        income(
+            plan.input.retirement_age,
+            plan.input.simulate_until_age,
+            30_000.0,
+            true,
+        ),
+    ];
+    let result = run_monte_carlo_simulation(
+        &plan.input,
+        &plan.spending,
+        &incomes,
+        &[],
+        plan.months,
+        plan.retire_month,
+        None,
+    );
+    assert_close(result.stats.fi_target_swr, 10_000.0 / 0.04, 1e-6);
+}
+
+#[test]
 fn a_degenerate_safe_withdrawal_rate_is_floored_rather_than_dividing_by_zero() {
     let mut plan = plan();
     plan.input.safe_withdrawal_rate = 0.0;

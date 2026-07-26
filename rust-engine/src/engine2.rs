@@ -5,13 +5,12 @@ use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod
 /// monthly spending (a positive outflow) given the running balance.
 ///
 /// - `fixed`: spending follows the planned real-terms schedule unchanged.
-/// - `guardrails`: Guyton-Klinger — during retirement, if the current withdrawal rate
-///   drifts above/below the initial rate by `guardrail_band`, spending is cut/raised by
-///   `adjustment`, clamped to [floor, ceiling] × initial real spending. Decisions are
-///   made once per retirement year.
-/// - `percentOfPortfolio`: during retirement, spend `withdrawal_percent` of the current
+/// - `guardrails`: Guyton-Klinger — during retirement, if the portfolio-funded spending
+///   rate drifts above/below the initial rate by `guardrail_band`, that portion is cut or
+///   raised by `adjustment`. Decisions are made once per retirement year.
+/// - `percentOfPortfolio`: during retirement, withdraw `withdrawal_percent` of the current
 ///   balance each year (recomputed annually), clamped to [floor, ceiling] × initial real
-///   spending so it never collapses to near-zero or explodes.
+///   spending, then add non-portfolio income to obtain total spending.
 pub struct WithdrawalRunner {
     kind: u8, // 0 fixed, 1 guardrails, 2 percent
     retire_month: usize,
@@ -25,7 +24,8 @@ pub struct WithdrawalRunner {
     multiplier: f64,
     initial_rate: f64,
     initial_annual_spending: f64,
-    held_monthly_spending: f64,
+    initial_annual_portfolio_spending: f64,
+    held_monthly_portfolio_spending: f64,
 }
 
 impl WithdrawalRunner {
@@ -47,29 +47,42 @@ impl WithdrawalRunner {
             multiplier: 1.0,
             initial_rate: 0.0,
             initial_annual_spending: 0.0,
-            held_monthly_spending: 0.0,
+            initial_annual_portfolio_spending: 0.0,
+            held_monthly_portfolio_spending: 0.0,
         }
     }
 
-    /// `base` is the month's planned spending already expressed in real terms, which the
-    /// caller computes — with nominal items deflated by that path's realized inflation, it
-    /// is path-dependent and can no longer be read from a precomputed array.
+    /// `base` is the month's planned spending already expressed in real terms. The main
+    /// evaluator calls `monthly_spending_with_income`, because dynamic strategies must act
+    /// on portfolio-funded spending rather than treating pensions as portfolio withdrawals.
     pub fn monthly_spending(&mut self, m: usize, balance: f64, base: f64) -> f64 {
+        self.monthly_spending_with_income(m, balance, base, 0.0)
+    }
+
+    pub fn monthly_spending_with_income(
+        &mut self,
+        m: usize,
+        balance: f64,
+        base: f64,
+        income: f64,
+    ) -> f64 {
         // Accumulation phase, or the fixed strategy: follow the planned schedule.
         if self.kind == 0 || m < self.retire_month {
             return base;
         }
         let is_year_start = (m - self.retire_month) % 12 == 0;
+        let portfolio_base = (base - income).max(0.0);
 
         if !self.initialized {
             self.initial_annual_spending = base * 12.0;
+            self.initial_annual_portfolio_spending = portfolio_base * 12.0;
             self.initial_rate = if balance > 0.0 {
-                self.initial_annual_spending / balance
+                self.initial_annual_portfolio_spending / balance
             } else {
                 0.0
             };
             self.multiplier = 1.0;
-            self.held_monthly_spending = base;
+            self.held_monthly_portfolio_spending = portfolio_base;
             self.initialized = true;
         }
 
@@ -79,7 +92,7 @@ impl WithdrawalRunner {
         if self.kind == 1 {
             // Guyton-Klinger guardrails.
             if is_year_start && balance > 0.0 && self.initial_rate > 0.0 {
-                let current_annual = base * 12.0 * self.multiplier;
+                let current_annual = portfolio_base * 12.0 * self.multiplier;
                 let current_rate = current_annual / balance;
                 if current_rate > self.initial_rate * (1.0 + self.guardrail_band) {
                     self.multiplier *= 1.0 - self.adjustment;
@@ -90,15 +103,15 @@ impl WithdrawalRunner {
                 let max_mult = self.spending_ceiling;
                 self.multiplier = self.multiplier.clamp(min_mult, max_mult);
             }
-            base * self.multiplier
+            income + portfolio_base * self.multiplier
         } else {
             // Percent-of-portfolio (recomputed annually, held for the year).
             if is_year_start {
                 let target_annual = self.withdrawal_percent * balance.max(0.0);
                 let clamped = target_annual.clamp(floor_annual, ceiling_annual);
-                self.held_monthly_spending = clamped / 12.0;
+                self.held_monthly_portfolio_spending = clamped / 12.0;
             }
-            self.held_monthly_spending
+            income + self.held_monthly_portfolio_spending
         }
     }
 }
@@ -470,7 +483,8 @@ pub fn evaluate_path(
             income = base_spending;
         }
 
-        let effective_spending = runner.monthly_spending(month, balance, base_spending);
+        let effective_spending =
+            runner.monthly_spending_with_income(month, balance, base_spending, income);
         balance += income - effective_spending + cashflows.lump_sum_by_month[month];
         if balance < 0.0 {
             cumulative_shortfall += -balance;
