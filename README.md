@@ -10,16 +10,39 @@ The calculator projects portfolio balances from a starting age through a configu
 
 ### Design Philosophy
 
-| Aspect | Approach |
-|---|---|
-| Return generation | Regime-switching block bootstrap from historical data, with parametric Cornish-Fisher fallback. Optional forward-looking means anchored to today's yields (§4.4.1) |
-| Inflation | Bootstrapped jointly with returns from the same historical month, preserving their correlation and inflation persistence; regime-conditioned parametric draws as fallback (§5.3) |
-| Cash flows | Age-gated income/spending periods + lump-sum events, all in real terms |
-| Withdrawals | Fixed real spending, Guyton-Klinger guardrails, or percent-of-portfolio (§5.1.1) |
-| Reproducibility | Optional seeded PRNG (`mulberry32`); default unseeded behavior when no seed is provided |
-| Output | Percentile fan chart, terminal-wealth distribution, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis |
-| Multi-asset | Three-asset allocation (stocks / bonds / cash) with configurable equity-bond correlation |
-| Performance | All simulation runs in a Web Worker with real-time progress reporting; nothing simulates on the main thread (the old noisy live preview was replaced by the stale-results flow, §2) |
+| Aspect            | Approach                                                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Return generation | Regime-switching block bootstrap from historical data, with parametric Cornish-Fisher fallback. Optional forward-looking means anchored to today's yields (§4.4.1)                  |
+| Inflation         | Bootstrapped jointly with returns from the same historical month, preserving their correlation and inflation persistence; regime-conditioned parametric draws as fallback (§5.3)    |
+| Cash flows        | Age-gated income/spending periods + lump-sum events, all in real terms                                                                                                              |
+| Withdrawals       | Fixed real spending, Guyton-Klinger guardrails, or percent-of-portfolio (§5.1.1)                                                                                                    |
+| Reproducibility   | Optional seeded PRNG (`mulberry32`); default unseeded behavior when no seed is provided                                                                                             |
+| Output            | Percentile fan chart, terminal-wealth distribution, FI targets (SWR-based and P95-based), ruin surface heatmap, sequence-risk quintile analysis                                     |
+| Multi-asset       | Three-asset allocation (stocks / bonds / cash) with configurable equity-bond correlation                                                                                            |
+| Performance       | All simulation runs in a Web Worker with real-time progress reporting; nothing simulates on the main thread (the old noisy live preview was replaced by the stale-results flow, §2) |
+
+### User-facing vocabulary
+
+The interface uses progressive disclosure: the main calculator describes the decision a
+number supports, while the precise statistical or financial term remains available in an
+advanced section, tooltip, or this methodology. This changes presentation, not the model or
+its definitions.
+
+| Main interface                          | Technical term retained in advanced/methodology text |
+| --------------------------------------- | ---------------------------------------------------- |
+| Spending-rule estimate                  | Safe withdrawal rate (SWR) target                    |
+| Simulation-based estimate (95% success) | P95 FI target                                        |
+| Age you could stop regular saving       | Coast FIRE age                                       |
+| Lower / upper 10% of outcomes           | P10 / P90 percentiles                                |
+| Historical replay length                | Bootstrap block length                               |
+| Historical data with adjustments        | Moment-targeted block bootstrap                      |
+| Return distribution diagnostics         | Mean, volatility, skewness, kurtosis and CAGR        |
+
+Skewness and kurtosis are model-shape controls and diagnostics, not ordinary planning
+inputs. They therefore appear only after opening **Advanced assumptions** or the advanced
+return diagnostics. Likewise, acronyms such as FIRE, SWR and P95 are not required to read
+the headline results. Technical names remain here so calculations can be audited and
+discussed without weakening their definitions.
 
 ---
 
@@ -79,28 +102,28 @@ All Svelte components use **Svelte 5 runes** (`$props`, `$effect`, `$state`, `$d
 
 ### 3.1 Historical Sources per Region
 
-| Region | Equity | Bond | Cash |
-|---|---|---|---|
-| **USD** | S&P 500 (`^SPX`, Stooq) | Synthetic 10Y total return from GS10 yield (FRED), duration 7y | 3m T-bill `TB3MS` (FRED) |
-| **GBP** | FTSE 100 (`^UKX`, Stooq) | Synthetic UK 10Y total return (`IRLTLT01GBM156N`), duration 7y | UK 3m interbank (`IR3TIB01GBM156N`) |
-| **EUR** | 60% DAX TR + 40% CAC (adjusted +3% synthetic annual dividend) | Synthetic DE 10Y total return (`IRLTLT01DEM156N`), duration 7y | EZ 3m interbank stitched with DE pre-euro |
-| **WORLD** | 55% US + 15% EUR + 5% UK + 15% Japan (`^NKX`) + 10% Asia/EM (`^HSI`, backfilled 1960–69 with NKX). All converted to USD. | Weighted US/UK/DE 10Y bond returns | Average of US/UK/EUR cash rates |
+| Region    | Equity                                                                                                                   | Bond                                                           | Cash                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ----------------------------------------- |
+| **USD**   | S&P 500 (`^SPX`, Stooq)                                                                                                  | Synthetic 10Y total return from GS10 yield (FRED), duration 7y | 3m T-bill `TB3MS` (FRED)                  |
+| **GBP**   | FTSE 100 (`^UKX`, Stooq)                                                                                                 | Synthetic UK 10Y total return (`IRLTLT01GBM156N`), duration 7y | UK 3m interbank (`IR3TIB01GBM156N`)       |
+| **EUR**   | 60% DAX TR + 40% CAC (adjusted +3% synthetic annual dividend)                                                            | Synthetic DE 10Y total return (`IRLTLT01DEM156N`), duration 7y | EZ 3m interbank stitched with DE pre-euro |
+| **WORLD** | 55% US + 15% EUR + 5% UK + 15% Japan (`^NKX`) + 10% Asia/EM (`^HSI`, backfilled 1960–69 with NKX). All converted to USD. | Weighted US/UK/DE 10Y bond returns                             | Average of US/UK/EUR cash rates           |
 
 ### 3.1.1 Synthetic Dividend Adjustment
 
-`^SPX`, `^UKX`, `^NKX` and `^HSI` are *price* indices. To approximate total returns,
+`^SPX`, `^UKX`, `^NKX` and `^HSI` are _price_ indices. To approximate total returns,
 the preprocessing step adds decade-level synthetic dividend yields to the price-only
 equity series (geometric monthly convention, $(1+y)^{1/12}-1$):
 
-| Decade | USD | GBP | WORLD (blended) |
-|---|---|---|---|
-| 1960s | 3.1% | 5.0% | 2.9% |
-| 1970s | 4.1% | 5.5% | 3.2% |
-| 1980s | 4.3% | 4.5% | 3.1% |
-| 1990s | 2.5% | 3.8% | 2.0% |
-| 2000s | 1.8% | 3.3% | 1.7% |
-| 2010s | 2.0% | 3.8% | 1.9% |
-| 2020s | 1.5% | 3.7% | 1.7% |
+| Decade | USD  | GBP  | WORLD (blended) |
+| ------ | ---- | ---- | --------------- |
+| 1960s  | 3.1% | 5.0% | 2.9%            |
+| 1970s  | 4.1% | 5.5% | 3.2%            |
+| 1980s  | 4.3% | 4.5% | 3.1%            |
+| 1990s  | 2.5% | 3.8% | 2.0%            |
+| 2000s  | 1.8% | 3.3% | 1.7%            |
+| 2010s  | 2.0% | 3.8% | 1.9%            |
+| 2020s  | 1.5% | 3.7% | 1.7%            |
 
 Sources: Shiller S&P 500 dividend data (US), Barclays Equity Gilt Study ranges (UK).
 The WORLD schedule is the component-weighted blend of US/UK/JP/HK yields; its EUR share
@@ -165,11 +188,11 @@ The "Simulation mode and assumptions" toggle in the app maps onto the sampling m
 The distinction between the first two is the one users most often miss, so it is stated
 explicitly here and in the UI:
 
-| UI button | Sampling | Return moments | Inflation | Use it when |
-|---|---|---|---|---|
-| **Historical Data Sampling** | Mode A block bootstrap of real months | **Taken from history** — the assumption table is read-only | Joint: read from the *same real month* as the return (§5.3 Mode A) | You want the most faithful replay of what markets actually did |
-| **Historical (with Adjustments)** | Mode A block bootstrap of the *same* real months | **Your targets** — the sampled series is affine-shifted to your mean/σ (§4.4) | Falls back to the modelled parametric draw, because the shift breaks the month-for-month pairing | You want history's *shape* but different average returns — "what if the next 30 years are worse?" |
-| **Parametric (User Inputs)** | Mode C — no historical data at all | Your inputs, via the regime-switching generator | Modelled parametric draw | You want a purely hypothetical market |
+| UI button                         | Sampling                                         | Return moments                                                                | Inflation                                                                                        | Use it when                                                                                       |
+| --------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| **Historical Data Sampling**      | Mode A block bootstrap of real months            | **Taken from history** — the assumption table is read-only                    | Joint: read from the _same real month_ as the return (§5.3 Mode A)                               | You want the most faithful replay of what markets actually did                                    |
+| **Historical (with Adjustments)** | Mode A block bootstrap of the _same_ real months | **Your targets** — the sampled series is affine-shifted to your mean/σ (§4.4) | Falls back to the modelled parametric draw, because the shift breaks the month-for-month pairing | You want history's _shape_ but different average returns — "what if the next 30 years are worse?" |
+| **Parametric (User Inputs)**      | Mode C — no historical data at all               | Your inputs, via the regime-switching generator                               | Modelled parametric draw                                                                         | You want a purely hypothetical market                                                             |
 
 The "Use today's yields" preset (§4.4.1) switches to **Historical (with Adjustments)**,
 because anchoring returns to current yields is exactly a moment-targeting operation.
@@ -177,23 +200,24 @@ because anchoring returns to current yields is exactly a moment-targeting operat
 ### 4.3 Return Sampling — Three Modes
 
 **Mode A — Monthly Circular Block Bootstrap (≥ 120 monthly data points):**
+
 - A contiguous block of `blockLength` months (**default 6**, see below) is drawn from the
   current regime's pool; sequential months within the block preserve autocorrelation,
   momentum and volatility clustering
 - The block index wraps (`% length`), making this a **circular** block bootstrap
   (Politis & Romano), whose defining property is that the resampled mean is unbiased for
   the sample mean — unlike the moving block bootstrap, which under-samples the ends
-- The Markov chain transitions each month but is only *consulted* at block boundaries, to
+- The Markov chain transitions each month but is only _consulted_ at block boundaries, to
   choose which pool the next block comes from
 
 > **How much is the regime layer actually doing? Very little — see the note below.**
 
 > **Fixed 2026-07-21 (TODO 0.11).** The block used to be abandoned whenever the regime
-> switched, not only when it ran out. Because a freshly drawn block always *starts* on a
+> switched, not only when it ran out. Because a freshly drawn block always _starts_ on a
 > month matching the new regime, and crisis runs are shorter than growth runs, crisis
 > months were over-drawn by 1.06–1.09×, costing 0.64–1.29pp/yr of return depending on the
 > region. Letting blocks finish removed the bias — simulated returns now track the source
-> series to within ±0.07pp/yr across all four regions — and also *improved* preservation of
+> series to within ±0.07pp/yr across all four regions — and also _improved_ preservation of
 > autocorrelation (EUR lag-1: source 0.064, old sampler 0.038, now 0.053), since blocks cut
 > short carry less of the clustering they exist to reproduce.
 >
@@ -217,7 +241,7 @@ slightly longer baseline, not because PWSD selects six.
 
 > Note for readers comparing against other tools: practitioner planning tooling sometimes
 > uses much longer blocks (e.g. a 120-month average with the stationary bootstrap). That is
-> not a contradiction — PWSD optimises long-run-variance estimation for a *statistic*,
+> not a contradiction — PWSD optimises long-run-variance estimation for a _statistic_,
 > whereas a retirement planner cares about drawdown duration, sequence risk and ruin. These
 > monthly series carry little short-lag autocorrelation (`m_hat` is 1 almost everywhere), so
 > PWSD's answer is short for its objective. It does not prove that short blocks reproduce
@@ -246,17 +270,20 @@ not Monte Carlo sampling noise.
 > matrix specified independently of the empirical label frequencies. See `TODO.md` 0.12.
 
 **Mode B — Annual Bootstrap with Intra-Year Spread (fallback when monthly data unavailable):**
+
 - Every 12 months, a historical annual return $r_a$ is drawn from the regime pool
 - The year is then **spread across its 12 months** rather than held at one constant rate.
   Each month draws a Cornish-Fisher shaped multiplicative shock $f_i = 1 + \sigma_m z'_i$,
   and the twelve shocks are renormalised to unit geometric mean:
 
-  $$r_{m,i} = (1 + r_a)^{1/12} \cdot \frac{f_i}{\left(\prod_j f_j\right)^{1/12}} - 1
+  $$ r_{m,i} = (1 + r_a)^{1/12} \cdot \frac{f_i}{\left(\prod_j f_j\right)^{1/12}} - 1
   \qquad\Longrightarrow\qquad \prod_{i=1}^{12}(1 + r_{m,i}) = 1 + r_a$$
 
   so the year still compounds to **exactly** the return that was drawn — the bootstrap's
   fidelity to history and all annual moments are untouched — while the path within the
   year moves.
+  $$
+
 - Regime transitions use annualized-to-monthly probabilities: $p_m = p_a^{1/12}$
 
 > **Fixed 2026-07-21 (TODO 0.7).** Mode B previously repeated one constant monthly rate
@@ -272,6 +299,7 @@ not Monte Carlo sampling noise.
 > short monthly history were added (see `TODO.md` 5.2).
 
 **Mode C — Parametric (no historical data / parametric mode selected):**
+
 - `buildBootstrapHistory()` generates a synthetic 120-year annual return series using:
   - Student-t draws (degrees of freedom from kurtosis: $df = 4 + 6/\kappa_{excess}$)
   - Skewness shift term
@@ -297,8 +325,8 @@ $$r' = \mu_{target} + \frac{r - \mu_{source}}{\sigma_{source}} \cdot \sigma_{tar
 This preserves the ordering and autocorrelation of historical sequences while shifting their first two moments to the user's targets.
 
 **Monthly targets are the compounding-inverse of the annual inputs.** The user's inputs are
-*annual* moments, but on the production path (monthly calibration) the transform rewrites
-*monthly* observations that are then compounded into years. The monthly targets must
+_annual_ moments, but on the production path (monthly calibration) the transform rewrites
+_monthly_ observations that are then compounded into years. The monthly targets must
 therefore be the ones whose 12-fold compounding reproduces the annual request
 (`monthlyTargetsForAnnualMoments`):
 
@@ -319,11 +347,11 @@ monthly variance. Measured over 400,000 bootstrapped years per cell at the shipp
 length of 6 (§4.3), on the 60/30/10 portfolio, requesting 5% / 15%:
 
 | Region | iid control (block=1) | Shipped (block=6) | Residual σ |
-|---|---|---|---|
-| WORLD | 4.98% / 15.01% | 5.22% / 15.97% | +0.97pp |
-| USD | 4.97% / 15.01% | 5.11% / 15.29% | +0.29pp |
-| GBP | 4.98% / 15.02% | 5.18% / 16.49% | +1.49pp |
-| EUR | 4.98% / 15.01% | 5.19% / 15.84% | +0.84pp |
+| ------ | --------------------- | ----------------- | ---------- |
+| WORLD  | 4.98% / 15.01%        | 5.22% / 15.97%    | +0.97pp    |
+| USD    | 4.97% / 15.01%        | 5.11% / 15.29%    | +0.29pp    |
+| GBP    | 4.98% / 15.02%        | 5.18% / 16.49%    | +1.49pp    |
+| EUR    | 4.98% / 15.01%        | 5.19% / 15.84%    | +0.84pp    |
 
 The iid column confirms the transform is now exact in the independent limit. The residual is
 the variance-ratio effect of §4.3 and scales with each region's own autocorrelation, so it
@@ -341,17 +369,17 @@ residual is visible for the selected portfolio and region rather than hidden in 
 
 ### 4.4.1 "Use today's yields" — Current-Conditions Assumptions
 
-Historical averages are a poor forecast of *bond* returns: much of the 1960–2026 bond
+Historical averages are a poor forecast of _bond_ returns: much of the 1960–2026 bond
 return came from yields falling from double digits, which cannot repeat from today's
 level. The **Use today's yields** preset therefore rebuilds the return means the way
 institutional capital-market assumptions do, from the latest observed yields shipped in
 the dataset (`currentConditions`, sourced from the `bond_yield_pct` / `cash_rate_pct`
 columns):
 
-| Asset | Forward mean |
-|---|---|
-| Cash | current short rate |
-| Bonds | current long yield |
+| Asset  | Forward mean                                                                  |
+| ------ | ----------------------------------------------------------------------------- |
+| Cash   | current short rate                                                            |
+| Bonds  | current long yield                                                            |
 | Equity | current long yield + historical equity risk premium (equity mean − bond mean) |
 
 **Only the means change.** Volatility, skewness, kurtosis and the bootstrap's real
@@ -362,11 +390,11 @@ targeting of §4.4 shifts the sampled historical series onto these targets.
 As of the shipped 2026-01 data:
 
 | Region | Cash | Bonds | Equity (forward) | Equity (historical) |
-|---|---|---|---|---|
-| USD | 3.6% | 4.2% | 9.9% | 12.0% |
-| EUR | 2.0% | 2.8% | 6.1% | 9.3% |
-| GBP | 3.7% | 4.5% | 7.7% | 11.3% |
-| WORLD | 3.1% | 3.8% | 9.4% | 12.1% |
+| ------ | ---- | ----- | ---------------- | ------------------- |
+| USD    | 3.6% | 4.2%  | 9.9%             | 12.0%               |
+| EUR    | 2.0% | 2.8%  | 6.1%             | 9.3%                |
+| GBP    | 3.7% | 4.5%  | 7.7%             | 11.3%               |
+| WORLD  | 3.1% | 3.8%  | 9.4%             | 12.1%               |
 
 > Because this mode uses moment targeting, the joint (return, inflation) bootstrap of
 > §5.3 is inactive and inflation falls back to the regional parametric assumption, which
@@ -382,10 +410,10 @@ where $z \sim N(0,1)$, $s = \text{clamp}(\text{skewness}, -1.5, 1.5)$, $\kappa_{
 
 ### 4.6 Clamping
 
-| What | Min | Max |
-|---|---|---|
-| Annual return | −95% | +120% |
-| Monthly return | −60% | +60% |
+| What                   | Min   | Max   |
+| ---------------------- | ----- | ----- |
+| Annual return          | −95%  | +120% |
+| Monthly return         | −60%  | +60%  |
 | Transition probability | 0.001 | 0.999 |
 
 ---
@@ -436,11 +464,11 @@ During the retirement phase (`age ≥ retirementAge`), spending can respond to t
 balance. A stateful `WithdrawalRunner` (identical logic in the Rust and TS engines, and
 re-applied in the ruin-surface replay so the surface stays consistent) evaluates one of:
 
-| Strategy (`withdrawalStrategy.kind`) | Behaviour |
-|---|---|
-| `fixed` (default) | Planned real-terms spending, unchanged. The classic "4% rule" assumption. |
-| `guardrails` | Guyton-Klinger. Once per retirement year, if the portfolio-funded withdrawal rate (`max(0, spending − income) ÷ balance`) has drifted above `initialRate × (1 + guardrailBand)`, the portfolio-funded portion is cut by `adjustment`; below `initialRate × (1 − guardrailBand)`, it is raised. Total spending, including income, is clamped to `[spendingFloor, spendingCeiling] ×` planned, but can never be forced below income. Defaults: band 0.2, step 0.1, floor 0.6, ceiling 1.4. |
-| `percentOfPortfolio` | Each retirement year target total spending of `income + withdrawalPercent × current balance`, clamped to `[spendingFloor, spendingCeiling] ×` initial real spending. The resulting portfolio withdrawal can never be negative. Default `withdrawalPercent` 0.04. |
+| Strategy (`withdrawalStrategy.kind`) | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fixed` (default)                    | Planned real-terms spending, unchanged. The classic "4% rule" assumption.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `guardrails`                         | Guyton-Klinger. Once per retirement year, if the portfolio-funded withdrawal rate (`max(0, spending − income) ÷ balance`) has drifted above `initialRate × (1 + guardrailBand)`, the portfolio-funded portion is cut by `adjustment`; below `initialRate × (1 − guardrailBand)`, it is raised. Total spending, including income, is clamped to `[spendingFloor, spendingCeiling] ×` planned, but can never be forced below income. Defaults: band 0.2, step 0.1, floor 0.6, ceiling 1.4. |
+| `percentOfPortfolio`                 | Each retirement year target total spending of `income + withdrawalPercent × current balance`, clamped to `[spendingFloor, spendingCeiling] ×` initial real spending. The resulting portfolio withdrawal can never be negative. Default `withdrawalPercent` 0.04.                                                                                                                                                                                                                         |
 
 Both adaptive strategies raise success probability versus fixed spending on stressed
 scenarios (they cut spending in bad markets), matching the well-documented behaviour of
@@ -460,10 +488,10 @@ schedule still produces the familiar `annual spending gap ÷ SWR` target exactly
 
 ### 5.2 Drag Model
 
-| Parameter | Default | Application |
-|---|---|---|
-| `annualFeePercent` | 0.5% | Deducted monthly from AUM: $(1 - \text{fee}/12)$. Models TER + platform costs. |
-| `taxOnGainsPercent` | 15% | Applied **annually to the year's net investment P&L** (net of fees); losses are untaxed and not carried forward. Models capital gains tax. |
+| Parameter           | Default | Application                                                                                                                                |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `annualFeePercent`  | 0.5%    | Deducted monthly from AUM: $(1 - \text{fee}/12)$. Models TER + platform costs.                                                             |
+| `taxOnGainsPercent` | 15%     | Applied **annually to the year's net investment P&L** (net of fees); losses are untaxed and not carried forward. Models capital gains tax. |
 
 The annual P&L is tracked in the same deflated units as the balance, so the tax models
 nominal-gains taxation expressed in today's money. At the 15% default the effective drag
@@ -475,8 +503,8 @@ Box 3 wealth tax) are future work — see `TODO.md` 2.3.
 
 **Mode A — Joint historical bootstrap (default in Historical mode).** When the planner
 supplies `historicalMonthlyInflation` (realized regional CPI change, index-aligned with
-`historicalMonthlyReturns`), each simulated month takes its inflation from the *same
-historical month* as its return. This preserves two properties the parametric draw
+`historicalMonthlyReturns`), each simulated month takes its inflation from the _same
+historical month_ as its return. This preserves two properties the parametric draw
 cannot:
 
 - **Return/inflation correlation.** Measured in the shipped dataset (1960–2026):
@@ -486,7 +514,7 @@ cannot:
   bootstrap blocks are contiguous, simulated paths inherit sustained inflationary
   periods rather than i.i.d. noise.
 
-The regime inflation spread is deliberately *not* applied on top in this mode — the
+The regime inflation spread is deliberately _not_ applied on top in this mode — the
 historical series already embeds that co-movement. Joint sampling is used only in
 Historical mode without moment targeting (otherwise the user's explicit inflation
 assumptions would be silently ignored), and only when the two series are the same
@@ -501,6 +529,7 @@ Monthly inflation is drawn from a **regime-conditioned** Cornish-Fisher distribu
 $$r_{inf} = \frac{\mu_{regime}}{12} + \frac{\sigma_{inf}}{\sqrt{12}} \cdot z'_{CF}$$
 
 Where:
+
 - Growth regime: $\mu_{growth} = \mu_{inf} - \pi_C \cdot \text{spread}$
 - Crisis regime: $\mu_{crisis} = \mu_{inf} + \pi_G \cdot \text{spread}$
 - Default `inflationCrisisSpread` = 1.5%
@@ -549,11 +578,11 @@ $$\kappa_p = \max\left(1, \frac{1}{\sigma_p^4}\left[\sum_i a_i^4 \kappa_i + 12\r
 
 This is exact for jointly normal components (verified against Monte Carlo) and exact for
 independent components whatever their marginal shape, since the cross moments then
-factor. With both correlation *and* non-normal marginals it is a normal-theory
+factor. With both correlation _and_ non-normal marginals it is a normal-theory
 approximation — joint fourth moments are not determined by $\rho$ alone.
 
 > **Fixed 2026-07-21 (TODO 0.5).** The $\sum a_i^4 \kappa_i$ term was previously used on
-> its own. That made a blend of *independent normals* report $\kappa_p = 1.5$ instead of
+> its own. That made a blend of _independent normals_ report $\kappa_p = 1.5$ instead of
 > 3 — thinner than normal — which then told the Student-t mapping (§4.3 Mode C) there was
 > no excess kurtosis to reproduce, generating thinner tails than intended. The error grew
 > as the portfolio became more balanced, so it hit conservative allocations hardest: for
@@ -579,15 +608,16 @@ This ensures the **total unconditional variance exactly matches** the portfolio 
 ## 7. Output Metrics
 
 ### 7.1 Percentile Fan Chart
+
 P10, P25, P50 (median), P75, P90 balance trajectories over the full time horizon.
 
 ### 7.2 FI Targets
 
-| Target | Definition |
-|---|---|
-| FI Target (SWR) | $\text{spending at retirement age} / \text{SWR}$ (default SWR = 4%) |
+| Target          | Definition                                                                                                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FI Target (SWR) | $\text{spending at retirement age} / \text{SWR}$ (default SWR = 4%)                                                                                                                                                                           |
 | FI Target (P95) | Minimum balance at retirement such that ≥ 95% of paths with balance ≥ that threshold end above zero. Found by sorting simulations by retirement-age balance and scanning for the 95% conditional success cutoff using a suffix-sum algorithm. |
-| Coast FIRE age | Earliest age at which **contributions** could stop while still clearing 95% success. |
+| Coast FIRE age  | Earliest age at which **contributions** could stop while still clearing 95% success.                                                                                                                                                          |
 
 All three assume an accumulation phase still lies ahead. When the plan is already in
 drawdown the P95 target is computed differently and Coast FIRE is reported as `null` — see
@@ -642,7 +672,7 @@ window shortens to the available post-retirement period; for someone already ret
 (`retireMonth == 0`, §7.6), it begins today.
 
 **Why not the first 10 years from today.** Those are two different questions, and only the
-post-retirement one is sequence risk. Before retirement a net saver is *buying*, so an early
+post-retirement one is sequence risk. Before retirement a net saver is _buying_, so an early
 crash is bought into at lower prices and partly recovers over the remaining accumulation
 years — the effect on ending wealth is weak and can carry the opposite sign. After
 retirement the same crash is sold into to fund withdrawals, permanently removing the shares
@@ -651,13 +681,14 @@ as sequence risk therefore measures the wrong phenomenon, not merely the right o
 shifted window.
 
 "What if a crisis hits tomorrow, given the capital I already have?" is a legitimate and
-*separate* question — a shock-timing stress test, not a quintile analysis — and it is
+_separate_ question — a shock-timing stress test, not a quintile analysis — and it is
 partly served by the ruin surface (§7.5), which varies retirement age and spending against
 the same stored paths. For someone at or near retirement the two windows coincide anyway.
 
 ### 7.5 Ruin Surface Heatmap
 
 A 5×5 grid of ruin probabilities across:
+
 - **Retirement ages**: `[retAge−6, retAge−3, retAge, retAge+3, retAge+6]`
 - **Spending multipliers**: `[0.8, 0.9, 1.0, 1.1, 1.2]`
 
@@ -676,7 +707,7 @@ caption makes explicit:
 
 - The replay sample is capped **independently of the `simulations` setting**, so raising
   the simulation count sharpens the summary cards but not this heatmap.
-- All cells replay the *same* stored paths (common random numbers), so **differences**
+- All cells replay the _same_ stored paths (common random numbers), so **differences**
   between neighbouring cells are considerably steadier than each cell's absolute margin
   suggests. The chart is meant to be read for the shape of the retire-earlier / spend-more
   trade-off rather than for any single cell's exact value.
@@ -685,7 +716,7 @@ caption makes explicit:
 
 Ticking **"I am already retired"** in the input panel sets `retirementAge = currentAge`,
 which makes `retireMonth` 0 and removes the accumulation phase entirely. There is no
-separate flag anywhere in the model: `retirementAge <= currentAge` *is* the encoding
+separate flag anywhere in the model: `retirementAge <= currentAge` _is_ the encoding
 (`isAlreadyRetired` / `is_already_retired`), so share links, the worker payload and the
 wasm boundary carry the mode for free and the two engines cannot disagree about what it
 means. Unticking restores the retirement age the user had before.
@@ -700,15 +731,15 @@ Three outputs assume an accumulation phase and are switched rather than left to 
 This is the whole reason the mode is a documented branch rather than just a validation
 relaxation:
 
-| Output | Accumulating | Already retired |
-|---|---|---|
-| Coast FIRE age | earliest age to stop contributing | `null` — no contributions left to stop |
-| FI Target (P95) | minimum *balance at retirement* clearing 95% (§7.2) | minimum *starting capital today* clearing 95% |
-| Ruin surface | 5×5 over retirement age × spending (§7.5) | 5×1 over spending only |
-| "Chance to reach FI" cards | fraction of paths clearing the target | today's capital vs. the target — a yes/no fact |
+| Output                     | Accumulating                                        | Already retired                                |
+| -------------------------- | --------------------------------------------------- | ---------------------------------------------- |
+| Coast FIRE age             | earliest age to stop contributing                   | `null` — no contributions left to stop         |
+| FI Target (P95)            | minimum _balance at retirement_ clearing 95% (§7.2) | minimum _starting capital today_ clearing 95%  |
+| Ruin surface               | 5×5 over retirement age × spending (§7.5)           | 5×1 over spending only                         |
+| "Chance to reach FI" cards | fraction of paths clearing the target               | today's capital vs. the target — a yes/no fact |
 
 **Why the P95 target has to change construction.** The accumulating version reads its
-answer off the *spread* of balances at retirement, and that spread exists only because
+answer off the _spread_ of balances at retirement, and that spread exists only because
 different paths accumulate differently. With `retireMonth == 0` every path starts from the
 same capital, so the spread collapses to a single month of return dispersion and the
 suffix-scan returns something within a couple of percent of current savings no matter
@@ -744,18 +775,18 @@ would name a year that has already passed.
 
 ## 9. Verification Checklist
 
-| Item | Unit | Status |
-|---|---|---|
-| All returns | Decimal (0.08 = 8%) | ✓ Consistent throughout |
-| Annual → monthly | $(1 + r_a)^{1/12} - 1$ | ✓ Correct compounding |
-| Annual σ → monthly σ | $\sigma_a / \sqrt{12}$ | ✓ Standard scaling |
-| Inflation deflation | $\div (1 + r_{inf})$ | ✓ Correct real-terms conversion |
-| Cash flows | Annual amounts ÷ 12 | ✓ Consistent monthly stepping |
-| SWR target | Annual spending ÷ SWR rate | ✓ Standard definition |
-| Percentile interpolation | Linear between ranks | ✓ Matches NumPy default |
-| Stationary distribution | $\pi_G = (1 - p_{CC}) / ((1 - p_{GG}) + (1 - p_{CC}))$ | ✓ Correct from $\pi P = \pi$ |
-| Box-Muller cache | Per-instance, no global mutation | ✓ |
-| Regime gap-filling | Single non-crisis sandwiched → crisis | ✓ |
+| Item                     | Unit                                                   | Status                          |
+| ------------------------ | ------------------------------------------------------ | ------------------------------- |
+| All returns              | Decimal (0.08 = 8%)                                    | ✓ Consistent throughout         |
+| Annual → monthly         | $(1 + r_a)^{1/12} - 1$                                 | ✓ Correct compounding           |
+| Annual σ → monthly σ     | $\sigma_a / \sqrt{12}$                                 | ✓ Standard scaling              |
+| Inflation deflation      | $\div (1 + r_{inf})$                                   | ✓ Correct real-terms conversion |
+| Cash flows               | Annual amounts ÷ 12                                    | ✓ Consistent monthly stepping   |
+| SWR target               | Annual spending ÷ SWR rate                             | ✓ Standard definition           |
+| Percentile interpolation | Linear between ranks                                   | ✓ Matches NumPy default         |
+| Stationary distribution  | $\pi_G = (1 - p_{CC}) / ((1 - p_{GG}) + (1 - p_{CC}))$ | ✓ Correct from $\pi P = \pi$    |
+| Box-Muller cache         | Per-instance, no global mutation                       | ✓                               |
+| Regime gap-filling       | Single non-crisis sandwiched → crisis                  | ✓                               |
 
 The checklist above covers unit/formula consistency. The correctness issues raised in the
 2026-07-07 review — dividend handling, the tax model and return/inflation coupling — have
@@ -768,51 +799,51 @@ simplifications.
 
 ## 10. Key Assumptions & Known Simplifications
 
-| Assumption | Risk | Notes |
-|---|---|---|
-| Block bootstrap within regime (block = 6 months) | Preserves short-run autocorrelation | Much better than i.i.d. sampling |
-| Equity-bond correlation configurable; cash correlation = 0 | Partial | Improves portfolio σ realism |
-| Regime-conditioned inflation (crisis spread) | Captures main channel | Not full multivariate inflation model |
-| Spending strategy (fixed / guardrails / percent-of-portfolio) | Fixed default is conservative | Adaptive strategies available (§5.1.1), added 2026-07-20 |
-| Split fee/tax costs | Improved | More interpretable than single drag |
-| Monthly time step | Good | Sufficient for retirement horizon |
-| Two regimes (Growth/Crisis) | **Contributes nothing measurable in Mode A** | Clustering comes from the block bootstrap; regime layer is near-vacuous once unbiased (§4.3, TODO 0.12). Still drives Mode C's parametric generator |
-| Historical bootstrap for calibration | Good | Data-driven, adapts to region |
-| Variance-preserving regime decomposition | Good | Total σ is preserved exactly |
-| Return clamping (−95% to +120% annual) | Conservative | Prevents simulation blow-ups |
-| Synthetic decade-level dividend yields on price-only indices | Approximation (±0.3%/yr) | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr |
-| Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
-| Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed in main paths 2026-07-21 and exact scenario replays 2026-07-25 (§5.1, §7) |
-| Regime block bootstrap is mean-preserving | Simulated returns track the source series (all four regions within ±0.07pp/yr) | Fixed 2026-07-21 (§4.3 Mode A); guarded by a regression test |
-| Parametric pool is moment-targeted before reuse | Requested mean/std no longer inherit a fixed seed-dependent error from one 120-draw pool | Fixed 2026-07-26 (§4.3 Mode C); guarded in both engines |
-| Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
-| Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
-| Depletion begins when spending cannot be fully funded and is sticky (later recovery does not erase the shortfall) | Captures whether the plan ever failed to meet spending; zero balance alone is not ruin | TODO 2.7 |
-| Annual-mode bootstrap spreads the year across 12 months, preserving the annual draw exactly | Intra-year path restored; shape of the spread is parametric, not historical | Fixed 2026-07-21 (§4.3 Mode B); fallback mode only, unreachable from the shipped app |
-| **Fixed planning horizon; no mortality weighting** | Measures "ruin by your chosen age", not ruin-before-death, so it is conservative relative to a lifetime measure | **Deliberate product decision**, not an omission — survival statistics are the wrong register for a personal tool. TODO 2.2 (declined) |
-| Allocation is fixed for life; no glide path | Cannot model de-risking into retirement | TODO 2.5 |
-| Single-person model | No second person's age, income or pension start | TODO 2.6 |
-| "Use today's yields" runs via moment targeting, which disables the joint inflation bootstrap | Inflation reverts to the parametric draw in that mode | TODO 2.8 |
-| Ruin surface adjusts only the default salary's end age per cell | Other income sources are held fixed across cells | TODO 6.2 |
-| Ruin-surface cells replay a capped 2000-path subsample | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count | Surfaced in the UI (§7); cell *differences* are steadier than that (common random numbers) |
+| Assumption                                                                                                                | Risk                                                                                                            | Notes                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Block bootstrap within regime (block = 6 months)                                                                          | Preserves short-run autocorrelation                                                                             | Much better than i.i.d. sampling                                                                                                                    |
+| Equity-bond correlation configurable; cash correlation = 0                                                                | Partial                                                                                                         | Improves portfolio σ realism                                                                                                                        |
+| Regime-conditioned inflation (crisis spread)                                                                              | Captures main channel                                                                                           | Not full multivariate inflation model                                                                                                               |
+| Spending strategy (fixed / guardrails / percent-of-portfolio)                                                             | Fixed default is conservative                                                                                   | Adaptive strategies available (§5.1.1), added 2026-07-20                                                                                            |
+| Split fee/tax costs                                                                                                       | Improved                                                                                                        | More interpretable than single drag                                                                                                                 |
+| Monthly time step                                                                                                         | Good                                                                                                            | Sufficient for retirement horizon                                                                                                                   |
+| Two regimes (Growth/Crisis)                                                                                               | **Contributes nothing measurable in Mode A**                                                                    | Clustering comes from the block bootstrap; regime layer is near-vacuous once unbiased (§4.3, TODO 0.12). Still drives Mode C's parametric generator |
+| Historical bootstrap for calibration                                                                                      | Good                                                                                                            | Data-driven, adapts to region                                                                                                                       |
+| Variance-preserving regime decomposition                                                                                  | Good                                                                                                            | Total σ is preserved exactly                                                                                                                        |
+| Return clamping (−95% to +120% annual)                                                                                    | Conservative                                                                                                    | Prevents simulation blow-ups                                                                                                                        |
+| Synthetic decade-level dividend yields on price-only indices                                                              | Approximation (±0.3%/yr)                                                                                        | Fixed 2026-07-20 (§3.1.1); replaces the former price-only bias of 2.5–3.5%/yr                                                                       |
+| Annual net-gain taxation, no loss carryforward                                                                            | Slightly conservative in loss-heavy sequences                                                                   | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3                                                                                     |
+| Nominal cashflows deflated by each path's **realized** inflation                                                          | Fixed annuities/pensions now erode faster on high-inflation paths, as they should                               | Fixed in main paths 2026-07-21 and exact scenario replays 2026-07-25 (§5.1, §7)                                                                     |
+| Regime block bootstrap is mean-preserving                                                                                 | Simulated returns track the source series (all four regions within ±0.07pp/yr)                                  | Fixed 2026-07-21 (§4.3 Mode A); guarded by a regression test                                                                                        |
+| Parametric pool is moment-targeted before reuse                                                                           | Requested mean/std no longer inherit a fixed seed-dependent error from one 120-draw pool                        | Fixed 2026-07-26 (§4.3 Mode C); guarded in both engines                                                                                             |
+| Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters                                                      | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there                                                                     |
+| Kurtosis blending omits 4th-moment cross-terms                                                                            | Thinner tails than intended                                                                                     | TODO 0.5                                                                                                                                            |
+| Depletion begins when spending cannot be fully funded and is sticky (later recovery does not erase the shortfall)         | Captures whether the plan ever failed to meet spending; zero balance alone is not ruin                          | TODO 2.7                                                                                                                                            |
+| Annual-mode bootstrap spreads the year across 12 months, preserving the annual draw exactly                               | Intra-year path restored; shape of the spread is parametric, not historical                                     | Fixed 2026-07-21 (§4.3 Mode B); fallback mode only, unreachable from the shipped app                                                                |
+| **Fixed planning horizon; no mortality weighting**                                                                        | Measures "ruin by your chosen age", not ruin-before-death, so it is conservative relative to a lifetime measure | **Deliberate product decision**, not an omission — survival statistics are the wrong register for a personal tool. TODO 2.2 (declined)              |
+| Allocation is fixed for life; no glide path                                                                               | Cannot model de-risking into retirement                                                                         | TODO 2.5                                                                                                                                            |
+| Single-person model                                                                                                       | No second person's age, income or pension start                                                                 | TODO 2.6                                                                                                                                            |
+| "Use today's yields" runs via moment targeting, which disables the joint inflation bootstrap                              | Inflation reverts to the parametric draw in that mode                                                           | TODO 2.8                                                                                                                                            |
+| Ruin surface adjusts only the default salary's end age per cell                                                           | Other income sources are held fixed across cells                                                                | TODO 6.2                                                                                                                                            |
+| Ruin-surface cells replay a capped 2000-path subsample                                                                    | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count                                     | Surfaced in the UI (§7); cell _differences_ are steadier than that (common random numbers)                                                          |
 
 ---
 
 ## 11. Comparison with Industry Standards
 
-| Feature | This Engine | Best Practice | Gap |
-|---|---|---|---|
-| Return model | Regime-switching block bootstrap | State-of-art | ✓ Block bootstrap preserves clustering |
-| Fat tails | Cornish-Fisher + Student-t | Skew-t or Johnson SU | Minor; bootstrap dominates |
-| Correlation | Equity-bond correlation parameter | Full DCC-GARCH | Partial (cash, time-varying not modeled) |
-| Inflation | Joint (return, CPI) historical bootstrap; regime-conditioned parametric fallback | VAR(1) with returns | ✓ Empirical joint distribution keeps correlation *and* persistence without imposing a parametric form |
-| Ruin analysis | Full path simulation | Same | ✓ |
-| Sequence risk | Quintile analysis of early returns | Kitces/Pfau methodology | ✓ |
-| Spending rules | Fixed real, Guyton-Klinger guardrails, or percent-of-portfolio | Guardrail / VPW | ✓ Closed; age-banded VPW table still future (TODO 2.1) |
-| Longevity | Fixed user-chosen horizon | Mortality-weighted | **Deliberately not adopted.** Showing survival probabilities is the wrong register for a personal planning tool; the fixed horizon is the conservative choice — see `TODO.md` 2.2 |
-| Expected returns | Historical, or anchored to today's yields (§4.4.1) | Forward-looking CMAs | ✓ Yield-anchored preset; no CAPE/valuation adjustment yet |
-| Reproducibility | Optional seeded PRNG, surfaced in the UI and share link | Seeded PRNG | ✓ Closed |
-| Convergence reporting | SE on success probability + per-cell heatmap margins | Reported sampling error | ✓ Closed |
+| Feature               | This Engine                                                                      | Best Practice           | Gap                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Return model          | Regime-switching block bootstrap                                                 | State-of-art            | ✓ Block bootstrap preserves clustering                                                                                                                                            |
+| Fat tails             | Cornish-Fisher + Student-t                                                       | Skew-t or Johnson SU    | Minor; bootstrap dominates                                                                                                                                                        |
+| Correlation           | Equity-bond correlation parameter                                                | Full DCC-GARCH          | Partial (cash, time-varying not modeled)                                                                                                                                          |
+| Inflation             | Joint (return, CPI) historical bootstrap; regime-conditioned parametric fallback | VAR(1) with returns     | ✓ Empirical joint distribution keeps correlation _and_ persistence without imposing a parametric form                                                                             |
+| Ruin analysis         | Full path simulation                                                             | Same                    | ✓                                                                                                                                                                                 |
+| Sequence risk         | Quintile analysis of early returns                                               | Kitces/Pfau methodology | ✓                                                                                                                                                                                 |
+| Spending rules        | Fixed real, Guyton-Klinger guardrails, or percent-of-portfolio                   | Guardrail / VPW         | ✓ Closed; age-banded VPW table still future (TODO 2.1)                                                                                                                            |
+| Longevity             | Fixed user-chosen horizon                                                        | Mortality-weighted      | **Deliberately not adopted.** Showing survival probabilities is the wrong register for a personal planning tool; the fixed horizon is the conservative choice — see `TODO.md` 2.2 |
+| Expected returns      | Historical, or anchored to today's yields (§4.4.1)                               | Forward-looking CMAs    | ✓ Yield-anchored preset; no CAPE/valuation adjustment yet                                                                                                                         |
+| Reproducibility       | Optional seeded PRNG, surfaced in the UI and share link                          | Seeded PRNG             | ✓ Closed                                                                                                                                                                          |
+| Convergence reporting | SE on success probability + per-cell heatmap margins                             | Reported sampling error | ✓ Closed                                                                                                                                                                          |
 
 ---
 
@@ -847,7 +878,7 @@ engines agree to about one ULP and the suite asserts a 1e-9 relative tolerance.
 > **Any change to simulation behaviour must land in both engines in the same commit.**
 > CI runs `pnpm run test:engines` before the dist build, so drift fails the pipeline.
 >
-> Note also what this does *not* buy you: parity is not correctness. Both engines once
+> Note also what this does _not_ buy you: parity is not correctness. Both engines once
 > shared the same year-boundary bug, and the parity suite would have passed it.
 
 ### Data Pipeline
@@ -872,13 +903,13 @@ to `public/`, and the app silently kept using a months-old dataset.
 
 ## 13. References
 
-- Pfau, W. (2018). *How Much Can I Spend in Retirement?* — comprehensive comparison of variable spending strategies
-- Bengen, W. (1994). *Determining Withdrawal Rates Using Historical Data* — original 4% SWR research
-- Kitces, M. & Pfau, W. (2015). *Reducing Retirement Risk with a Rising Equity Glide Path* — sequence-of-returns risk analysis
-- Ang, A. & Bekaert, G. (2002). *International Asset Allocation with Regime Shifts* — Markov regime-switching in portfolio theory
-- Hamilton, J. (1989). *A New Approach to the Economic Analysis of Nonstationary Time Series and the Business Cycle* — foundational regime-switching model
-- Politis, D. & Romano, J. (1994). *The Stationary Bootstrap* — block bootstrap methodology for dependent data
-- Johnson, N. L. (1949). *Systems of Frequency Curves* — Johnson SU distribution for non-normal financial returns
+- Pfau, W. (2018). _How Much Can I Spend in Retirement?_ — comprehensive comparison of variable spending strategies
+- Bengen, W. (1994). _Determining Withdrawal Rates Using Historical Data_ — original 4% SWR research
+- Kitces, M. & Pfau, W. (2015). _Reducing Retirement Risk with a Rising Equity Glide Path_ — sequence-of-returns risk analysis
+- Ang, A. & Bekaert, G. (2002). _International Asset Allocation with Regime Shifts_ — Markov regime-switching in portfolio theory
+- Hamilton, J. (1989). _A New Approach to the Economic Analysis of Nonstationary Time Series and the Business Cycle_ — foundational regime-switching model
+- Politis, D. & Romano, J. (1994). _The Stationary Bootstrap_ — block bootstrap methodology for dependent data
+- Johnson, N. L. (1949). _Systems of Frequency Curves_ — Johnson SU distribution for non-normal financial returns
 
 ---
 

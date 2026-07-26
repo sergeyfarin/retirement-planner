@@ -135,7 +135,11 @@
 	};
 
 	function setWithdrawalKind(kind: 'fixed' | 'guardrails' | 'percentOfPortfolio') {
-		input.withdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY, ...input.withdrawalStrategy, kind };
+		input.withdrawalStrategy = {
+			...DEFAULT_WITHDRAWAL_STRATEGY,
+			...input.withdrawalStrategy,
+			kind
+		};
 		onSimulationSettingsChange();
 	}
 
@@ -144,7 +148,11 @@
 		value: number
 	) {
 		const current = input.withdrawalStrategy ?? { ...DEFAULT_WITHDRAWAL_STRATEGY };
-		input.withdrawalStrategy = { ...DEFAULT_WITHDRAWAL_STRATEGY, ...current, [key]: Math.max(0, value) };
+		input.withdrawalStrategy = {
+			...DEFAULT_WITHDRAWAL_STRATEGY,
+			...current,
+			[key]: Math.max(0, value)
+		};
 		onSimulationSettingsChange();
 	}
 </script>
@@ -193,7 +201,7 @@
 
 		<label
 			class="already-retired"
-			title="Drawdown only: retirement starts today, so there is no accumulation phase. Salary is dropped, Coast FIRE no longer applies, and the FI target becomes the capital the plan needs today rather than a balance to reach by some future age."
+			title="Drawdown only: retirement starts today, so there is no saving phase. Salary is dropped, an age for stopping contributions no longer applies, and the target becomes the capital the plan needs today rather than a future balance."
 		>
 			<input
 				type="checkbox"
@@ -295,10 +303,7 @@
 							{/if}
 
 							{#if period.id === 'sp-default'}
-								<div
-									class="readonly-age-cell"
-									aria-label="Living expenses end at plan-until age"
-								>
+								<div class="readonly-age-cell" aria-label="Living expenses end at plan-until age">
 									{fmtNum(input.simulateUntilAge)}
 								</div>
 							{:else}
@@ -430,12 +435,11 @@
 					</label>
 				</div>
 				<p class="note strategy-note">
-					Cuts or raises spending by the adjustment step whenever your withdrawal rate drifts
-					past the band from its starting level. Spending stays within {fmtPercentDisplay(
+					Cuts or raises spending by the adjustment step whenever your withdrawal rate drifts past
+					the band from its starting level. Spending stays within {fmtPercentDisplay(
 						input.withdrawalStrategy.spendingFloor ?? 0.6,
 						0
-					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your
-					planned amount.
+					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your planned amount.
 				</p>
 			{:else if input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
 				<div class="strategy-params">
@@ -454,8 +458,8 @@
 					Spends this share of the current balance each year, clamped to {fmtPercentDisplay(
 						input.withdrawalStrategy.spendingFloor ?? 0.6,
 						0
-					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your
-					planned amount so income never collapses or balloons.
+					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your planned amount
+					so income never collapses or balloons.
 				</p>
 			{:else}
 				<p class="note strategy-note">
@@ -528,7 +532,7 @@
 		}}
 	>
 		<summary class="font-semibold cursor-pointer select-none" style="outline: none;">
-			Assumptions
+			Advanced assumptions
 			<span class="assumptions-summary-line">
 				{#if input.simulationMode === 'parametric'}
 					parametric (user inputs)
@@ -542,7 +546,7 @@
 				· {fmtPercentDisplay(input.annualFeePercent, 1)} fees · {fmtPercentDisplay(
 					input.taxOnGainsPercent,
 					0
-				)} tax — customize
+				)} tax — open to customize the model
 			</span>
 		</summary>
 
@@ -614,19 +618,19 @@
 			</div>
 			<p class="mode-explainer">
 				{#if input.simulationMode === 'parametric'}
-					<strong>Uses no historical data.</strong> Returns are generated from a statistical model
-					built only from the numbers you enter below. Most flexible, least anchored to what
-					markets actually did.
+					<strong>Uses no historical data.</strong> Returns are generated from a statistical model built
+					only from the numbers you enter below. Most flexible, least anchored to what markets actually
+					did.
 				{:else if input.historicalMomentTargeting}
-					<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the
-					crashes, recoveries and clustering — but slides average return and volatility to the
-					values you set below. Answers “what if returns are worse than the past?”. Inflation falls
-					back to a modelled draw in this mode.
+					<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the crashes,
+					recoveries and clustering — but slides average return and volatility to the values you set below.
+					Answers “what if returns are worse than the past?”. Inflation falls back to a modelled draw
+					in this mode.
 				{:else}
-					<strong>Replays real market history.</strong> Stitches together runs of actual past
-					months in their original order. Returns and inflation come from the same real months, so
-					high-inflation periods land on the markets that truly accompanied them. Averages match
-					history, so the table below is read-only.
+					<strong>Replays real market history.</strong> Stitches together runs of actual past months in
+					their original order. Returns and inflation come from the same real months, so high-inflation
+					periods land on the markets that truly accompanied them. Averages match history, so the table
+					below is read-only.
 				{/if}
 			</p>
 
@@ -1064,7 +1068,8 @@
 					</tr>
 
 					<tr>
-						<td title="Applied once a year to the year's net investment gains (losses untaxed). At 15% this costs roughly 1.5–2% of returns per year."
+						<td
+							title="Applied once a year to the year's net investment gains (losses untaxed). At 15% this costs roughly 1.5–2% of returns per year."
 							>Tax on gains</td
 						>
 						<td
@@ -1125,14 +1130,14 @@
 	</details>
 	<details class="card mt-4 mb-2">
 		<summary class="font-semibold cursor-pointer select-none" style="outline: none;"
-			>Advanced tuning</summary
+			>Expert simulation tuning</summary
 		>
 		<div class="mt-3 pt-3 border-t border-slate-200">
 			<div class="mb-3">
 				<label
 					for="adv-block-length"
 					class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"
-					>Bootstrap Block Length (Months)</label
+					>Historical replay length (bootstrap block length, months)</label
 				>
 				<div class="flex items-center gap-2">
 					<input
@@ -1148,9 +1153,9 @@
 					/>
 					<span class="text-xs text-slate-500 opacity-80 leading-tight">
 						Consecutive real months replayed before jumping elsewhere in history.
-						<strong>The main lever on how long historical runs remain intact.</strong> Six months is
-						provisional; Politis-White supports short blocks for variance estimation, not a unique
-						retirement-path optimum.
+						<strong>The main lever on how long historical runs remain intact.</strong> Six months is provisional;
+						Politis-White supports short blocks for variance estimation, not a unique retirement-path
+						optimum.
 					</span>
 				</div>
 			</div>
@@ -1176,8 +1181,8 @@
 					<span class="text-xs text-slate-500 opacity-80 leading-tight">
 						Extra inflation during simulated crises.
 						{#if input.historicalMonthlyInflation?.length}
-							<strong>No effect in the current mode</strong> — inflation is being read from real
-							history rather than modelled.
+							<strong>No effect in the current mode</strong> — inflation is being read from real history
+							rather than modelled.
 						{:else}
 							Active in this mode, because inflation is modelled rather than read from history.
 						{/if}
@@ -1204,8 +1209,8 @@
 						class="w-24 text-center"
 					/>
 					<span class="text-xs text-slate-500 opacity-80 leading-tight"
-						>Leave blank for a fresh random seed each run. Set a value to reproduce an exact
-						result — the seed actually used is shown after each run completes.</span
+						>Leave blank for a fresh random seed each run. Set a value to reproduce an exact result
+						— the seed actually used is shown after each run completes.</span
 					>
 				</div>
 			</div>

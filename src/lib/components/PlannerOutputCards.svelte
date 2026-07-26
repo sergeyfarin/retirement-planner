@@ -37,9 +37,7 @@
 	// a confidence interval for the plan: more paths cannot reduce source-data/model uncertainty.
 	const successProbabilitySE = $derived(
 		simCount > 0 && stats
-			? Math.sqrt(
-					(stats.successProbability * (1 - stats.successProbability)) / simCount
-				)
+			? Math.sqrt((stats.successProbability * (1 - stats.successProbability)) / simCount)
 			: 0
 	);
 	const historicalMonths = $derived(input.historicalMonthlyReturns?.length ?? 0);
@@ -51,36 +49,42 @@
 {#if stats}
 	<div class="summary-grid">
 		<div class="card">
-			<strong>Financial independence targets</strong>
-			<div class="results-kpi mono-value">SWR: {fmtCompactCurrency(stats.fiTargetSWR)}</div>
-			<div class="results-kpi mono-value">P95: {fmtCompactCurrency(stats.fiTargetP95)}</div>
+			<strong>How much you may need</strong>
+			<div class="results-kpi mono-value">
+				Spending-rule estimate: {fmtCompactCurrency(stats.fiTargetSWR)}
+			</div>
+			<div class="results-kpi mono-value">
+				Simulation-based estimate: {fmtCompactCurrency(stats.fiTargetP95)}
+			</div>
 			<div class="note mono-value">
-				SWR target = expenses {fmtCompactCurrency(retirementYearlySpending)}/yr ÷ {(
+				Spending-rule estimate = expenses {fmtCompactCurrency(retirementYearlySpending)}/yr ÷ {(
 					input.safeWithdrawalRate * 100
 				).toFixed(1)}%
 			</div>
 			<div class="note mono-value">
 				{#if alreadyRetired}
-					P95 target = capital needed <em>today</em> for a {(
+					Simulation-based estimate = capital needed <em>today</em> for at least a {(
 						FI_TARGET_SUCCESS_PROBABILITY * 100
-					).toFixed(0)}%+ chance of ending balance above zero
+					).toFixed(0)}% chance of ending with money left
 				{:else}
-					P95 target = portfolio at target FI year that implies {(
+					Simulation-based estimate = portfolio at retirement that gives at least a {(
 						FI_TARGET_SUCCESS_PROBABILITY * 100
-					).toFixed(0)}%+ chance of ending balance above zero
+					).toFixed(0)}% chance of ending with money left
 				{/if}
 			</div>
 			<div
 				class="note mono-value coast-note"
-				title="Coast FIRE: from this age you could stop positive portfolio contributions. Planned deficit months and lump sums still occur; retirement age and spending are unchanged."
+				title="Sometimes called Coast FIRE: from this age you could stop positive portfolio contributions. Planned deficit months and lump sums still occur; retirement age and spending are unchanged."
 			>
 				{#if alreadyRetired}
-					Coast FIRE: n/a — there is no accumulation phase left to stop
+					Age you could stop saving: n/a — you are already retired
 				{:else if stats.coastAge != null}
-					Coast FIRE: stop saving at age <strong>{Math.ceil(stats.coastAge)}</strong> and still
-					clear {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}%; planned deficits still apply
+					You could stop regular saving at age <strong>{Math.ceil(stats.coastAge)}</strong> and
+					still reach the {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% goal; planned deficits
+					still apply
 				{:else}
-					Coast FIRE: n/a — no positive contributions to stop, or the target remains unreachable
+					Age you could stop saving: not available — there are no regular contributions to stop, or
+					the goal remains out of reach
 				{/if}
 			</div>
 		</div>
@@ -93,42 +97,44 @@
 					class:amount-positive={swrMargin >= 0}
 					class:amount-negative={swrMargin < 0}
 				>
-					{fmtMargin(swrMargin)} vs. SWR target
+					{fmtMargin(swrMargin)} vs. spending-rule estimate
 				</div>
 				<div
 					class="note mono-value"
 					class:amount-positive={capitalMargin >= 0}
 					class:amount-negative={capitalMargin < 0}
 				>
-					{fmtMargin(capitalMargin)} vs. P95 target
+					{fmtMargin(capitalMargin)} vs. simulation-based estimate
 				</div>
 				<div class="note mono-value">
-					Already retired — there is no future balance to reach, so the question is whether
-					today's capital clears the targets above.
+					Already retired — there is no future balance to reach, so the question is whether today's
+					capital clears the targets above.
 				</div>
 			</div>
 		{:else}
 			<div class="card">
-				<strong>Chance to reach FI by age {input.retirementAge}</strong>
+				<strong>Chance to reach your retirement goal by age {input.retirementAge}</strong>
 				<div
 					class="results-kpi mono-value"
 					class:amount-positive={stats.fiProbabilitySWR >= 0.7}
 					class:amount-negative={stats.fiProbabilitySWR < 0.7}
 				>
-					SWR: {percentFormatter.format(stats.fiProbabilitySWR)}
+					Spending-rule estimate: {percentFormatter.format(stats.fiProbabilitySWR)}
 				</div>
 				<div
 					class="results-kpi mono-value"
 					class:amount-positive={stats.fiProbabilityP95 >= 0.7}
 					class:amount-negative={stats.fiProbabilityP95 < 0.7}
 				>
-					P95: {percentFormatter.format(stats.fiProbabilityP95)}
+					Simulation-based estimate: {percentFormatter.format(stats.fiProbabilityP95)}
 				</div>
 				<div class="note mono-value">
 					Median by age {input.retirementAge}: {fmtCompactCurrency(stats.retireMedian)}
 				</div>
 				<div class="note mono-value">
-					P10: {fmtCompactCurrency(stats.retireLow)} · P90: {fmtCompactCurrency(stats.retireHigh)}
+					Lower 10%: {fmtCompactCurrency(stats.retireLow)} · Upper 10%: {fmtCompactCurrency(
+						stats.retireHigh
+					)}
 				</div>
 			</div>
 		{/if}
@@ -139,24 +145,24 @@
 				<span
 					class:amount-positive={stats.finalLow > 0}
 					class:amount-negative={stats.finalLow === 0}
-					>P10: {fmtCompactCurrency(stats.finalLow)}</span
+					>Lower 10%: {fmtCompactCurrency(stats.finalLow)}</span
 				>
 				·
 				<span
 					class:amount-positive={stats.finalHigh > 0}
 					class:amount-negative={stats.finalHigh === 0}
-					>P90: {fmtCompactCurrency(stats.finalHigh)}</span
+					>Upper 10%: {fmtCompactCurrency(stats.finalHigh)}</span
 				>
 			</div>
 		</div>
-		<div class="card">
-			<strong>Annual return moments</strong>
+		<details class="card">
+			<summary><strong>Advanced: return distribution diagnostics</strong></summary>
 			<div
 				class="note mono-value"
 				title="Requested values are the annual inputs captured for this run. Effective values are measured from the transformed annual bootstrap source; serial dependence can make them differ from the request."
 			>
-				Requested — mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} ·
-				vol {percentFormatter.format(stats.requestedReturnMoments.stdDev)} · skew {fmtNum(
+				Requested — mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} · vol
+				{percentFormatter.format(stats.requestedReturnMoments.stdDev)} · skew {fmtNum(
 					stats.requestedReturnMoments.skewness,
 					2
 				)} · kurt {fmtNum(stats.requestedReturnMoments.kurtosis, 2)}
@@ -171,7 +177,11 @@
 			<div class="note mono-value">
 				Effective CAGR: {percentFormatter.format(stats.returnMoments.geometricMean)}
 			</div>
-		</div>
+			<div class="note">
+				These statistical moments describe the model's distribution shape; they are diagnostics, not
+				separate planning goals.
+			</div>
+		</details>
 		<div class="card">
 			<strong>Portfolio survives to age {input.simulateUntilAge}</strong>
 			<div
@@ -198,7 +208,7 @@
 					Historical robustness: not measured — one regional record, {fmtNum(historicalMonths)}
 					months (about {fmtNum(historicalBlockChunks)} non-overlapping {fmtNum(
 						input.blockLength
-					)}-month chunks). Compare other regions, periods and block lengths.
+					)}-month historical runs). Compare other regions, time periods and replay lengths.
 				</div>
 			{:else}
 				<div class="note mono-value">

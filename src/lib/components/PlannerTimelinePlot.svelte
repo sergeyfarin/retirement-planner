@@ -305,22 +305,22 @@
 			{
 				x: [ages[0], lastAge],
 				y: [fiTargetP95, fiTargetP95],
-				name: 'FI target (95% success)',
+				name: 'Simulation-based target (95% success)',
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dash', width: 1.5, color: '#ef4444' },
 				customdata: [fmtHoverCompactCurrency(fiTargetP95), fmtHoverCompactCurrency(fiTargetP95)],
-				hovertemplate: 'FI target (95%): %{customdata}<extra></extra>'
+				hovertemplate: 'Simulation-based target: %{customdata}<extra></extra>'
 			},
 			{
 				x: [ages[0], lastAge],
 				y: [fiTargetSWR, fiTargetSWR],
-				name: 'FI target (4% rule)',
+				name: 'Spending-rule target',
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dot', width: 1.5, color: '#f59e0b' },
 				customdata: [fmtHoverCompactCurrency(fiTargetSWR), fmtHoverCompactCurrency(fiTargetSWR)],
-				hovertemplate: 'FI target (4%): %{customdata}<extra></extra>'
+				hovertemplate: 'Spending-rule target: %{customdata}<extra></extra>'
 			}
 		];
 
@@ -382,7 +382,7 @@
 				x: retirementAge,
 				y: 1,
 				yref: 'paper',
-				text: 'FI target year',
+				text: 'Target retirement year',
 				showarrow: false,
 				font: { size: 10, color: '#6b7280', family: 'Inter, system-ui, sans-serif' },
 				xanchor: 'left',
@@ -472,12 +472,12 @@
 <div class="card chart-card chart-card-main">
 	<div class="chart" bind:this={chartEl}></div>
 	<p class="note">
-		Fan shows middle 50% and 80% of outcomes. Dotted line is target year to achieve FI. Red dashed
-		line is FI target (P95) and orange dotted line is FI target (SWR). Shaded bands indicate
-		spending periods. Engine uses bootstrapped annual returns with regime detection to model
-		sequence risk and clustered drawdowns. Each percentile line is computed independently for
-		that month across all simulations — it is not a single continuous scenario, so reading
-		"recovery time" off the gap between bands will overstate how fast any one path actually
-		recovers.
+		Fan shows the middle 50% and 80% of outcomes. The vertical dotted line marks your target
+		retirement year. The red dashed line is the simulation-based target (95% success) and the orange
+		dotted line is the spending-rule target. Shaded bands indicate spending periods. The engine uses
+		bootstrapped annual returns with regime detection to model sequence risk and clustered
+		drawdowns. Each percentile line is computed independently for that month across all simulations
+		— it is not a single continuous scenario, so reading "recovery time" off the gap between bands
+		will overstate how fast any one path actually recovers.
 	</p>
 </div>
