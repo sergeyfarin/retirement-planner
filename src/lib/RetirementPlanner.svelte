@@ -4,6 +4,7 @@
 	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
 	import type { CurrencyOption } from './plannerTypes';
 	import { createSimulationWorker } from './workerHelper';
+	import { randomId } from './randomId';
 	import type {
 		WorkerInputMessage,
 		WorkerResultMessage,
@@ -1734,7 +1735,7 @@
 		}
 
 		activeWorker = createSimulationWorker();
-		runningId = crypto.randomUUID();
+		runningId = randomId();
 
 		const seedForThisRun = input.seed ?? Math.floor(Math.random() * 1000000);
 

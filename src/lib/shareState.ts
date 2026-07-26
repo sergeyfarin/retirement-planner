@@ -6,6 +6,7 @@ import {
 	type SpendingPeriod,
 	type WithdrawalStrategy
 } from './retirementEngine';
+import { randomId } from './randomId';
 
 /**
  * Share links carry a base64 payload that becomes application state on load, so every
@@ -175,7 +176,7 @@ function sanitizeCashflowRows<T extends { id?: unknown; label?: unknown }>(
 		}
 		out.push({
 			...row,
-			id: typeof row.id === 'string' ? row.id : crypto.randomUUID(),
+			id: typeof row.id === 'string' ? row.id : randomId(),
 			label: typeof row.label === 'string' ? row.label : ''
 		} as T);
 	}

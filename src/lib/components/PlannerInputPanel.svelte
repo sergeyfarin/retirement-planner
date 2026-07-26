@@ -201,7 +201,10 @@
 					step="1"
 					disabled={alreadyRetired}
 					title={alreadyRetired ? 'Already retired — retirement is now, at your current age.' : ''}
-					bind:value={input.retirementAge}
+					value={input.retirementAge}
+					onchange={(e) => {
+						input.retirementAge = numFromEvent(e);
+					}}
 				/>
 			</label>
 			<label title="Planning to age 90–95 is a conservative, commonly recommended choice.">
