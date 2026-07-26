@@ -15,9 +15,8 @@ struct Plan {
 
 /// A deterministic 80-year annual history, ~7% mean / ~16% std with a couple of deep
 /// drawdowns. Comparative tests run in `historical` mode against this fixed series: in
-/// `parametric` mode the engine draws its own 120-year synthetic history once per seed,
-/// so two seeds can differ by a whole regime and no cross-run comparison is meaningful
-/// (see `parametric_runs_are_sensitive_to_the_history_draw`).
+/// `parametric` mode the engine draws its own synthetic history and targets its realized
+/// first two moments before bootstrapping it (see `parametric_pool_matches_requested_moments`).
 fn synthetic_history() -> Vec<f64> {
     (0..80)
         .map(|year| {
@@ -88,31 +87,28 @@ fn changing_the_seed_changes_the_sample_but_not_the_shape() {
 }
 
 #[test]
-fn parametric_runs_are_sensitive_to_the_history_draw() {
-    // Parametric mode synthesises one 120-year history per seed and then bootstraps every
-    // path from *that* sample, so the seed sets the whole run's return distribution rather
-    // than just its sampling noise. This pins the behaviour so a change in it is visible.
+fn parametric_pool_matches_requested_moments() {
+    // Parametric mode synthesises one finite history per seed and then bootstraps every
+    // path from it. Its realized mean/std must be targeted before that shared pool can
+    // inject a permanent seed-dependent level shift into every path.
     let mut plan = plan();
     plan.input.simulation_mode = Some("parametric".to_string());
     plan.input.historical_annual_returns = None;
 
-    let mut realized = Vec::new();
     for seed in [12_345.0, 987_654.0, 5150.0] {
         plan.input.seed = Some(seed);
         let result = run(&plan);
-        assert!(result.stats.return_moments.std_dev > 0.0);
-        assert!((0.0..=1.0).contains(&result.stats.success_probability));
-        realized.push(result.stats.return_moments.arithmetic_mean);
+        assert_close(
+            result.stats.return_moments.arithmetic_mean,
+            plan.input.mean_return,
+            1e-12,
+        );
+        assert_close(
+            result.stats.return_moments.std_dev,
+            plan.input.return_variability,
+            1e-12,
+        );
     }
-    let spread = realized
-        .iter()
-        .cloned()
-        .fold(f64::MIN, f64::max)
-        - realized.iter().cloned().fold(f64::MAX, f64::min);
-    assert!(
-        spread > 0.01,
-        "expected the per-seed history draw to move realized returns, spread was {spread}"
-    );
 }
 
 #[test]

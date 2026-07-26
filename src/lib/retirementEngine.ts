@@ -1334,7 +1334,12 @@ export function runMonteCarloSimulation(
     ? (input.historicalMomentTargeting
       ? bootstrapHistory.map((value) => applyMomentTargeting(value, annualHistoryMoments.mean, annualHistoryMoments.std, targetAnnualMean, targetAnnualStd))
       : bootstrapHistory).map((value) => clampAnnualReturn(value))
-    : bootstrapHistory;
+    // Parametric mode draws this finite calibration pool only once per run. Target its
+    // realized moments before every path bootstraps from it, otherwise sampling error in
+    // the pool becomes a seed-dependent return offset shared by every simulation path.
+    : bootstrapHistory.map((value) => clampAnnualReturn(
+      applyMomentTargeting(value, annualHistoryMoments.mean, annualHistoryMoments.std, targetAnnualMean, targetAnnualStd)
+    ));
 
   const monthlyHistory = (useHistoricalBootstrap ? (input.historicalMonthlyReturns ?? []) : [])
     .filter((value) => Number.isFinite(value))

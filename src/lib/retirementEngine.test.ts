@@ -167,6 +167,49 @@ describe('retirementEngine stochastic helpers', () => {
   });
 });
 
+describe('parametric calibration pool', () => {
+  function parametricInput(seed: number): RetirementInput {
+    return {
+      simulationMode: 'parametric',
+      currentAge: 40,
+      retirementAge: 65,
+      simulateUntilAge: 70,
+      currentSavings: 300_000,
+      meanReturn: 0.07,
+      returnVariability: 0.15,
+      returnSkewness: -0.3,
+      returnKurtosis: 4,
+      equityBondCorrelation: 0.2,
+      inflationMean: 0.02,
+      inflationVariability: 0.01,
+      inflationSkewness: 0,
+      inflationKurtosis: 3,
+      annualFeePercent: 0,
+      taxOnGainsPercent: 0,
+      safeWithdrawalRate: 0.04,
+      simulations: 400,
+      seed,
+      regimeModel: {
+        stayGrowth: 0.88,
+        stayCrisis: 0.72,
+        growthMean: 0.09,
+        growthStd: 0.12,
+        crisisMean: -0.08,
+        crisisStd: 0.24
+      }
+    };
+  }
+
+  it('targets the shared finite pool to the requested mean and volatility', () => {
+    for (const seed of [12_345, 987_654, 5150]) {
+      const input = parametricInput(seed);
+      const result = runMonteCarloSimulation(input, [], [], [], 360, 300);
+      expect(result.stats.returnMoments.arithmeticMean).toBeCloseTo(input.meanReturn, 12);
+      expect(result.stats.returnMoments.stdDev).toBeCloseTo(input.returnVariability, 12);
+    }
+  });
+});
+
 describe('annual net-gain taxation', () => {
   // Regression guard for TODO 0.2: tax must apply annually to net gains, not to every
   // positive month. With a volatile monthly history (+4%/−2% alternating, ~12%/yr

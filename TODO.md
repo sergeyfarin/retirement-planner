@@ -1,6 +1,6 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-07-21 (Launch Plan phases 1–4 complete; repo licensed
+**Updated:** 2026-07-26 (Launch Plan phases 1–4 complete; repo licensed
 AGPL-3.0 and ready to go public). Mortality-weighted ruin remains declined as a product
 decision — see 2.2.
 
@@ -42,6 +42,20 @@ Item numbers refer to the detailed entries below.
 ## Priority 0 — Correctness & Data Quality (found 2026-07-07)
 
 These bias current results **materially pessimistic** and should land before new features.
+
+### 0.16 Parametric pool freezes one sample's mean error across every path — ✅ FIXED 2026-07-26
+
+Parametric mode generated one 120-year synthetic history per run and bootstrapped every
+path from that same finite pool without re-centering it. At 15% volatility, the pool mean
+has roughly 1.4pp standard error; increasing the simulation count cannot average it away
+because it is shared calibration error, not path sampling noise. One observed 7.00%
+request consequently surfaced an effective 5.01%.
+
+Both engines now apply the existing affine moment-targeting transform to the realized
+synthetic pool before regime detection and pooling, then retain the annual safety clamp.
+This preserves ordering, regime clustering and higher-moment variation while making the
+pool's requested mean/std seed-invariant for ordinary inputs. Rust and TypeScript
+regression coverage checks several seeds. README §4.3 Mode C documents the behavior.
 
 ### 0.1 US and UK equity series exclude dividends (M) — ✅ FIXED 2026-07-20
 **Fix applied:** decade-level synthetic dividend yield schedules added in

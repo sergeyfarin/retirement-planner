@@ -209,7 +209,21 @@ pub fn run_monte_carlo_simulation(
             })
             .collect()
     } else {
+        // This finite synthetic pool is drawn only once per run. Target its realized
+        // moments before every path bootstraps from it, otherwise the pool's sampling
+        // error becomes a seed-dependent return offset shared by all simulation paths.
         bootstrap_history
+            .iter()
+            .map(|&v| {
+                clamp_annual_return(apply_moment_targeting(
+                    v,
+                    annual_history_mean,
+                    annual_history_std,
+                    target_annual_mean,
+                    target_annual_std,
+                ))
+            })
+            .collect()
     };
 
     let monthly_history = if use_historical_bootstrap {

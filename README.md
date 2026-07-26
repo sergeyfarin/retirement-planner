@@ -276,6 +276,17 @@ not Monte Carlo sampling noise.
   - Student-t draws (degrees of freedom from kurtosis: $df = 4 + 6/\kappa_{excess}$)
   - Skewness shift term
   - Regime-switching mean/std
+- The finite synthetic pool is affine-targeted to the requested annual mean and
+  volatility before it is split into regime pools. This retains the generated ordering,
+  tails and regime clustering while preventing one pool's sampling error from becoming a
+  fixed return-level offset shared by every simulation path.
+
+> **Fixed 2026-07-26.** Previously the 120-year pool was used as drawn. Its mean error
+> (about $\sigma/\sqrt{120}$, or 1.4pp at 15% volatility) was frozen across the entire run
+> and therefore did not diminish with more simulations. A 7.00% request could report an
+> effective 5.01% solely because of the seed's one calibration draw. Parametric effective
+> mean and volatility now match the request (apart from safety-clamp effects at extreme
+> inputs); the seed continues to control ordering and higher moments.
 
 ### 4.4 Moment Targeting (Optional)
 
@@ -707,7 +718,7 @@ would name a year that has already passed.
 
 - **`RandomSource`** struct in `calculations.rs` wraps either `mulberry32` (when `seed` is provided) or thread-local random
 - **Box-Muller** transform for normal draws, with spare cache **encapsulated per instance** (no global mutable state)
-- **Student-t** generation via ratio of normal to chi-squared (only used in `buildBootstrapHistory` — called 120 times per run, not in the hot loop)
+- **Student-t** generation via ratio of normal to chi-squared (only used in `buildBootstrapHistory` — 120 draws per run, not in the hot loop); the resulting pool is moment-targeted before reuse
 - When `seed` is set, results are fully deterministic and reproducible
 
 ---
@@ -754,6 +765,7 @@ simplifications.
 | Annual net-gain taxation, no loss carryforward | Slightly conservative in loss-heavy sequences | Fixed 2026-07-20 (§5.2); carryforward + Box 3 mode are TODO 2.3 |
 | Nominal cashflows deflated by each path's **realized** inflation | Fixed annuities/pensions now erode faster on high-inflation paths, as they should | Fixed in main paths 2026-07-21 and exact scenario replays 2026-07-25 (§5.1, §7) |
 | Regime block bootstrap is mean-preserving | Simulated returns track the source series (all four regions within ±0.07pp/yr) | Fixed 2026-07-21 (§4.3 Mode A); guarded by a regression test |
+| Parametric pool is moment-targeted before reuse | Requested mean/std no longer inherit a fixed seed-dependent error from one 120-draw pool | Fixed 2026-07-26 (§4.3 Mode C); guarded in both engines |
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
 | Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
