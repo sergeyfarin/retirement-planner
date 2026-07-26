@@ -2102,7 +2102,7 @@
 			<div class="outputs-wrapper" class:stale-results={inputsChangedSinceLastRun}>
 				<p class="headline-result">
 					In <strong>{Math.round(stats.successProbability * 100)} of 100</strong> simulated futures,
-					your money lasts beyond age {fmtNum(input.simulateUntilAge)}.
+					your planned spending is covered in full through age {fmtNum(input.simulateUntilAge)}.
 					{#if stats.successProbability < FI_TARGET_SUCCESS_PROBABILITY && actionableRecommendations}
 						{#if actionableRecommendations.yearlySpendingReduction != null || actionableRecommendations.monthsLonger != null}
 							<span class="headline-action">

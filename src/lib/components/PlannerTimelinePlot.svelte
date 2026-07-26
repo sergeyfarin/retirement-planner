@@ -180,7 +180,14 @@
 			.filter((value: number) => Number.isFinite(value))
 			.map((value: number) => Math.max(0, value));
 
-		const fiTargets = [stats?.fiTargetP95, stats?.fiTargetSWR, baselineFiTarget]
+		// Resolve exactly as the drawn lines do below: `baselineFiTarget` is the pre-run
+		// placeholder only. It uses the income-blind `spending / SWR`, so once the engine has
+		// reported an income-aware target, including it here would stretch the axis to a
+		// value nothing on the chart plots.
+		const fiTargets = [
+			stats?.fiTargetP95 ?? baselineFiTarget,
+			stats?.fiTargetSWR ?? baselineFiTarget
+		]
 			.filter((value): value is number => Number.isFinite(value))
 			.map((value) => Math.max(0, value));
 

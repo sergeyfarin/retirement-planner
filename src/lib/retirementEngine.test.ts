@@ -749,11 +749,54 @@ describe('annual-mode intra-year variation', () => {
   });
 
   it('exposes within-year ruin that a constant monthly rate would hide', () => {
-    // Same annual returns, but months now move; a drawdown portfolio can touch zero
-    // mid-year, so ruin can only rise.
-    const flat = runMonteCarloSimulation(annualOnlyInput({ returnVariability: 0 }), spending, [], [], months, 0);
-    const spread = runMonteCarloSimulation(annualOnlyInput(), spending, [], [], months, 0);
-    expect(spread.stats.successProbability).toBeLessThanOrEqual(flat.stats.successProbability);
+    // Deterministic and fully controlled: two tapes that compound to the *same* annual
+    // return (0%), one flat and one with the year's loss front-loaded. Only the intra-year
+    // path differs, so the outcome difference can only come from within-year sequencing.
+    //
+    // This deliberately does not compare two `runMonteCarloSimulation` calls with
+    // `returnVariability` 0 vs 0.18. Those consume different RNG streams —
+    // `spreadAnnualReturnAcrossMonths` returns early without drawing when the monthly std
+    // is zero — so they sample different annual returns entirely. Across eight seeds that
+    // comparison flips sign four times, with a spread of ±3pp against a Monte Carlo
+    // standard error of ~1.05pp at 1500 paths: it measured noise, not sequencing.
+    const monthCount = 12;
+    const crashFactor = 0.15;
+    // Eleven recovery months that exactly undo the crash: 0.15 * f^11 = 1.
+    const recoveryFactor = (1 / crashFactor) ** (1 / 11);
+
+    const flatTape = {
+      assetReturns: new Float64Array(monthCount).fill(0),
+      inflationRates: new Float64Array(monthCount).fill(0)
+    };
+    const frontLoadedLoss = new Float64Array(monthCount).fill(recoveryFactor - 1);
+    frontLoadedLoss[0] = crashFactor - 1;
+    const spreadTape = {
+      assetReturns: frontLoadedLoss,
+      inflationRates: new Float64Array(monthCount).fill(0)
+    };
+
+    // Both years compound to the same total return.
+    const compound = (returns: Float64Array) =>
+      Array.from(returns).reduce((product, r) => product * (1 + r), 1);
+    expect(compound(flatTape.assetReturns)).toBeCloseTo(compound(spreadTape.assetReturns), 10);
+
+    const drawdownInput = annualOnlyInput({ currentAge: 60, retirementAge: 60, simulateUntilAge: 61 });
+    const drawdownSpending: SpendingPeriod[] = [
+      { id: 'sp', label: 'Living', fromAge: 60, toAge: 61, yearlyAmount: 60000, inflationAdjusted: true }
+    ];
+    const cashflows = buildCashflowArrays(drawdownInput, drawdownSpending, [], [], monthCount);
+    const evaluate = (tape: typeof flatTape) =>
+      evaluatePath(tape, cashflows, 66000, monthCount, { kind: 'fixed' }, 0, 0, 0);
+
+    const flat = evaluate(flatTape);
+    const spread = evaluate(spreadTape);
+
+    // The flat year never dips: the same annual return leaves the plan solvent throughout.
+    expect(flat.depleted).toBe(false);
+    expect(flat.finalBalance).toBeGreaterThan(0);
+    // The front-loaded year sells into the trough and cannot be rescued by the recovery.
+    expect(spread.depleted).toBe(true);
+    expect(spread.cumulativeShortfall).toBeGreaterThan(0);
   });
 });
 
@@ -1289,8 +1332,13 @@ describe('already-retired mode', () => {
 
   it('holds an accumulating plan on the original P95 construction', () => {
     const input = retiredInput({ currentAge: 50, retirementAge: 66 });
+    // 30k rather than 40k of spending. At 40k this plan lands at ~89.8% success, so Coast
+    // FIRE is legitimately unreachable and reports null — which tests nothing about the
+    // accumulating branch. The 40k figure was calibrated against the annual-mode regime
+    // weighting bias (TODO 0.16), which inflated returns; with the pools now weighted by
+    // their own detected labels the engine reproduces this pool's 4.32% mean exactly.
     const spending: SpendingPeriod[] = [
-      { id: 'sp-default', label: 'Living', fromAge: 50, toAge: 90, yearlyAmount: 40000, inflationAdjusted: true }
+      { id: 'sp-default', label: 'Living', fromAge: 50, toAge: 90, yearlyAmount: 30000, inflationAdjusted: true }
     ];
     const income: IncomeSource[] = [
       { id: 'is-default', label: 'Salary', fromAge: 50, toAge: 66, yearlyAmount: 70000, inflationAdjusted: true },
@@ -1303,7 +1351,11 @@ describe('already-retired mode', () => {
     // Full retirement-age sweep and a live Coast FIRE age: the two outputs the
     // already-retired branches switch off.
     expect(stats.ruinSurface.retirementAges.length).toBeGreaterThan(1);
+    // Not merely non-null: a live Coast FIRE age strictly inside the accumulation window,
+    // which is only meaningful while there are contributions left to stop.
     expect(stats.coastAge).not.toBeNull();
+    expect(stats.coastAge!).toBeGreaterThan(input.currentAge);
+    expect(stats.coastAge!).toBeLessThan(input.retirementAge);
     // The P95 target is still read off the spread of balances at retirement, so it sits
     // inside that distribution rather than being an independent capital figure.
     expect(stats.fiTargetP95).toBeGreaterThan(0);

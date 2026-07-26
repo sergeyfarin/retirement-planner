@@ -56,10 +56,17 @@
 			<div class="results-kpi mono-value">
 				Simulation-based estimate: {fmtCompactCurrency(stats.fiTargetP95)}
 			</div>
-			<div class="note mono-value">
-				Spending-rule estimate = expenses {fmtCompactCurrency(retirementYearlySpending)}/yr ÷ {(
+			<div
+				class="note mono-value"
+				title="The capital your portfolio has to supply, valued at the chosen withdrawal rate. Only the part of spending your income does not already cover counts, and each year is valued at its own date — so a pension starting later, or a period of higher early spending, changes the total. When spending and income are both level for life this reduces exactly to yearly gap ÷ withdrawal rate."
+			>
+				Spending-rule estimate = the part of spending your income does not cover, valued at {(
 					input.safeWithdrawalRate * 100
-				).toFixed(1)}%
+				).toFixed(1)}% — year by year, so later pensions and bridge periods count at their own
+				dates.
+				{#if retirementYearlySpending > 0}
+					Spending at retirement is {fmtCompactCurrency(retirementYearlySpending)}/yr.
+				{/if}
 			</div>
 			<div class="note mono-value">
 				{#if alreadyRetired}
@@ -162,10 +169,16 @@
 				title="Requested values are the annual inputs captured for this run. Effective values are measured from the transformed annual bootstrap source; serial dependence can make them differ from the request."
 			>
 				Requested — mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} · vol
-				{percentFormatter.format(stats.requestedReturnMoments.stdDev)} · skew {fmtNum(
-					stats.requestedReturnMoments.skewness,
+				{percentFormatter.format(stats.requestedReturnMoments.stdDev)}
+			</div>
+			<div
+				class="note mono-value"
+				title="Only the mean and volatility are targeted. Rescaling the sampled series is an affine transform: it moves the centre and the spread but leaves the distribution's shape alone, so skew and kurtosis emerge from the regime mixture and the source data rather than being set. Expect the effective values below to differ from anything entered as a skew or kurtosis input."
+			>
+				Requested shape — skew {fmtNum(stats.requestedReturnMoments.skewness, 2)} · kurt {fmtNum(
+					stats.requestedReturnMoments.kurtosis,
 					2
-				)} · kurt {fmtNum(stats.requestedReturnMoments.kurtosis, 2)}
+				)} <em>(not targeted — see below)</em>
 			</div>
 			<div class="note mono-value">
 				Effective — mean {percentFormatter.format(stats.returnMoments.arithmeticMean)} · vol
@@ -179,17 +192,26 @@
 			</div>
 			<div class="note">
 				These statistical moments describe the model's distribution shape; they are diagnostics, not
-				separate planning goals.
+				separate planning goals. Only mean and volatility are matched to your inputs. Skew and
+				kurtosis are emergent — they come out of the regime mixture and the source data — so the
+				requested and effective values for those two will not agree, and that is expected.
 			</div>
 		</details>
 		<div class="card">
-			<strong>Portfolio survives to age {input.simulateUntilAge}</strong>
+			<strong>Spending fully funded to age {input.simulateUntilAge}</strong>
 			<div
 				class="results-kpi mono-value"
 				class:amount-positive={stats.successProbability >= 0.9}
 				class:amount-negative={stats.successProbability < 0.7}
 			>
 				{percentFormatter.format(stats.successProbability)}
+			</div>
+			<div
+				class="note"
+				title="A run counts as funded only if every single month's planned spending was met. One short month counts as not funded, even if later income rebuilds the balance — so read this alongside the shortfall and underfunded-years figures below, which show how big a miss actually was."
+			>
+				Counts runs where <em>every</em> month's spending was met — a single short month counts against
+				it, however small. The figures below show how large a miss tends to be.
 			</div>
 			{#if simCount > 0}
 				<div
