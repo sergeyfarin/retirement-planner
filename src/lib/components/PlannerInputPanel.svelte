@@ -1090,6 +1090,23 @@
 						<td></td>
 					</tr>
 
+					<tr>
+						<td colspan="7">
+							<p class="note tax-caveat">
+								<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
+								every year on that year's gains, whether or not you sold anything — closer to an
+								annual wealth-style levy than to capital gains tax. It is charged on the
+								<em>real</em>
+								(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
+								paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth, SIPP
+								or Box 3, no tax-free allowances, no withdrawal ordering between accounts, and no required
+								minimum distributions. Treat it as a rough drag on returns, not as your tax bill — if
+								your savings are mostly in tax-sheltered accounts, a lower rate is usually the better
+								approximation.
+							</p>
+						</td>
+					</tr>
+
 					<tr
 						class="portfolio-row real-return-highlight-row"
 						class:positive-return-row={realReturnEstimate >= 0}

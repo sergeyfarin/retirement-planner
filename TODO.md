@@ -35,6 +35,28 @@ Item numbers refer to the detailed entries below.
 14. ✅ Cross-engine parity test asserting intermediate series, not just summary stats (1.1)
 15. ✅ De-duplicate planner-local math (1.2) — also fixed a latent regime-model divergence
 
+**Phase 5 — Publication gates: ✅ COMPLETED 2026-07-26**
+
+These were not modelling problems. They were the things that had to be true before pointing
+strangers at the tool, and none of them were tracked as TODO items.
+
+16. ✅ **Self-host fonts.** `app.html` loaded Inter and JetBrains Mono from
+    `fonts.googleapis.com`/`fonts.gstatic.com`, sending every visitor's IP and referrer to a
+    third party on page load — untenable for a tool whose pitch is that your finances stay
+    in your browser, and held to breach GDPR by German courts, with NL-first localization on
+    the roadmap (4.7). Both families now ship from `static/fonts/` as variable woff2 with
+    their SIL OFL licence files. Verified: the built `index.html` contains zero external
+    hosts and no `googleapis`/`gstatic` reference survives anywhere in `build/`.
+17. ✅ **CI gate on pull requests.** `publish-dist.yml` ran only on push to `main`/`master`,
+    so nothing ran the cross-engine parity suite against incoming contributions to a public
+    repo. Added the `pull_request` trigger, with `publish-release` guarded by
+    `if: github.event_name != 'pull_request'` so PRs validate without cutting releases.
+    Paired with `test`/`test:engines` now building the wasm first — `rust-engine/pkg` is
+    gitignored, and a local run against a stale binary had already produced two false parity
+    failures.
+18. ✅ **Bound the "work N months longer" advice** to the axis that supports it — see 6.2.
+19. ✅ **State the tax simplification in the UI**, not only in README §10 — see 2.3.
+
 **Explicitly declined:** mortality-weighted ruin (2.2) — see rationale there.
 
 ---
@@ -905,11 +927,23 @@ undermines the tool's purpose, regardless of statistical correctness. The fixed
 choice — no survival probabilities shown anywhere. Do not resurrect this item without an
 explicit opt-in design that keeps death statistics out of the default experience.
 
-### 2.3 Three-Bucket Tax Model (M)
-**Current:** Flat `taxOnGainsPercent` on positive monthly returns (see 0.2 — that formula must change first).
+### 2.3 Three-Bucket Tax Model (M) — 🟡 DISCLOSED 2026-07-26, not implemented
+**Current:** Flat `taxOnGainsPercent` on the year's net gains (0.2 replaced the old
+monthly upside-only formula).
 **Gap:** Lacks real-world retirement account structures (ISA, 401k, Roth, Dutch Box 3).
 **Action:** Split savings into `{ taxable, taxDeferred, taxFree }` buckets with different drag rates. Implement tax-optimized withdrawal sequencing.
 **Files:** `rust-engine/src/simulation.rs`, `rust-engine/src/structs.rs`, `RetirementPlanner.svelte`, `PlannerInputPanel.svelte`
+
+**Disclosed in the UI 2026-07-26 (launch gate).** Deferred deliberately — a bucket model
+plus withdrawal ordering is the single largest piece of remaining work and would complicate
+the calculator substantially. What was not acceptable was shipping the simplification
+silently: "Tax on gains" reads like a capital-gains rate and is not one. A caveat now sits
+directly under the input in the assumptions table stating that it is one flat annual rate on
+gains whether or not anything was sold (closer to an annual wealth-style levy), that the base
+is the *real* rather than nominal gain so high-inflation paths are taxed too lightly, and
+that there are no account types, allowances, withdrawal ordering or RMDs — with the practical
+hint that a lower rate approximates a mostly-sheltered portfolio. README §10 carries the same
+two properties as separate rows.
 
 ### 2.4 Social Security / Pension Claiming Optimization (S)
 **Current:** Pension is a flat income from a fixed age.
@@ -1150,6 +1184,17 @@ a caption giving the worst case; at N=2000 that is ±2.2% for mid-range cells an
 other income stream is held fixed across the surface. README §7 documents this as a fast
 approximation; fixing it means deciding what "retire 3 years earlier" should do to
 user-added income rows, which is a modelling question, not just a code change.
+
+**Contained 2026-07-26 (launch gate).** The limitation stopped being cosmetic when the
+actionable headline shipped: it turned a shaded heatmap axis into the sentence "work N
+months longer". `buildActionableRecommendations` now suppresses that clause when a
+non-`is-default` income row ends inside the swept age range — the only case where the
+frozen axis misprices the advice. A row ending before the sweep has already ended in every
+cell, and one ending after it is identical in every cell, so neither is affected; the
+default scenario (salary `is-default`, pension to 90) is unaffected and still shows the
+recommendation. The spending-reduction clause never depended on the age axis and is
+untouched. This bounds the user-visible damage; it does not resolve the modelling question
+above, which is still what closing this item requires.
 
 **Original issue:**
 The 800-path subsampling in `build_ruin_surface` (and the matching `RUIN_SAMPLE_CAP` in `simulation.rs`) is aggressive for tail probabilities. Consider increasing or making it proportional to `simCount`. Also, only income source `is-default` has `toAge` adjusted per cell — document or fix this limitation.

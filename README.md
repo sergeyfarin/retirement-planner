@@ -8,6 +8,21 @@ A high-performance, browser-based retirement forecasting engine built with **Sve
 
 The calculator projects portfolio balances from a starting age through a configurable end-of-life horizon using **monthly time steps**, resolving all outputs into **real (inflation-adjusted) terms**. It generates probability-weighted outcome bands (P10–P90), estimates ruin probability, computes Financial Independence (FI) targets, and visualizes sequence-of-returns risk.
 
+### Privacy
+
+**Nothing you enter leaves your browser.** The app is a static bundle with no backend,
+no analytics, no telemetry and no cookies. The only network request it makes at runtime is
+for its own `assets/historical-market-data.json`, served from the same origin.
+
+Fonts are self-hosted under `static/fonts/` (Inter and JetBrains Mono, both SIL OFL, licence
+files included) rather than loaded from a CDN, so no third party observes a page load. The
+bundled Plotly build contains map-tile and topojson URLs in its geo code; the planner draws
+only scatter, bar and heatmap traces, so none of them is ever requested.
+
+"Copy share link" encodes your inputs into a URL **fragment** (`#s=…`). Fragments are not
+transmitted to servers, so a shared link stays between you and whoever you send it to — but
+it does contain your figures, so treat it as you would the numbers themselves.
+
 ### Design Philosophy
 
 | Aspect            | Approach                                                                                                                                                                            |
@@ -842,7 +857,9 @@ simplifications.
 | Allocation is fixed for life; no glide path                                                                               | Cannot model de-risking into retirement                                                                         | TODO 2.5                                                                                                                                            |
 | Single-person model                                                                                                       | No second person's age, income or pension start                                                                 | TODO 2.6                                                                                                                                            |
 | "Use today's yields" runs via moment targeting, which disables the joint inflation bootstrap                              | Inflation reverts to the parametric draw in that mode                                                           | TODO 2.8                                                                                                                                            |
-| Ruin surface adjusts only the default salary's end age per cell                                                           | Other income sources are held fixed across cells                                                                | TODO 6.2                                                                                                                                            |
+| Ruin surface adjusts only the default salary's end age per cell                                                           | Other income sources are held fixed across cells                                                                | TODO 6.2. The "work N months longer" recommendation is suppressed when a non-default income row ends inside the swept age range, so the advice is never derived from an axis that would misprice it |
+| Tax caveat is stated in the UI, not only in these docs                                                                    | A user changing the rate sees what it does and does not model, next to the input                                | Assumptions table, "Tax on gains" row                                                                                                               |
+| No third-party requests at runtime                                                                                        | Nothing about a user's plan leaves the browser; fonts are self-hosted                                           | Only fetch is the local `historical-market-data.json`. Share links are client-side URL fragments and are never sent anywhere                          |
 | Ruin-surface cells replay a capped 2000-path subsample                                                                    | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count                                     | Surfaced in the UI (§7); cell _differences_ are steadier than that (common random numbers)                                                          |
 
 ---

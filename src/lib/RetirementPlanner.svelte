@@ -1475,16 +1475,18 @@
 					stats,
 					input.retirementAge,
 					retirementYearlySpending,
-					FI_TARGET_SUCCESS_PROBABILITY
+					FI_TARGET_SUCCESS_PROBABILITY,
+					effectiveIncomeSources
 				)
 			: null
 	);
+	// Pre-run placeholder for the timeline chart only, so it has something to draw before the
+	// first simulation. This is the old income-blind `spending / SWR`; once a run completes
+	// the chart switches to the engine's income-aware `stats.fiTargetSWR`, which nets off
+	// pensions and values each year at its own date. Do not read this as the FI target.
 	const baselineFiTarget = $derived(
 		retirementYearlySpending / Math.max(0.01, input.safeWithdrawalRate)
 	);
-	const fiTargetSWR = $derived(baselineFiTarget);
-	const fiTargetP95 = $derived(stats?.fiTargetP95 ?? fiTargetSWR);
-	const fiTarget = $derived(fiTargetP95);
 
 	const previewTriggerKey = $derived(
 		[

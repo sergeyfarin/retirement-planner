@@ -1,6 +1,7 @@
 name: Publish Dist
 
 on:
+  pull_request:
   push:
     branches:
       - master
@@ -89,6 +90,7 @@ jobs:
           retention-days: 14
 
   publish-release:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: build-artifact
 
