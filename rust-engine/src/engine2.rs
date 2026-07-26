@@ -88,6 +88,8 @@ impl WithdrawalRunner {
 
         let floor_annual = self.spending_floor * self.initial_annual_spending;
         let ceiling_annual = self.spending_ceiling * self.initial_annual_spending;
+        let monthly_floor = floor_annual / 12.0;
+        let monthly_ceiling = ceiling_annual / 12.0;
 
         if self.kind == 1 {
             // Guyton-Klinger guardrails.
@@ -103,13 +105,17 @@ impl WithdrawalRunner {
                 let max_mult = self.spending_ceiling;
                 self.multiplier = self.multiplier.clamp(min_mult, max_mult);
             }
-            income + portfolio_base * self.multiplier
+            let total_spending = income + portfolio_base * self.multiplier;
+            total_spending.clamp(monthly_floor, monthly_ceiling).max(income)
         } else {
             // Percent-of-portfolio (recomputed annually, held for the year).
             if is_year_start {
-                let target_annual = self.withdrawal_percent * balance.max(0.0);
-                let clamped = target_annual.clamp(floor_annual, ceiling_annual);
-                self.held_monthly_portfolio_spending = clamped / 12.0;
+                let annual_income = income * 12.0;
+                let target_annual_spending =
+                    annual_income + self.withdrawal_percent * balance.max(0.0);
+                let clamped_total = target_annual_spending.clamp(floor_annual, ceiling_annual);
+                self.held_monthly_portfolio_spending =
+                    (clamped_total - annual_income).max(0.0) / 12.0;
             }
             income + self.held_monthly_portfolio_spending
         }

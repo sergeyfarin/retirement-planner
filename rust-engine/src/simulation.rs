@@ -8,8 +8,7 @@ use crate::engine::{
 use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
     build_cashflow_arrays, detect_regimes, detect_regimes_monthly, evaluate_path,
-    estimate_markov_stay_probabilities, income_at_age, monthly_returns_to_annual_series,
-    spending_at_age, PathTape,
+    estimate_markov_stay_probabilities, monthly_returns_to_annual_series, PathTape,
 };
 use crate::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_required_starting_capital,
@@ -17,6 +16,31 @@ use crate::stats::{
 };
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
 use std::f64;
+
+/// Capital implied by the future portfolio-funded spending schedule at the selected SWR.
+/// The final simulated month's gap is treated as the continuing terminal pattern, preserving
+/// the conventional annual-gap / SWR result for a level schedule.
+fn schedule_aware_swr_target(
+    monthly_spending: &[f64],
+    monthly_income: &[f64],
+    retire_month: usize,
+    safe_withdrawal_rate: f64,
+) -> f64 {
+    let end = monthly_spending.len().min(monthly_income.len());
+    let start = retire_month.min(end);
+    if start >= end {
+        return 0.0;
+    }
+
+    let annual_rate = safe_withdrawal_rate.max(0.01);
+    let monthly_rate = annual_rate / 12.0;
+    let gap_at = |month: usize| (monthly_spending[month] - monthly_income[month]).max(0.0);
+    let mut required = gap_at(end - 1) * 12.0 / annual_rate;
+    for month in (start..end - 1).rev() {
+        required = (gap_at(month) + required) / (1.0 + monthly_rate);
+    }
+    required
+}
 
 fn build_bootstrap_history(
     input: &RetirementInput,
@@ -302,9 +326,6 @@ pub fn run_monte_carlo_simulation(
     let mut annual_real_returns_by_sim = Vec::with_capacity(sim_count);
     let mut success_count = 0;
 
-    let spending_at_retirement = spending_at_age(input.retirement_age, spending_periods, 1.0);
-    let income_at_retirement = income_at_age(input.retirement_age, income_sources, 1.0);
-
     let growth_prob = crate::engine::get_growth_stationary_probability(stay_growth, stay_crisis);
     let crisis_prob = 1.0 - growth_prob;
     let requested_inflation_spread = input.inflation_crisis_spread.unwrap_or(0.015);
@@ -520,10 +541,12 @@ pub fn run_monte_carlo_simulation(
         cb(0.90);
     }
 
-    let portfolio_funded_spending_at_retirement =
-        (spending_at_retirement - income_at_retirement).max(0.0);
-    let target_fi_swr =
-        portfolio_funded_spending_at_retirement / input.safe_withdrawal_rate.max(0.01);
+    let target_fi_swr = schedule_aware_swr_target(
+        &arrays.monthly_spending_flow,
+        &arrays.monthly_income_flow,
+        retire_month_usize,
+        input.safe_withdrawal_rate,
+    );
     let already_retired = is_already_retired(input);
 
     // Already retired: every path starts from the same capital, so both the P95 target and

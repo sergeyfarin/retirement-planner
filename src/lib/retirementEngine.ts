@@ -102,6 +102,8 @@ class WithdrawalRunner {
 
     const floorAnnual = this.spendingFloor * this.initialAnnualSpending;
     const ceilingAnnual = this.spendingCeiling * this.initialAnnualSpending;
+    const monthlyFloor = floorAnnual / 12;
+    const monthlyCeiling = ceilingAnnual / 12;
 
     if (this.kind === 1) {
       if (isYearStart && balance > 0 && this.initialRate > 0) {
@@ -114,13 +116,15 @@ class WithdrawalRunner {
         }
         this.multiplier = Math.min(this.spendingCeiling, Math.max(this.spendingFloor, this.multiplier));
       }
-      return income + portfolioBase * this.multiplier;
+      const totalSpending = income + portfolioBase * this.multiplier;
+      return Math.max(income, Math.min(monthlyCeiling, Math.max(monthlyFloor, totalSpending)));
     }
 
     if (isYearStart) {
-      const targetAnnual = this.withdrawalPercent * Math.max(0, balance);
-      const clamped = Math.min(ceilingAnnual, Math.max(floorAnnual, targetAnnual));
-      this.heldMonthlyPortfolioSpending = clamped / 12;
+      const annualIncome = income * 12;
+      const targetAnnualSpending = annualIncome + this.withdrawalPercent * Math.max(0, balance);
+      const clampedTotal = Math.min(ceilingAnnual, Math.max(floorAnnual, targetAnnualSpending));
+      this.heldMonthlyPortfolioSpending = Math.max(0, clampedTotal - annualIncome) / 12;
     }
     return income + this.heldMonthlyPortfolioSpending;
   }
@@ -1120,6 +1124,32 @@ export function incomeAtAge(age: number, incomeSources: IncomeSource[], inflatio
 }
 
 /**
+ * Capital implied by the future portfolio-funded spending schedule at the selected SWR.
+ * The final simulated month's gap is treated as the continuing terminal pattern. This
+ * preserves the familiar `annual gap / SWR` result for a level schedule while valuing
+ * temporary bridge spending and delayed/ending income at their actual dates.
+ */
+export function scheduleAwareSWRTarget(
+  monthlySpending: ArrayLike<number>,
+  monthlyIncome: ArrayLike<number>,
+  retireMonth: number,
+  safeWithdrawalRate: number
+): number {
+  const end = Math.min(monthlySpending.length, monthlyIncome.length);
+  const start = Math.max(0, Math.min(Math.round(retireMonth), end));
+  if (start >= end) return 0;
+
+  const annualRate = Math.max(0.01, safeWithdrawalRate);
+  const monthlyRate = annualRate / 12;
+  const gapAt = (month: number) => Math.max(0, monthlySpending[month] - monthlyIncome[month]);
+  let required = gapAt(end - 1) * 12 / annualRate;
+  for (let month = end - 2; month >= start; month--) {
+    required = (gapAt(month) + required) / (1 + monthlyRate);
+  }
+  return required;
+}
+
+/**
  * Already-retired mode. There is no separate flag: `retirementAge === currentAge` *is* the
  * encoding, so it survives share links and the wasm boundary without a new field, and both
  * engines derive it from the same two numbers. `retireMonth` then comes out as 0 and the
@@ -1359,9 +1389,6 @@ export function runMonteCarloSimulation(
   const pathTapes: PathTape[] = [];
   let successCount = 0;
 
-  const spendingAtRetirement = spendingAtAge(input.retirementAge, spendingPeriods);
-  const incomeAtRetirement = incomeAtAge(input.retirementAge, incomeSources);
-
   const growthProb = getGrowthStationaryProbability(stayGrowth, stayCrisis);
   const crisisProb = 1 - growthProb;
   const requestedInflationSpread = input.inflationCrisisSpread ?? 0.015;
@@ -1493,8 +1520,12 @@ export function runMonteCarloSimulation(
     if (success) successCount++;
   }
 
-  const portfolioFundedSpendingAtRetirement = Math.max(0, spendingAtRetirement - incomeAtRetirement);
-  const targetFISWR = portfolioFundedSpendingAtRetirement / Math.max(0.01, input.safeWithdrawalRate);
+  const targetFISWR = scheduleAwareSWRTarget(
+    cashflowArrays.monthlySpendingFlow,
+    cashflowArrays.monthlyIncomeFlow,
+    retireMonthClamped,
+    input.safeWithdrawalRate
+  );
   const alreadyRetired = isAlreadyRetired(input);
 
   // Already retired: every path starts from the same capital, so both the P95 target and

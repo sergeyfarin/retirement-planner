@@ -868,7 +868,7 @@ describe('withdrawal strategies', () => {
     expect(noStrategy.stats.finalMedian).toBeCloseTo(fixed.stats.finalMedian, 6);
   });
 
-  it('subtracts retirement income from the SWR target and treats percent withdrawals as portfolio-funded', () => {
+  it('subtracts scheduled retirement income and bounds total percent-strategy spending', () => {
     const input = stressedInput({
       kind: 'percentOfPortfolio',
       withdrawalPercent: 0.04,
@@ -881,7 +881,7 @@ describe('withdrawal strategies', () => {
     ];
 
     const result = runMonteCarloSimulation(input, spending, pension, [], months, retireMonth);
-    expect(result.stats.fiTargetSWR).toBe(250_000);
+    expect(result.stats.fiTargetSWR).toBeCloseTo(250_000, 6);
 
     const oneYearCashflows = buildCashflowArrays(input, spending, pension, [], 12);
     const evaluation = evaluatePath(
@@ -894,9 +894,27 @@ describe('withdrawal strategies', () => {
       0,
       0
     );
-    // Total consumption is pension income plus a 4% portfolio withdrawal: the pension
-    // no longer gets banked while silently replacing part of the percentage withdrawal.
-    expect(evaluation.finalBalance).toBeCloseTo(960_000, 6);
+    // Pension plus the 4% portfolio target would be 70k, so the 56k total-spending ceiling
+    // limits the portfolio withdrawal to 26k rather than adding income after the clamp.
+    expect(evaluation.finalBalance).toBeCloseTo(974_000, 6);
+  });
+
+  it('values delayed and temporary retirement income on its actual schedule', () => {
+    const input = stressedInput({ kind: 'fixed' });
+    const delayedPension: IncomeSource[] = [
+      { id: 'delayed', label: 'Delayed pension', fromAge: 61, toAge: 90, yearlyAmount: 30_000, inflationAdjusted: true }
+    ];
+    const temporaryIncome: IncomeSource[] = [
+      { id: 'temporary', label: 'Temporary income', fromAge: 60, toAge: 61, yearlyAmount: 40_000, inflationAdjusted: true }
+    ];
+
+    const delayed = runMonteCarloSimulation(input, spending, delayedPension, [], months, retireMonth);
+    const temporary = runMonteCarloSimulation(input, spending, temporaryIncome, [], months, retireMonth);
+
+    expect(delayed.stats.fiTargetSWR).toBeGreaterThan(250_000);
+    expect(delayed.stats.fiTargetSWR).toBeLessThan(1_000_000);
+    expect(temporary.stats.fiTargetSWR).toBeGreaterThan(0);
+    expect(temporary.stats.fiTargetSWR).toBeLessThan(1_000_000);
   });
 });
 

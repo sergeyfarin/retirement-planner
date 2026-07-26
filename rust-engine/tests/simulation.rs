@@ -217,6 +217,35 @@ fn the_swr_target_subtracts_income_active_at_retirement() {
 }
 
 #[test]
+fn the_swr_target_values_delayed_and_temporary_income_on_its_schedule() {
+    let plan = plan();
+    let delayed = [income(
+        plan.input.retirement_age + 1.0,
+        plan.input.simulate_until_age,
+        30_000.0,
+        true,
+    )];
+    let temporary = [income(
+        plan.input.retirement_age,
+        plan.input.retirement_age + 1.0,
+        40_000.0,
+        true,
+    )];
+
+    let delayed_result = run_monte_carlo_simulation(
+        &plan.input, &plan.spending, &delayed, &[], plan.months, plan.retire_month, None,
+    );
+    let temporary_result = run_monte_carlo_simulation(
+        &plan.input, &plan.spending, &temporary, &[], plan.months, plan.retire_month, None,
+    );
+
+    assert!(delayed_result.stats.fi_target_swr > 250_000.0);
+    assert!(delayed_result.stats.fi_target_swr < 1_000_000.0);
+    assert!(temporary_result.stats.fi_target_swr > 0.0);
+    assert!(temporary_result.stats.fi_target_swr < 1_000_000.0);
+}
+
+#[test]
 fn a_degenerate_safe_withdrawal_rate_is_floored_rather_than_dividing_by_zero() {
     let mut plan = plan();
     plan.input.safe_withdrawal_rate = 0.0;

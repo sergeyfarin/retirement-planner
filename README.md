@@ -428,8 +428,8 @@ re-applied in the ruin-surface replay so the surface stays consistent) evaluates
 | Strategy (`withdrawalStrategy.kind`) | Behaviour |
 |---|---|
 | `fixed` (default) | Planned real-terms spending, unchanged. The classic "4% rule" assumption. |
-| `guardrails` | Guyton-Klinger. Once per retirement year, if the current withdrawal rate (spending ÷ balance) has drifted above `initialRate × (1 + guardrailBand)`, spending is cut by `adjustment`; below `initialRate × (1 − guardrailBand)`, raised by `adjustment`. Clamped to `[spendingFloor, spendingCeiling] ×` planned. Defaults: band 0.2, step 0.1, floor 0.6, ceiling 1.4. |
-| `percentOfPortfolio` | Each retirement year spend `withdrawalPercent ×` current balance, clamped to `[spendingFloor, spendingCeiling] ×` initial real spending so income neither collapses nor balloons. Default `withdrawalPercent` 0.04. |
+| `guardrails` | Guyton-Klinger. Once per retirement year, if the portfolio-funded withdrawal rate (`max(0, spending − income) ÷ balance`) has drifted above `initialRate × (1 + guardrailBand)`, the portfolio-funded portion is cut by `adjustment`; below `initialRate × (1 − guardrailBand)`, it is raised. Total spending, including income, is clamped to `[spendingFloor, spendingCeiling] ×` planned, but can never be forced below income. Defaults: band 0.2, step 0.1, floor 0.6, ceiling 1.4. |
+| `percentOfPortfolio` | Each retirement year target total spending of `income + withdrawalPercent × current balance`, clamped to `[spendingFloor, spendingCeiling] ×` initial real spending. The resulting portfolio withdrawal can never be negative. Default `withdrawalPercent` 0.04. |
 
 Both adaptive strategies raise success probability versus fixed spending on stressed
 scenarios (they cut spending in bad markets), matching the well-documented behaviour of
@@ -437,6 +437,12 @@ guardrail/variable-percentage withdrawal in the retirement-research literature. 
 regression test (`retirementEngine.test.ts`, "withdrawal strategies") asserts
 `guardrails ≥ fixed` and `percentOfPortfolio ≥ fixed` on a calibrated stressed scenario.
 Pre-retirement spending is always the planned amount regardless of strategy.
+
+The SWR FI target uses the full future portfolio-funded spending schedule rather than only
+the retirement-date snapshot. Delayed pensions therefore fund later years, while temporary
+income cannot make the target disappear. The schedule is discounted monthly at the selected
+SWR; the final simulated month's gap is treated as the continuing terminal pattern. A level
+schedule still produces the familiar `annual spending gap ÷ SWR` target exactly.
 
 ### 5.2 Drag Model
 

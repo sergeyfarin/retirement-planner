@@ -146,10 +146,10 @@ fn dynamic_strategies_apply_to_portfolio_funded_spending_only() {
     assert_close(cut, 2_000.0 + 1_000.0 * 0.9, 1e-9);
 
     let mut percent = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
-    // The percentage is a portfolio withdrawal, and pension income is added to it to
-    // obtain total spending. The existing gross-spending guardrails still cap extremes.
+    // The percentage is a portfolio withdrawal and pension income is added before the
+    // total is clamped to 140% of the 36,000 spending anchor.
     let spend = percent.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 2_000.0);
-    assert_close(spend, 2_000.0 + 40_000.0 / 12.0, 1e-9);
+    assert_close(spend, 50_400.0 / 12.0, 1e-9);
 }
 
 #[test]
