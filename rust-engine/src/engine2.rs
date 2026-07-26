@@ -523,8 +523,7 @@ pub fn evaluate_path(
             yearly_pnl = 0.0;
         }
 
-        if balance <= 0.0 {
-            depleted = true;
+        if balance < 0.0 {
             balance = 0.0;
         }
 
@@ -537,7 +536,7 @@ pub fn evaluate_path(
             }
         }
 
-        if balance == 0.0 {
+        if depleted && balance == 0.0 {
             depleted_months += 1;
         }
         if record_series {

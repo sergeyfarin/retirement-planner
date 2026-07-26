@@ -410,7 +410,7 @@ for each month m in [0 .. totalMonths):
           tax = taxOnGainsPercent × max(0, yearly_pnl)
           balance −= tax
           yearly_pnl = 0
-   11. if balance ≤ 0: balance = 0, mark depleted
+   11. if balance < 0: record the unmet amount as shortfall, balance = 0, mark depleted
    12. Record balance; retain the exogenous asset-return/inflation tape for exact replays
 ```
 
@@ -610,7 +610,7 @@ and when 95% is unreachable even by contributing right up to retirement.
 
 ### 7.3 Ruin Analysis
 
-- **Success probability**: fraction of paths ending with balance > 0
+- **Success probability**: fraction of paths that fully fund every month's spending
 - **Shortfall**: cumulative deficit for depleted paths (P10, P50, P90)
 - **Depleted years**: total years spent at zero balance (P10, P50, P90)
 
@@ -787,7 +787,7 @@ simplifications.
 | Parametric pool is moment-targeted before reuse | Requested mean/std no longer inherit a fixed seed-dependent error from one 120-draw pool | Fixed 2026-07-26 (§4.3 Mode C); guarded in both engines |
 | Joint (return, CPI) bootstrap in Historical mode; parametric i.i.d. inflation only in Parametric / moment-targeting modes | Correlation and persistence now preserved where it matters | Fixed 2026-07-21 (§5.3); GBP CPI ends 2025-03 so its monthly series stops there |
 | Kurtosis blending omits 4th-moment cross-terms | Thinner tails than intended | TODO 0.5 |
-| Depletion is sticky (no recovery counted) | Slightly overstates ruin when late income could revive a path | TODO 2.7 |
+| Depletion begins when spending cannot be fully funded and is sticky (later recovery does not erase the shortfall) | Captures whether the plan ever failed to meet spending; zero balance alone is not ruin | TODO 2.7 |
 | Annual-mode bootstrap spreads the year across 12 months, preserving the annual draw exactly | Intra-year path restored; shape of the spread is parametric, not historical | Fixed 2026-07-21 (§4.3 Mode B); fallback mode only, unreachable from the shipped app |
 | **Fixed planning horizon; no mortality weighting** | Measures "ruin by your chosen age", not ruin-before-death, so it is conservative relative to a lifetime measure | **Deliberate product decision**, not an omission — survival statistics are the wrong register for a personal tool. TODO 2.2 (declined) |
 | Allocation is fixed for life; no glide path | Cannot model de-risking into retirement | TODO 2.5 |

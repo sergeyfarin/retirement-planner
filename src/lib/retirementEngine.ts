@@ -629,7 +629,7 @@ export function buildSequenceRiskSummary(
 
     const memberIndexes = members.map((member) => member.index);
     const earlyMean = members.reduce((sum, member) => sum + member.earlyMean, 0) / members.length;
-    const ruinCount = memberIndexes.reduce((count, index) => count + ((depletedFlags[index] || finalBalances[index] <= 0) ? 1 : 0), 0);
+    const ruinCount = memberIndexes.reduce((count, index) => count + (depletedFlags[index] ? 1 : 0), 0);
     const memberFinalBalances = memberIndexes.map((index) => finalBalances[index]);
     const endingMedian = summarize(memberFinalBalances).p50;
 
@@ -770,8 +770,7 @@ export function evaluatePath(
       yearlyPnl = 0;
     }
 
-    if (balance <= 0) {
-      depleted = true;
+    if (balance < 0) {
       balance = 0;
     }
 
@@ -784,7 +783,7 @@ export function evaluatePath(
       }
     }
 
-    if (balance === 0) depletedMonths++;
+    if (depleted && balance === 0) depletedMonths++;
     if (recordSeries) balances[month] = balance;
   }
 
@@ -826,7 +825,7 @@ function replayRuinProbability(
       stopContributionsAt,
       false
     );
-    if (result.depleted || result.finalBalance <= 0) ruinCount++;
+    if (result.depleted) ruinCount++;
   }
 
   return ruinCount / Math.max(1, replayCount);
@@ -1251,7 +1250,7 @@ export function buildCashflowArrays(
 }
 
 // `successFlags` must use the same definition as the headline success probability
-// (never depleted AND ending balance > 0), so the P95 FI target and the success rate
+// (spending was always fully funded), so the P95 FI target and the success rate
 // agree on what counts as a surviving path.
 export function findRetirementBalanceTarget(
   retirementBalances: number[],
@@ -1520,7 +1519,7 @@ export function runMonteCarloSimulation(
     depletedFlags.push(evaluation.depleted);
     annualRealReturnsBySim.push(evaluation.annualRealReturns);
 
-    const success = !evaluation.depleted && evaluation.finalBalance > 0;
+    const success = !evaluation.depleted;
     successFlags.push(success);
     if (success) successCount++;
   }

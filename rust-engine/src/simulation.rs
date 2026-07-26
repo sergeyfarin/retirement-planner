@@ -535,7 +535,7 @@ pub fn run_monte_carlo_simulation(
             path_tapes.push(tape);
         }
 
-        let success = !evaluation.depleted && evaluation.final_balance > 0.0;
+        let success = !evaluation.depleted;
         success_flags.push(success);
         if success {
             success_count += 1;

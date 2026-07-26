@@ -447,6 +447,33 @@ fn overspending_records_a_shortfall_and_marks_the_path_depleted() {
 }
 
 #[test]
+fn an_exactly_balanced_zero_savings_path_is_not_depleted() {
+    let months = 12;
+    let mut cashflows = empty_cashflows(months);
+    for month in 0..months {
+        cashflows.monthly_real_income_flow[month] = 100.0;
+        cashflows.monthly_real_spending_flow[month] = 100.0;
+    }
+    let evaluation = evaluate_path(
+        &flat_tape(months, 0.0, 0.0),
+        &cashflows,
+        0.0,
+        months,
+        &fixed_strategy(),
+        0,
+        0.0,
+        0.0,
+        None,
+        true,
+    );
+
+    assert_eq!(evaluation.final_balance, 0.0);
+    assert_eq!(evaluation.cumulative_shortfall, 0.0);
+    assert!(!evaluation.depleted);
+    assert_eq!(evaluation.depleted_months, 0);
+}
+
+#[test]
 fn a_balance_that_touches_zero_stays_flagged_even_if_income_revives_it() {
     let months = 6;
     let mut cashflows = empty_cashflows(months);
@@ -729,7 +756,7 @@ fn a_zero_month_horizon_returns_the_starting_balance_untouched() {
 }
 
 #[test]
-fn a_total_loss_month_is_survivable_arithmetic() {
+fn a_total_loss_without_unfunded_spending_is_not_depletion() {
     let months = 3;
     let tape = PathTape {
         asset_returns: vec![-1.0, 0.5, 0.5],
@@ -748,7 +775,8 @@ fn a_total_loss_month_is_survivable_arithmetic() {
         false,
     );
     assert_eq!(evaluation.final_balance, 0.0);
-    assert!(evaluation.depleted);
+    assert!(!evaluation.depleted);
+    assert_eq!(evaluation.cumulative_shortfall, 0.0);
     assert!(evaluation.final_balance.is_finite());
 }
 

@@ -515,6 +515,32 @@ describe('coast FIRE age', () => {
 describe('exact path evaluator', () => {
   const fixed = { kind: 'fixed' as const };
 
+  it('does not call an exactly balanced zero-savings path depleted', () => {
+    const months = 12;
+    const zeroes = new Float64Array(months);
+    const result = evaluatePath(
+      { assetReturns: zeroes, inflationRates: zeroes },
+      {
+        monthlyRealIncomeFlow: new Float64Array(months).fill(100),
+        monthlyNominalIncomeFlow: zeroes,
+        monthlyRealSpendingFlow: new Float64Array(months).fill(100),
+        monthlyNominalSpendingFlow: zeroes,
+        lumpSumByMonth: zeroes
+      },
+      0,
+      months,
+      fixed,
+      0,
+      0,
+      0
+    );
+
+    expect(result.finalBalance).toBe(0);
+    expect(result.cumulativeShortfall).toBe(0);
+    expect(result.depleted).toBe(false);
+    expect(result.depletedMonths).toBe(0);
+  });
+
   it('deflates nominal cash flows by the tape\'s realized inflation', () => {
     const result = evaluatePath(
       {

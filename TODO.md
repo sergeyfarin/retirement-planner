@@ -910,10 +910,18 @@ Two people: different ages, incomes, pension start ages; later, couple mortality
 The income/spending period structure already supports it — add a second default income
 row, label rows by person, adjust the FI-age framing.
 
-### 2.7 Ruin Definition Nuance (S)
-Depletion is sticky: a path that touches 0 but is later revived by pension income counts
-as permanent failure. Defensible, but surface it in the UI ("X% of failures recover
-after pension starts") or offer a "broke ever / broke at end" toggle.
+### 2.7 Ruin Definition Nuance (S) — ✅ CORRECTED 2026-07-26
+Ruin now begins only when scheduled spending cannot be fully funded, evidenced by a
+positive cumulative shortfall. Merely holding a zero balance is not failure: a zero-savings
+path whose income exactly matches spending remains successful and reports zero depleted
+years. Once an actual shortfall occurs, depletion remains sticky even if later pension
+income revives the balance. Both engines, exact ruin replays, the P95 FI target and the
+headline success probability use this definition. Regression tests cover the exactly
+balanced zero-savings case in both engines.
+
+The remaining product nuance is whether to surface later recovery as a secondary statistic
+("X% of failures recover after pension starts"); it does not change the historical fact
+that spending went unfunded.
 
 ---
 

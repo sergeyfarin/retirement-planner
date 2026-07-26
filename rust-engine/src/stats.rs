@@ -70,7 +70,7 @@ pub fn build_sequence_risk_summary(
 
         for member in members {
             let idx = member.index;
-            if depleted_flags[idx] || final_balances[idx] <= 0.0 {
+            if depleted_flags[idx] {
                 ruin_count += 1;
             }
             member_final_balances.push(final_balances[idx]);
@@ -127,7 +127,7 @@ pub fn replay_ruin_probability(
             stop_contributions_at,
             false,
         );
-        if result.depleted || result.final_balance <= 0.0 {
+        if result.depleted {
             ruin_count += 1;
         }
     }
@@ -455,7 +455,7 @@ pub fn find_coast_age(
 }
 
 // `success_flags` must use the same definition as the headline success probability
-// (never depleted AND ending balance > 0), so the P95 FI target and the success rate
+// (spending was always fully funded), so the P95 FI target and the success rate
 // agree on what counts as a surviving path.
 pub fn find_retirement_balance_target(
     retirement_balances: &[f64],

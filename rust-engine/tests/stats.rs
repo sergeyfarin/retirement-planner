@@ -41,19 +41,19 @@ fn sequence_risk_sorts_simulations_into_five_quintiles_by_early_returns() {
 }
 
 #[test]
-fn sequence_risk_counts_ruin_from_either_the_flag_or_a_zero_ending() {
+fn sequence_risk_counts_only_paths_with_an_actual_shortfall_as_ruined() {
     let sim_count = 10;
     let returns: Vec<Vec<f64>> = (0..sim_count)
         .map(|sim| vec![sim as f64 / 100.0; 3])
         .collect();
     let mut finals = vec![100.0; sim_count];
     let mut depleted = vec![false; sim_count];
-    // Worst two sims: one ends at zero, one merely dipped to zero on the way.
+    // Worst two sims: one ends at zero without a shortfall, one has an actual shortfall.
     finals[0] = 0.0;
     depleted[1] = true;
 
     let buckets = build_sequence_risk_summary(&returns, &finals, &depleted);
-    assert_eq!(buckets[0].ruin_probability, 1.0);
+    assert_eq!(buckets[0].ruin_probability, 0.5);
     assert_eq!(buckets[1].ruin_probability, 0.0);
 }
 
@@ -265,9 +265,8 @@ fn required_capital_is_zero_when_the_plan_survives_with_nothing() {
         0.0,
         0.0,
     );
-    // No spending at all: the plan needs no capital... but an ending balance of exactly
-    // zero counts as failure, so the search still returns the smallest capital that keeps
-    // the balance positive.
+    // No spending at all: the plan needs no capital. A zero ending balance is successful
+    // because no scheduled spending went unfunded.
     assert!(capital >= 0.0 && capital < 10.0, "unexpected capital: {capital}");
 }
 
