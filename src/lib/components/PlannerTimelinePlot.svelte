@@ -5,7 +5,7 @@
 		PlotlyHTMLElement,
 		PlotlyShape
 	} from 'plotly.js-cartesian-dist-min';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { percentile as calcPercentile } from '../calculations';
 	import type {
 		LumpSumEvent,
@@ -60,8 +60,13 @@
 	];
 
 	$effect(() => {
-		if (plotReady && Plotly && chartEl && simulation) {
-			drawChart(simulation);
+		const result = simulation;
+		const resultStats = stats;
+		if (plotReady && Plotly && chartEl && result && resultStats) {
+			// Result charts describe the last completed run. Read presentation props without
+			// subscribing to live inputs, otherwise changing currency or another input redraws
+			// stale Plotly charts before a new simulation has completed.
+			untrack(() => drawChart(result));
 		}
 	});
 

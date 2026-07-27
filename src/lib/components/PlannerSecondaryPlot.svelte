@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import type { SimulationResult, SummaryStats } from '../retirementEngine';
 
 	let {
@@ -46,20 +46,23 @@
 	});
 
 	$effect(() => {
-		if (plotReady && Plotly && terminalWealthEl && simulation?.finalWealthCdf?.balances.length) {
-			drawTerminalWealthChart();
+		const finalWealthCdf = simulation?.finalWealthCdf;
+		if (plotReady && Plotly && terminalWealthEl && finalWealthCdf?.balances.length) {
+			untrack(drawTerminalWealthChart);
 		}
 	});
 
 	$effect(() => {
-		if (plotReady && Plotly && ruinSurfaceEl && stats?.ruinSurface) {
-			drawRuinSurfaceChart();
+		const ruinSurface = stats?.ruinSurface;
+		if (plotReady && Plotly && ruinSurfaceEl && ruinSurface) {
+			untrack(drawRuinSurfaceChart);
 		}
 	});
 
 	$effect(() => {
-		if (plotReady && Plotly && sequenceRiskEl && stats?.sequenceRisk?.length) {
-			drawSequenceRiskChart();
+		const sequenceRisk = stats?.sequenceRisk;
+		if (plotReady && Plotly && sequenceRiskEl && sequenceRisk?.length) {
+			untrack(drawSequenceRiskChart);
 		}
 	});
 

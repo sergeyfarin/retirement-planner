@@ -496,6 +496,10 @@
 	let Plotly: PlotlyApi | null = null;
 	let plotReady = $state(false);
 	let realReturnCdfEl: HTMLDivElement | null = $state(null);
+	let realReturnRenderFrame: number | null = null;
+	let realReturnRenderInFlight = false;
+	let realReturnRenderAgain = false;
+	let realReturnRenderDestroyed = false;
 
 	let simulation: SimulationResult | null = $state<SimulationResult | null>(null);
 	let stats: SummaryStats | null = $state<SummaryStats | null>(null);
@@ -1556,7 +1560,7 @@
 			realReturnCdfSpan
 		];
 		if (plotReady && realReturnCdfEl && chartInputs.length > 0) {
-			drawRealReturnCdfChart();
+			scheduleRealReturnCdfChart();
 		}
 	});
 
@@ -1697,6 +1701,16 @@
 	});
 
 	onDestroy(() => {
+		realReturnRenderDestroyed = true;
+		realReturnRenderAgain = false;
+		if (activeWorker) {
+			activeWorker.terminate();
+			activeWorker = null;
+		}
+		if (realReturnRenderFrame !== null) {
+			cancelAnimationFrame(realReturnRenderFrame);
+			realReturnRenderFrame = null;
+		}
 		if (Plotly && realReturnCdfEl) {
 			Plotly.purge(realReturnCdfEl);
 		}
@@ -1808,7 +1822,35 @@
 		}
 	}
 
-	function drawRealReturnCdfChart() {
+	function scheduleRealReturnCdfChart() {
+		if (realReturnRenderDestroyed) return;
+		if (realReturnRenderInFlight) {
+			realReturnRenderAgain = true;
+			return;
+		}
+		if (realReturnRenderFrame !== null) return;
+
+		realReturnRenderFrame = requestAnimationFrame(() => {
+			realReturnRenderFrame = null;
+			void renderRealReturnCdfChart();
+		});
+	}
+
+	async function renderRealReturnCdfChart() {
+		if (!Plotly || !realReturnCdfEl) return;
+		realReturnRenderInFlight = true;
+		try {
+			await drawRealReturnCdfChart();
+		} finally {
+			realReturnRenderInFlight = false;
+			if (!realReturnRenderDestroyed && realReturnRenderAgain) {
+				realReturnRenderAgain = false;
+				scheduleRealReturnCdfChart();
+			}
+		}
+	}
+
+	async function drawRealReturnCdfChart() {
 		if (!Plotly || !realReturnCdfEl) return;
 
 		const percentileValues = realReturnPercentiles.map((point) => point.value);
@@ -1940,7 +1982,7 @@
 			staticPlot: false
 		};
 
-		void Plotly.react(realReturnCdfEl, traces, layout, config);
+		await Plotly.react(realReturnCdfEl, traces, layout, config);
 	}
 </script>
 
@@ -2004,7 +2046,7 @@
 		{resetBankMetricsToDefault}
 		{resetInflationToDefault}
 		{resetDragToDefault}
-		onAssumptionsToggle={() => drawRealReturnCdfChart()}
+		onAssumptionsToggle={scheduleRealReturnCdfChart}
 		{currentConditions}
 		{applyCurrentConditions}
 	/>

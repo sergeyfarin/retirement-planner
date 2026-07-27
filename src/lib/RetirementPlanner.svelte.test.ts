@@ -41,6 +41,14 @@ function fieldInLabel(container: HTMLElement, labelText: string): HTMLInputEleme
 	return element;
 }
 
+function currencyButton(container: HTMLElement, label: string): HTMLButtonElement {
+	const button = [...container.querySelectorAll<HTMLButtonElement>('.currency-btn')].find(
+		(candidate) => candidate.textContent?.trim() === label
+	);
+	if (!button) throw new Error(`no currency button labelled "${label}"`);
+	return button;
+}
+
 /** Formatted numbers carry grouping separators and percent signs; compare the number. */
 function numericValue(field: HTMLInputElement): number {
 	return Number(field.value.replace(/[^\d.-]/g, ''));
@@ -119,4 +127,24 @@ describe('RetirementPlanner share-link restoration', () => {
 			expect(fieldById(container, 'adv-seed').value).toBe('');
 		}
 	});
+});
+
+describe('RetirementPlanner currency switching', () => {
+	it('stays responsive after completed-result charts mount', async () => {
+		const { container } = await render(RetirementPlanner);
+
+		// The freeze only occurred after the initial simulation had mounted all result plots.
+		await vi.waitFor(
+			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(5),
+			{ timeout: 20_000 }
+		);
+
+		for (const label of ['World ($)', 'US ($)', 'UK (£)', 'Europe (€)']) {
+			const button = currencyButton(container, label);
+			button.click();
+			await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'), {
+				timeout: 2_000
+			});
+		}
+	}, 30_000);
 });
