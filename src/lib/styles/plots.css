@@ -105,6 +105,35 @@
 	line-height: 1.45;
 }
 
+.chart-kpis {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.35rem;
+	margin: 0.45rem 0 0.3rem;
+}
+
+.chart-kpis > div {
+	padding: 0.35rem 0.45rem;
+	border-radius: 7px;
+	background: #f8fafc;
+}
+
+.chart-kpis span,
+.chart-kpis strong {
+	display: block;
+}
+
+.chart-kpis span {
+	font-size: 0.64rem;
+	color: #94a3b8;
+}
+
+.chart-kpis strong {
+	margin-top: 0.08rem;
+	font-size: 0.78rem;
+	color: #334155;
+}
+
 .chart-question,
 .advanced-chart > summary {
 	margin: 0.2rem 0 0.2rem;

@@ -3,19 +3,13 @@
 		stats,
 		input,
 		fmtCompactCurrency,
-		retirementYearlySpending = 0,
 		FI_TARGET_SUCCESS_PROBABILITY = 0.95,
 		percentFormatter,
 		fmtNum,
 		alreadyRetired = false,
-		simCount = 0
+		actionableRecommendations = null
 	} = $props();
 
-	// Already retired: "chance to reach FI by age X" has no future X to reach, and the
-	// balance-at-retirement percentiles are today's capital repeated. The card is replaced
-	// by the comparison that does apply — capital held against capital required. The engine
-	// reports `fiTargetP95` as a required starting capital in this mode; see
-	// `findRequiredStartingCapital`.
 	const capitalMargin = $derived(
 		alreadyRetired && stats && stats.fiTargetP95 > 0
 			? input.currentSavings / stats.fiTargetP95 - 1
@@ -31,247 +25,182 @@
 		const pct = margin * 100;
 		return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
 	}
-
-	// Monte Carlo standard error of a proportion: SE = sqrt(p(1-p)/N). This measures only
-	// run-to-run numerical noise with the inputs, source data and model held fixed. It is not
-	// a confidence interval for the plan: more paths cannot reduce source-data/model uncertainty.
-	const successProbabilitySE = $derived(
-		simCount > 0 && stats
-			? Math.sqrt((stats.successProbability * (1 - stats.successProbability)) / simCount)
-			: 0
-	);
-	const historicalMonths = $derived(input.historicalMonthlyReturns?.length ?? 0);
-	const historicalBlockChunks = $derived(
-		historicalMonths > 0 ? Math.floor(historicalMonths / Math.max(1, input.blockLength)) : 0
-	);
 </script>
 
 {#if stats}
-	<div class="summary-grid">
-		<div class="card">
-			<strong>How much you may need</strong>
-			<div class="results-kpi mono-value">
-				Spending-rule estimate: {fmtCompactCurrency(stats.fiTargetSWR)}
+	<div class="results-summary">
+		<section
+			class="card result-hero"
+			class:result-hero-positive={stats.successProbability >= 0.9}
+			class:result-hero-warning={stats.successProbability >= 0.7 && stats.successProbability < 0.9}
+			class:result-hero-negative={stats.successProbability < 0.7}
+			aria-labelledby="plan-outlook-title"
+		>
+			<div class="result-hero-main">
+				<div>
+					<h3 id="plan-outlook-title">Your plan outlook</h3>
+					<div class="hero-probability mono-value">
+						{Math.round(stats.successProbability * 100)} <span>of 100</span>
+					</div>
+				</div>
+				<p class="hero-copy">
+					simulated futures cover all of your planned spending through age
+					<strong>{fmtNum(input.simulateUntilAge)}</strong>.
+				</p>
 			</div>
-			<div class="results-kpi mono-value">
-				Simulation-based estimate: {fmtCompactCurrency(stats.fiTargetP95)}
-			</div>
-			<div
-				class="note mono-value"
-				title="The capital your portfolio has to supply, valued at the chosen withdrawal rate. Only the part of spending your income does not already cover counts, and each year is valued at its own date — so a pension starting later, or a period of higher early spending, changes the total. When spending and income are both level for life this reduces exactly to yearly gap ÷ withdrawal rate."
-			>
-				Spending-rule estimate = the part of spending your income does not cover, valued at {(
-					input.safeWithdrawalRate * 100
-				).toFixed(1)}% — year by year, so later pensions and bridge periods count at their own
-				dates.
-				{#if retirementYearlySpending > 0}
-					Spending at retirement is {fmtCompactCurrency(retirementYearlySpending)}/yr.
+
+			{#if stats.successProbability < FI_TARGET_SUCCESS_PROBABILITY && actionableRecommendations}
+				{#if actionableRecommendations.yearlySpendingReduction != null || actionableRecommendations.monthsLonger != null}
+					<p class="hero-action">
+						<span
+							>To reach {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% in the tested scenarios:</span
+						>
+						{#if actionableRecommendations.yearlySpendingReduction != null}
+							<strong
+								>Spend {fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr
+								less</strong
+							>
+							{#if actionableRecommendations.monthsLonger != null}<span class="action-or">or</span
+								>{/if}
+						{/if}
+						{#if actionableRecommendations.monthsLonger != null}
+							<strong>Work {fmtNum(actionableRecommendations.monthsLonger)} months longer</strong>
+						{/if}
+					</p>
 				{/if}
+			{/if}
+
+			<p class="hero-definition">
+				A future counts as covered only when every month of planned spending is met.
+			</p>
+		</section>
+
+		<section class="card readiness-card" aria-labelledby="readiness-title">
+			<div class="section-heading-row">
+				<div>
+					<h3 id="readiness-title">
+						{alreadyRetired
+							? 'Retirement funding today'
+							: `On track for retirement at age ${input.retirementAge}`}
+					</h3>
+					<p class="section-intro">
+						{alreadyRetired
+							? 'Compare your current portfolio with two estimates of the capital your plan may need.'
+							: 'Compare your projected portfolio with two estimates of the capital your plan may need.'}
+					</p>
+				</div>
 			</div>
-			<div class="note mono-value">
-				{#if alreadyRetired}
-					Simulation-based estimate = capital needed <em>today</em> for at least a {(
-						FI_TARGET_SUCCESS_PROBABILITY * 100
-					).toFixed(0)}% chance of ending with money left
-				{:else}
-					Simulation-based estimate = portfolio at retirement that gives at least a {(
-						FI_TARGET_SUCCESS_PROBABILITY * 100
-					).toFixed(0)}% chance of ending with money left
-				{/if}
+
+			<div class="readiness-grid">
+				<div class="readiness-metric primary-metric">
+					<h4>Simulation-based target</h4>
+					<div class="readiness-value mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</div>
+					{#if alreadyRetired}
+						<p class:amount-positive={capitalMargin >= 0} class:amount-negative={capitalMargin < 0}>
+							Your portfolio is {fmtMargin(capitalMargin)} versus this target
+						</p>
+					{:else}
+						<p
+							class:amount-positive={stats.fiProbabilityP95 >= 0.7}
+							class:amount-negative={stats.fiProbabilityP95 < 0.7}
+						>
+							{percentFormatter.format(stats.fiProbabilityP95)} chance of reaching it
+						</p>
+					{/if}
+					<span
+						>Capital associated with a {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% planning
+						goal.</span
+					>
+				</div>
+
+				<div class="readiness-metric">
+					<h4>{alreadyRetired ? 'Portfolio today' : `Projected at age ${input.retirementAge}`}</h4>
+					<div class="readiness-value mono-value">
+						{fmtCompactCurrency(alreadyRetired ? input.currentSavings : stats.retireMedian)}
+					</div>
+					{#if alreadyRetired}
+						<p>Available capital</p>
+					{:else}
+						<p class="mono-value">
+							10–90% range: {fmtCompactCurrency(stats.retireLow)}–{fmtCompactCurrency(
+								stats.retireHigh
+							)}
+						</p>
+					{/if}
+					<span
+						>{alreadyRetired
+							? 'The amount being tested against both targets.'
+							: 'The median and central range across simulated futures.'}</span
+					>
+				</div>
+
+				<div class="readiness-metric secondary-metric">
+					<h4>Spending-rule estimate</h4>
+					<div class="readiness-value mono-value">{fmtCompactCurrency(stats.fiTargetSWR)}</div>
+					{#if alreadyRetired}
+						<p class:amount-positive={swrMargin >= 0} class:amount-negative={swrMargin < 0}>
+							Your portfolio is {fmtMargin(swrMargin)} versus this estimate
+						</p>
+					{:else}
+						<p
+							class:amount-positive={stats.fiProbabilitySWR >= 0.7}
+							class:amount-negative={stats.fiProbabilitySWR < 0.7}
+						>
+							{percentFormatter.format(stats.fiProbabilitySWR)} chance of reaching it
+						</p>
+					{/if}
+					<span>Rule-of-thumb comparison using your chosen withdrawal rate.</span>
+				</div>
 			</div>
-			<div
-				class="note mono-value coast-note"
-				title="Sometimes called Coast FIRE: from this age you could stop positive portfolio contributions. Planned deficit months and lump sums still occur; retirement age and spending are unchanged."
-			>
+
+			<div class="coast-callout">
 				{#if alreadyRetired}
-					Age you could stop saving: n/a — you are already retired
+					<strong>Coast age:</strong> Not applicable because you are already retired.
 				{:else if stats.coastAge != null}
-					You could stop regular saving at age <strong>{Math.ceil(stats.coastAge)}</strong> and
-					still reach the {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% goal; planned deficits
-					still apply
+					<strong>You could stop regular saving at age {Math.ceil(stats.coastAge)}</strong> and
+					still reach the
+					{(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% goal; planned deficits and lump sums
+					still apply.
 				{:else}
-					Age you could stop saving: not available — there are no regular contributions to stop, or
-					the goal remains out of reach
+					<strong>Coast age is not available.</strong> There are no regular contributions to stop, or
+					the goal remains out of reach.
 				{/if}
 			</div>
-		</div>
-		{#if alreadyRetired}
-			<div class="card">
-				<strong>Capital today vs. targets</strong>
-				<div class="results-kpi mono-value">{fmtCompactCurrency(input.currentSavings)}</div>
-				<div
-					class="note mono-value"
-					class:amount-positive={swrMargin >= 0}
-					class:amount-negative={swrMargin < 0}
-				>
-					{fmtMargin(swrMargin)} vs. spending-rule estimate
+		</section>
+
+		<details class="card downside-card" open={stats.successProbability < 0.9}>
+			<summary>
+				<span>If the plan falls short</span>
+				<span class="downside-summary mono-value">
+					Worst 10% shortfall: {fmtCompactCurrency(stats.shortfallHigh)}
+				</span>
+			</summary>
+			<p class="downside-definition">
+				These figures describe the size of unsuccessful outcomes; they are separate from the chance
+				shown above.
+			</p>
+			<div class="downside-grid">
+				<div>
+					<h4>Cumulative spending shortfall</h4>
+					<p class="mono-value">
+						<span class:amount-negative={stats.shortfallHigh > 0}
+							>Worst 10%: {fmtCompactCurrency(stats.shortfallHigh)}</span
+						>
+						<span>Median: {fmtCompactCurrency(stats.shortfallMedian)}</span>
+						<span>Best 10%: {fmtCompactCurrency(stats.shortfallLow)}</span>
+					</p>
 				</div>
-				<div
-					class="note mono-value"
-					class:amount-positive={capitalMargin >= 0}
-					class:amount-negative={capitalMargin < 0}
-				>
-					{fmtMargin(capitalMargin)} vs. simulation-based estimate
+				<div>
+					<h4>Years at zero balance</h4>
+					<p class="mono-value">
+						<span class:amount-negative={stats.depletedYearsHigh > 0}
+							>Worst 10%: {fmtNum(stats.depletedYearsHigh, 1)}</span
+						>
+						<span>Median: {fmtNum(stats.depletedYearsMedian, 1)}</span>
+						<span>Best 10%: {fmtNum(stats.depletedYearsLow, 1)}</span>
+					</p>
 				</div>
-				<div class="note mono-value">
-					Already retired — there is no future balance to reach, so the question is whether today's
-					capital clears the targets above.
-				</div>
-			</div>
-		{:else}
-			<div class="card">
-				<strong>Chance to reach your retirement goal by age {input.retirementAge}</strong>
-				<div
-					class="results-kpi mono-value"
-					class:amount-positive={stats.fiProbabilitySWR >= 0.7}
-					class:amount-negative={stats.fiProbabilitySWR < 0.7}
-				>
-					Spending-rule estimate: {percentFormatter.format(stats.fiProbabilitySWR)}
-				</div>
-				<div
-					class="results-kpi mono-value"
-					class:amount-positive={stats.fiProbabilityP95 >= 0.7}
-					class:amount-negative={stats.fiProbabilityP95 < 0.7}
-				>
-					Simulation-based estimate: {percentFormatter.format(stats.fiProbabilityP95)}
-				</div>
-				<div class="note mono-value">
-					Median by age {input.retirementAge}: {fmtCompactCurrency(stats.retireMedian)}
-				</div>
-				<div class="note mono-value">
-					Lower 10%: {fmtCompactCurrency(stats.retireLow)} · Upper 10%: {fmtCompactCurrency(
-						stats.retireHigh
-					)}
-				</div>
-			</div>
-		{/if}
-		<div class="card">
-			<strong>Ending balance distribution</strong>
-			<div class="results-kpi mono-value">Median: {fmtCompactCurrency(stats.finalMedian)}</div>
-			<div class="note mono-value">
-				<span
-					class:amount-positive={stats.finalLow > 0}
-					class:amount-negative={stats.finalLow === 0}
-					>Lower 10%: {fmtCompactCurrency(stats.finalLow)}</span
-				>
-				·
-				<span
-					class:amount-positive={stats.finalHigh > 0}
-					class:amount-negative={stats.finalHigh === 0}
-					>Upper 10%: {fmtCompactCurrency(stats.finalHigh)}</span
-				>
-			</div>
-		</div>
-		<details class="card">
-			<summary><strong>Advanced: return distribution diagnostics</strong></summary>
-			<div
-				class="note mono-value"
-				title="Requested values are the annual inputs captured for this run. Effective values are measured from the transformed annual bootstrap source; serial dependence can make them differ from the request."
-			>
-				Requested — mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} · vol
-				{percentFormatter.format(stats.requestedReturnMoments.stdDev)}
-			</div>
-			<div
-				class="note mono-value"
-				title="Only the mean and volatility are targeted. Rescaling the sampled series is an affine transform: it moves the centre and the spread but leaves the distribution's shape alone, so skew and kurtosis emerge from the regime mixture and the source data rather than being set. Expect the effective values below to differ from anything entered as a skew or kurtosis input."
-			>
-				Requested shape — skew {fmtNum(stats.requestedReturnMoments.skewness, 2)} · kurt {fmtNum(
-					stats.requestedReturnMoments.kurtosis,
-					2
-				)} <em>(not targeted — see below)</em>
-			</div>
-			<div class="note mono-value">
-				Effective — mean {percentFormatter.format(stats.returnMoments.arithmeticMean)} · vol
-				{percentFormatter.format(stats.returnMoments.stdDev)} · skew {fmtNum(
-					stats.returnMoments.skewness,
-					2
-				)} · kurt {fmtNum(stats.returnMoments.kurtosis, 2)}
-			</div>
-			<div class="note mono-value">
-				Effective CAGR: {percentFormatter.format(stats.returnMoments.geometricMean)}
-			</div>
-			<div class="note">
-				These statistical moments describe the model's distribution shape; they are diagnostics, not
-				separate planning goals. Only mean and volatility are matched to your inputs. Skew and
-				kurtosis are emergent — they come out of the regime mixture and the source data — so the
-				requested and effective values for those two will not agree, and that is expected.
 			</div>
 		</details>
-		<div class="card">
-			<strong>Spending fully funded to age {input.simulateUntilAge}</strong>
-			<div
-				class="results-kpi mono-value"
-				class:amount-positive={stats.successProbability >= 0.9}
-				class:amount-negative={stats.successProbability < 0.7}
-			>
-				{percentFormatter.format(stats.successProbability)}
-			</div>
-			<div
-				class="note"
-				title="A run counts as funded only if every single month's planned spending was met. One short month counts as not funded, even if later income rebuilds the balance — so read this alongside the shortfall and underfunded-years figures below, which show how big a miss actually was."
-			>
-				Counts runs where <em>every</em> month's spending was met — a single short month counts against
-				it, however small. The figures below show how large a miss tends to be.
-			</div>
-			{#if simCount > 0}
-				<div
-					class="note mono-value"
-					title="Approximate 95% run-to-run range from Monte Carlo sampling alone: 1.96 × sqrt(p(1-p)/N). It excludes uncertainty in the historical record, assumptions and model."
-				>
-					Monte Carlo noise: ±{(successProbabilitySE * 1.96 * 100).toFixed(1)} percentage points (approx.
-					95% run-to-run range; {fmtNum(simCount)} paths)
-				</div>
-			{/if}
-			{#if input.simulationMode === 'historical' && historicalMonths > 0}
-				<div
-					class="note mono-value"
-					title="This is a description of the evidence base, not an effective sample-size calculation. Overlapping blocks and dependence mean the chunks are not independent."
-				>
-					Historical robustness: not measured — one regional record, {fmtNum(historicalMonths)}
-					months (about {fmtNum(historicalBlockChunks)} non-overlapping {fmtNum(
-						input.blockLength
-					)}-month historical runs). Compare other regions, time periods and replay lengths.
-				</div>
-			{:else}
-				<div class="note mono-value">
-					Model robustness: not measured — vary return, inflation and model assumptions before
-					relying on this percentage.
-				</div>
-			{/if}
-			<div
-				class="note mono-value"
-				title="Percentiles of simulated outcomes, worst to best — not percentiles of the shortfall amount itself"
-			>
-				Cumulative shortfall —
-				<span class:amount-negative={stats.shortfallHigh > 0}
-					>Worst 10%: {fmtCompactCurrency(stats.shortfallHigh)}</span
-				>
-				·
-				<span class:amount-negative={stats.shortfallMedian > 0}
-					>Median: {fmtCompactCurrency(stats.shortfallMedian)}</span
-				>
-				·
-				<span class:amount-negative={stats.shortfallLow > 0}
-					>Best 10%: {fmtCompactCurrency(stats.shortfallLow)}</span
-				>
-			</div>
-			<div
-				class="note mono-value"
-				title="Percentiles of simulated outcomes, worst to best — not percentiles of years-depleted itself"
-			>
-				Years at zero balance —
-				<span class:amount-negative={stats.depletedYearsHigh > 0}
-					>Worst 10%: {fmtNum(stats.depletedYearsHigh, 1)}</span
-				>
-				·
-				<span class:amount-negative={stats.depletedYearsMedian > 0}
-					>Median: {fmtNum(stats.depletedYearsMedian, 1)}</span
-				>
-				·
-				<span class:amount-negative={stats.depletedYearsLow > 0}
-					>Best 10%: {fmtNum(stats.depletedYearsLow, 1)}</span
-				>
-			</div>
-		</div>
 	</div>
 {/if}

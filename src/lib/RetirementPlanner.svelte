@@ -37,6 +37,7 @@
 		summarizeSeriesDistribution as calcSummarizeSeriesDistribution
 	} from './calculations';
 	import PlannerInputPanel from './components/PlannerInputPanel.svelte';
+	import PlannerDiagnostics from './components/PlannerDiagnostics.svelte';
 	import PlannerOutputCards from './components/PlannerOutputCards.svelte';
 	import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
 	import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
@@ -2118,38 +2119,15 @@
 
 		{#if stats}
 			<div class="outputs-wrapper" class:stale-results={inputsChangedSinceLastRun}>
-				<p class="headline-result">
-					In <strong>{Math.round(stats.successProbability * 100)} of 100</strong> simulated futures,
-					your planned spending is covered in full through age {fmtNum(input.simulateUntilAge)}.
-					{#if stats.successProbability < FI_TARGET_SUCCESS_PROBABILITY && actionableRecommendations}
-						{#if actionableRecommendations.yearlySpendingReduction != null || actionableRecommendations.monthsLonger != null}
-							<span class="headline-action">
-								To reach {(FI_TARGET_SUCCESS_PROBABILITY * 100).toFixed(0)}% in the tested
-								scenarios,
-								{#if actionableRecommendations.yearlySpendingReduction != null}
-									spend <strong
-										>{fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr less</strong
-									>{#if actionableRecommendations.monthsLonger != null}, or{/if}
-								{/if}
-								{#if actionableRecommendations.monthsLonger != null}
-									work <strong
-										>{fmtNum(actionableRecommendations.monthsLonger)} months longer</strong
-									>
-								{/if}.
-							</span>
-						{/if}
-					{/if}
-				</p>
 				<PlannerOutputCards
 					{stats}
 					{input}
 					{fmtCompactCurrency}
-					{retirementYearlySpending}
 					{FI_TARGET_SUCCESS_PROBABILITY}
 					{percentFormatter}
 					{fmtNum}
 					{alreadyRetired}
-					simCount={lastSimulatedCount}
+					{actionableRecommendations}
 				/>
 
 				<div class="chart-row">
@@ -2177,6 +2155,14 @@
 						{fmtHoverCompactCurrency}
 					/>
 				</div>
+
+				<PlannerDiagnostics
+					{stats}
+					{input}
+					simCount={lastSimulatedCount}
+					{percentFormatter}
+					{fmtNum}
+				/>
 			</div>
 		{/if}
 	</section>
@@ -2222,14 +2208,6 @@
 	.disclaimer-footer a {
 		color: inherit;
 		text-decoration: underline;
-	}
-	.headline-result {
-		font-size: 1.05rem;
-		margin: 0 0 0.75rem;
-		color: var(--color-text, #1f2937);
-	}
-	.headline-result strong {
-		color: var(--color-accent, #0f766e);
 	}
 	.btn-share {
 		font-size: 0.78rem;

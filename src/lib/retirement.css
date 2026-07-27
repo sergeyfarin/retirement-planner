@@ -4,7 +4,3 @@
 @import './styles/controls-tables.css';
 @import './styles/plots.css';
 @import './styles/typography-header-colors.css';
-.headline-action {
-	display: block;
-	margin-top: 0.35rem;
-}
