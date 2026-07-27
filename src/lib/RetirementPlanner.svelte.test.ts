@@ -49,6 +49,11 @@ function currencyButton(container: HTMLElement, label: string): HTMLButtonElemen
 	return button;
 }
 
+/** Svelte keeps source indentation in text nodes; collapse it before matching prose. */
+function squashed(element: Element | null | undefined): string {
+	return (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 /** Formatted numbers carry grouping separators and percent signs; compare the number. */
 function numericValue(field: HTMLInputElement): number {
 	return Number(field.value.replace(/[^\d.-]/g, ''));
@@ -150,23 +155,60 @@ describe('RetirementPlanner currency switching', () => {
 });
 
 describe('RetirementPlanner result communication', () => {
-	it('separates retirement readiness from lifetime funding and keeps advanced statistics closed', async () => {
+	it('leads with one lifetime verdict and keeps advanced statistics closed', async () => {
 		const { container } = await render(RetirementPlanner);
 
-		await vi.waitFor(() => expect(container.querySelector('.assessment-card')).not.toBeNull(), {
+		await vi.waitFor(() => expect(container.querySelector('.verdict-card')).not.toBeNull(), {
 			timeout: 20_000
 		});
 
-		expect(container.querySelectorAll('.horizon-result')).toHaveLength(2);
-		expect(container.querySelector('.results-disclaimer')?.textContent).toContain(
-			'Planning estimate—not personal financial advice'
+		// The verdict carries the result, the levers, and the caveat — the three cards that
+		// used to sit side by side. Splitting them again is the regression this guards.
+		const verdict = container.querySelector('.verdict-card');
+		// Figure and caption are one sentence, not a stranded number between two headings.
+		// Source indentation lands in textContent, so compare on collapsed whitespace.
+		expect(squashed(verdict?.querySelector('h3.stat-sentence'))).toMatch(
+			/^\d+ of 100 simulations fund your plan through age \d+$/
 		);
-		expect(container.querySelectorAll('.phase-card')).toHaveLength(2);
+		expect(verdict?.querySelector('.gauge-track')).not.toBeNull();
+		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
+		expect(squashed(verdict?.querySelector('.verdict-disclaimer'))).toContain(
+			'not personal financial advice'
+		);
+
+		// Both phase cards lead with a single figure-first sentence too.
+		for (const card of container.querySelectorAll('.phase-card')) {
+			const sentence = card.querySelector('h3.stat-sentence');
+			expect(sentence?.querySelector('strong')?.textContent?.trim()).toBeTruthy();
+			expect(squashed(sentence).length).toBeGreaterThan(20);
+		}
+
+		// The drawdown card must not restate the verdict's probability — it reports an
+		// outcome (a depletion age, or the balance left in the weakest decile) instead.
+		const drawdown = [...container.querySelectorAll('.phase-card')].at(-1);
+		expect(squashed(drawdown)).toContain('in the worst 10% of simulations');
+		expect(squashed(drawdown)).not.toMatch(/of 100 simulations/);
+
+		// Both phase cards carry a tone class, so a critical phase reads as critical.
+		const phases = [...container.querySelectorAll('.phase-card')];
+		expect(phases).toHaveLength(2);
+		for (const phase of phases) {
+			expect(
+				phase.classList.contains('tone-good') ||
+					phase.classList.contains('tone-warn') ||
+					phase.classList.contains('tone-bad')
+			).toBe(true);
+		}
 
 		const diagnostics = container.querySelector<HTMLDetailsElement>('.diagnostics-card');
 		expect(diagnostics).not.toBeNull();
 		expect(diagnostics?.open).toBe(false);
-		expect(diagnostics?.textContent).toContain('Outcome percentiles');
+		expect(diagnostics?.textContent).toContain('Sequence-of-returns exposure');
 		expect(diagnostics?.textContent).toContain('Sensitivity-test coverage');
+		// Advanced statistics must precede the charts, not trail them.
+		const firstChart = container.querySelector('.chart-row');
+		expect(diagnostics?.compareDocumentPosition(firstChart!)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING
+		);
 	});
 });

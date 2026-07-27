@@ -11,50 +11,61 @@
 	} = $props();
 
 	const targetPercent = $derived(Math.round(FI_TARGET_SUCCESS_PROBABILITY * 100));
-	const retirementGoalProbability = $derived(stats?.fiProbabilityP95 ?? 0);
+
+	/**
+	 * The single question this tool answers: does the money last to the end of the plan?
+	 * Everything else — reaching a capital target by the retirement date, ending balances,
+	 * downside sizes — supports that answer and lives in the phase cards below.
+	 */
 	const lifetimeProbability = $derived(stats?.successProbability ?? 0);
-	const lowestPhaseProbability = $derived(Math.min(retirementGoalProbability, lifetimeProbability));
-	const meetsBothGoals = $derived(
-		retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY &&
-			lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY
+	const lifetimeScore = $derived(Math.round(lifetimeProbability * 100));
+	const gapPoints = $derived(Math.max(0, targetPercent - lifetimeScore));
+	const retirementGoalProbability = $derived(stats?.fiProbabilityP95 ?? 0);
+
+	const verdictTone = $derived(
+		lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY
+			? 'good'
+			: lifetimeProbability >= 0.8
+				? 'warn'
+				: 'bad'
 	);
-	const assessmentTitle = $derived.by(() => {
-		if (meetsBothGoals) return `Plan meets the tested ${targetPercent}% goal`;
-		if (alreadyRetired && retirementGoalProbability < FI_TARGET_SUCCESS_PROBABILITY) {
-			return 'Current capital is below the simulation-based target';
-		}
-		if (retirementGoalProbability < 0.5 && lifetimeProbability < 0.5) {
-			return 'Both phases have a substantial funding gap';
-		}
-		if (lifetimeProbability < 0.5) return 'More lifetime scenarios fall short than succeed';
-		if (retirementGoalProbability < 0.5) {
-			return 'Reaching the retirement target is the main constraint';
-		}
-		if (
-			retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY &&
-			lifetimeProbability < FI_TARGET_SUCCESS_PROBABILITY
-		) {
-			return 'Retirement capital is within reach, but lifetime spending needs attention';
-		}
-		if (
-			lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY &&
-			retirementGoalProbability < FI_TARGET_SUCCESS_PROBABILITY
-		) {
-			return 'Lifetime funding is resilient if the retirement target is reached';
-		}
-		return `Plan is below the tested ${targetPercent}% goal`;
+
+	/** Money-terms position at the retirement date, used by the accumulation card. */
+	const capitalToday = $derived(alreadyRetired ? input.currentSavings : (stats?.retireMedian ?? 0));
+	const capitalGap = $derived(capitalToday - (stats?.fiTargetP95 ?? 0));
+	const capitalMargin = $derived(
+		stats && stats.fiTargetP95 > 0 ? capitalToday / stats.fiTargetP95 - 1 : 0
+	);
+	const accumulationTone = $derived(
+		alreadyRetired
+			? capitalMargin >= 0
+				? 'good'
+				: capitalMargin >= -0.15
+					? 'warn'
+					: 'bad'
+			: retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY
+				? 'good'
+				: retirementGoalProbability >= 0.8
+					? 'warn'
+					: 'bad'
+	);
+
+	const depletionAgeWorstDecile = $derived(stats?.depletionAgeP10 ?? null);
+	const depletionAgeMedian = $derived(stats?.depletionAgeP50 ?? null);
+
+	/**
+	 * Deliberately not the lifetime probability again — this card grades *when* a bad case
+	 * arrives, which is a different question from how often one does. Running out at 94 and
+	 * running out at 70 are the same failure to the headline number and nothing alike here,
+	 * so an early worst-decile depletion is graded critical even when the median survives.
+	 */
+	const drawdownTone = $derived.by(() => {
+		if (!stats || depletionAgeWorstDecile == null) return stats ? 'good' : 'bad';
+		if (depletionAgeMedian != null) return 'bad';
+		const midRetirement = (input.retirementAge + input.simulateUntilAge) / 2;
+		return depletionAgeWorstDecile < midRetirement ? 'bad' : 'warn';
 	});
 
-	const capitalMargin = $derived(
-		alreadyRetired && stats && stats.fiTargetP95 > 0
-			? input.currentSavings / stats.fiTargetP95 - 1
-			: 0
-	);
-	const swrMargin = $derived(
-		alreadyRetired && stats && stats.fiTargetSWR > 0
-			? input.currentSavings / stats.fiTargetSWR - 1
-			: 0
-	);
 	const bestScenario = $derived(actionableRecommendations?.bestTestedScenario ?? null);
 	const bestScenarioChanges = $derived.by(() => {
 		if (!bestScenario) return [] as string[];
@@ -72,299 +83,278 @@
 		const pct = margin * 100;
 		return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
 	}
+
+	function fmtSignedCurrency(amount: number): string {
+		return `${amount >= 0 ? '+' : '−'}${fmtCompactCurrency(Math.abs(amount))}`;
+	}
 </script>
 
 {#if stats}
 	<div class="results-summary">
-		<section
-			class="card assessment-card"
-			class:assessment-positive={meetsBothGoals}
-			class:assessment-warning={!meetsBothGoals && lowestPhaseProbability >= 0.5}
-			class:assessment-critical={lowestPhaseProbability < 0.5}
-			aria-labelledby="assessment-title"
-		>
-			<p class="assessment-eyebrow">Plan assessment</p>
-			<h3 id="assessment-title">{assessmentTitle}</h3>
+		<!-- Verdict: the result, what to change about it, and the caveat, in one place. -->
+		<section class="card verdict-card tone-{verdictTone}" aria-labelledby="verdict-title">
+			<p class="verdict-eyebrow">Plan assessment</p>
+			<!--
+				Headline, figure and caption are one sentence. Splitting them stranded the number
+				between two lines that said the same thing twice. One sentence shape serves every
+				state — the count and the tone colour carry the verdict, so nothing needs rewording.
+			-->
+			<h3 id="verdict-title" class="stat-sentence">
+				<strong class="mono-value">{lifetimeScore}</strong> of 100 simulations fund your plan
+				through age {fmtNum(input.simulateUntilAge)}
+			</h3>
 
-			<div class="horizon-grid">
-				<div class="horizon-result">
-					<p class="horizon-label">
-						{alreadyRetired ? 'Today' : `At retirement · age ${input.retirementAge}`}
-					</p>
-					<div class="horizon-value mono-value">
-						{#if alreadyRetired}
-							{fmtMargin(capitalMargin)}
-						{:else}
-							{Math.round(retirementGoalProbability * 100)} <span>of 100</span>
-						{/if}
-					</div>
-					<p>
-						{alreadyRetired
-							? `${fmtCompactCurrency(input.currentSavings)} compared with the simulation-based capital target.`
-							: 'simulated futures reach the simulation-based capital target by retirement.'}
-					</p>
+			<div class="verdict-gauge">
+				<div
+					class="gauge-track"
+					role="img"
+					aria-label="{lifetimeScore} of 100 against a goal of {targetPercent} of 100"
+				>
+					<div class="gauge-fill" style="width: {Math.min(100, lifetimeScore)}%"></div>
+					<div class="gauge-goal" style="left: {targetPercent}%"></div>
 				</div>
-
-				<div class="horizon-connector" aria-hidden="true">→</div>
-
-				<div class="horizon-result">
-					<p class="horizon-label">Through retirement · age {fmtNum(input.simulateUntilAge)}</p>
-					<div class="horizon-value mono-value">
-						{Math.round(lifetimeProbability * 100)} <span>of 100</span>
-					</div>
-					<p>simulated futures cover every month of planned spending.</p>
-				</div>
+				<p class="gauge-scale">
+					<span>0</span>
+					<span class="gauge-goal-label">goal {targetPercent}</span>
+					<span>100</span>
+				</p>
 			</div>
-		</section>
 
-		<div class="results-disclaimer" role="note" aria-label="Important planning limitation">
-			<strong>Planning estimate—not personal financial advice.</strong>
-			Results depend on your inputs and market assumptions; they are not forecasts or guarantees. Consider
-			your complete circumstances and regulated professional advice before making a major retirement,
-			investment, or spending decision.
-		</div>
+			<p class="verdict-detail">
+				{#if verdictTone === 'good'}
+					That is at or above the {targetPercent} of 100 planning goal used here: every planned month
+					was funded, from now through age {fmtNum(input.simulateUntilAge)}.
+				{:else if lifetimeScore === 0}
+					Spending ran short before age {fmtNum(input.simulateUntilAge)} in every simulated market history,
+					against a {targetPercent} of 100 goal.
+				{:else}
+					That is {gapPoints}
+					{gapPoints === 1 ? 'point' : 'points'} below the {targetPercent} of 100 goal. The other {100 -
+						lifetimeScore} ran short at some point before age {fmtNum(input.simulateUntilAge)}.
+				{/if}
+			</p>
 
-		<section class="card action-card" aria-labelledby="action-title">
-			{#if actionableRecommendations?.targetResult === 'already-met'}
-				<div>
-					<p class="action-eyebrow">What to do next</p>
-					<h3 id="action-title">Test whether the result remains resilient</h3>
+			<div class="verdict-next">
+				{#if actionableRecommendations?.targetResult === 'already-met'}
+					<h4>What to check next</h4>
 					<p>
-						The plan meets the goal under these assumptions. Before relying on it, compare lower
-						returns, higher inflation, other market regions, and changes to later-life spending.
+						Before relying on this, re-run it with lower returns, higher inflation, a different
+						market region, and higher later-life spending. A plan that only clears the goal under
+						one set of assumptions is not yet a resilient plan.
 					</p>
-				</div>
-			{:else if actionableRecommendations?.targetResult === 'single-lever'}
-				<div>
-					<p class="action-eyebrow">Tested paths toward {targetPercent}%</p>
-					<h3 id="action-title">A single change reached the goal in the model</h3>
-					<div class="action-options">
+				{:else if actionableRecommendations?.targetResult === 'single-lever'}
+					<h4>What would close the gap</h4>
+					<p class="next-lead">Either change reached the goal on its own in the model:</p>
+					<ul class="lever-list">
 						{#if actionableRecommendations.yearlySpendingReduction != null}
-							<div>
-								<span>Spending scenario</span>
-								<strong
-									>{fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr lower</strong
+							<li>
+								<span>Spend less</span>
+								<strong class="mono-value"
+									>{fmtCompactCurrency(
+										actionableRecommendations.yearlySpendingReduction
+									)}/yr</strong
 								>
-							</div>
+							</li>
 						{/if}
 						{#if actionableRecommendations.monthsLonger != null}
-							<div>
-								<span>Retirement scenario</span>
-								<strong>{fmtNum(actionableRecommendations.monthsLonger)} months later</strong>
-							</div>
+							<li>
+								<span>Retire later</span>
+								<strong class="mono-value"
+									>{fmtNum(actionableRecommendations.monthsLonger)} months</strong
+								>
+							</li>
 						{/if}
-					</div>
-					<p class="action-caveat">
-						These are independently tested model scenarios, not personal recommendations. Compare
-						their practical and tax consequences before choosing a change.
+					</ul>
+				{:else if actionableRecommendations?.targetResult === 'combined' && actionableRecommendations.combinedScenario}
+					<h4>What would close the gap</h4>
+					<p class="next-lead">No single change was enough; together these reached the goal:</p>
+					<ul class="lever-list">
+						<li>
+							<span>Spend less</span>
+							<strong class="mono-value"
+								>{Math.round(
+									(1 - actionableRecommendations.combinedScenario.spendingMultiplier) * 100
+								)}%</strong
+							>
+						</li>
+						<li>
+							<span>Retire at</span>
+							<strong class="mono-value"
+								>age {fmtNum(actionableRecommendations.combinedScenario.retirementAge)}</strong
+							>
+						</li>
+						<li>
+							<span>Result</span>
+							<strong class="mono-value"
+								>{Math.round(actionableRecommendations.combinedScenario.successProbability * 100)} of
+								100</strong
+							>
+						</li>
+					</ul>
+				{:else}
+					<h4>What would close the gap</h4>
+					<p class="next-lead">
+						{#if bestScenario}
+							Nothing in the tested range reached {targetPercent} of 100. The strongest tested result
+							was
+							<strong>{Math.round(bestScenario.successProbability * 100)} of 100</strong
+							>{#if bestScenarioChanges.length > 0}, using {bestScenarioChanges.join(' and ')}{/if}.
+						{:else}
+							No tested adjustment reached {targetPercent} of 100.
+						{/if}
 					</p>
-				</div>
-			{:else if actionableRecommendations?.targetResult === 'combined' && actionableRecommendations.combinedScenario}
-				<div>
-					<p class="action-eyebrow">Tested path toward {targetPercent}%</p>
-					<h3 id="action-title">The tested changes only reached the goal when combined</h3>
-					<p class="combined-action">
-						<strong
-							>{Math.round(
-								(1 - actionableRecommendations.combinedScenario.spendingMultiplier) * 100
-							)}% lower spending</strong
-						>
-						<span>and</span>
-						<strong
-							>retirement at age {fmtNum(
-								actionableRecommendations.combinedScenario.retirementAge
-							)}</strong
-						>
-						produced {Math.round(
-							actionableRecommendations.combinedScenario.successProbability * 100
-						)} of 100 fully funded scenarios in the sensitivity test.
-					</p>
-					<p class="action-caveat">
-						Neither change reached the goal alone. This is a tested scenario, not a personal
-						recommendation.
-					</p>
-				</div>
-			{:else}
-				<div>
-					<p class="action-eyebrow">Plan revision needed</p>
-					<h3 id="action-title">No tested adjustment reached the {targetPercent}% goal</h3>
-					{#if bestScenario}
-						<p class="best-scenario">
-							The strongest result within the tested range was
-							<strong>{Math.round(bestScenario.successProbability * 100)} of 100</strong> fully
-							funded futures{#if bestScenarioChanges.length > 0}, using {bestScenarioChanges.join(
-									' and '
-								)}{/if}.
-						</p>
-					{/if}
 					<p>
-						A larger redesign or several coordinated changes may be needed. Review essential versus
-						discretionary spending, retirement timing, pensions and other income, lump sums, taxes,
-						longevity needs, and your ability to absorb losses.
+						This needs a larger redesign than one lever: revisit essential versus discretionary
+						spending, retirement timing, pensions and other income, lump sums, taxes, and how long
+						the plan must last.
 					</p>
 					{#if actionableRecommendations && !actionableRecommendations.retirementDelayAvailable && !alreadyRetired}
-						<p class="action-caveat">
+						<p class="next-caveat">
 							A later-retirement estimate is not shown because another income source ends inside the
-							tested age range; assuming that income continues would be misleading.
+							tested age range, so assuming it continues would overstate the result.
 						</p>
 					{/if}
-				</div>
-			{/if}
-		</section>
-
-		<section class="card phase-card" aria-labelledby="retirement-phase-title">
-			<div class="phase-heading">
-				<span>1</span>
-				<div>
-					<p>{alreadyRetired ? 'Starting position' : 'Before retirement'}</p>
-					<h3 id="retirement-phase-title">
-						{alreadyRetired
-							? 'Retirement funding today'
-							: `At retirement · age ${input.retirementAge}`}
-					</h3>
-				</div>
-			</div>
-
-			<div class="metric-grid">
-				<div class="metric-panel primary-metric">
-					<h4>Simulation-based target</h4>
-					<strong class="metric-value mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</strong>
-					{#if alreadyRetired}
-						<p class:amount-positive={capitalMargin >= 0} class:amount-negative={capitalMargin < 0}>
-							Current portfolio is {fmtMargin(capitalMargin)} versus this target
-						</p>
-					{:else}
-						<p
-							class:amount-positive={retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY}
-							class:amount-negative={retirementGoalProbability < 0.5}
-						>
-							{percentFormatter.format(retirementGoalProbability)} chance of reaching it
-						</p>
-					{/if}
-					<span>Capital associated with the {targetPercent}% lifetime planning goal.</span>
-				</div>
-
-				<div class="metric-panel">
-					<h4>{alreadyRetired ? 'Portfolio today' : 'Projected portfolio'}</h4>
-					<strong class="metric-value mono-value">
-						{fmtCompactCurrency(alreadyRetired ? input.currentSavings : stats.retireMedian)}
-					</strong>
-					{#if alreadyRetired}
-						<p>Capital available at the start of the plan</p>
-					{:else}
-						<p class="mono-value">
-							10–90% range: {fmtCompactCurrency(stats.retireLow)}–{fmtCompactCurrency(
-								stats.retireHigh
-							)}
-						</p>
-					{/if}
-					<span
-						>{alreadyRetired
-							? 'Compared with both targets.'
-							: 'Median and central 80% of simulated outcomes.'}</span
-					>
-				</div>
-
-				<div class="metric-panel secondary-metric">
-					<h4>Spending-rule comparison</h4>
-					<strong class="metric-value mono-value">{fmtCompactCurrency(stats.fiTargetSWR)}</strong>
-					{#if alreadyRetired}
-						<p class:amount-positive={swrMargin >= 0} class:amount-negative={swrMargin < 0}>
-							Current portfolio is {fmtMargin(swrMargin)} versus this estimate
-						</p>
-					{:else}
-						<p>{percentFormatter.format(stats.fiProbabilitySWR)} chance of reaching it</p>
-					{/if}
-					<span>Rule-of-thumb comparison using the selected withdrawal rate.</span>
-				</div>
-			</div>
-
-			<div class="coast-callout">
-				{#if alreadyRetired}
-					<strong>Coast age:</strong> Not applicable because retirement has already started.
-				{:else if stats.coastAge != null}
-					<strong>Regular saving could stop at age {Math.ceil(stats.coastAge)}</strong> while still
-					reaching the {targetPercent}% goal in the model; planned deficits and lump sums still
-					apply.
-				{:else}
-					<strong>Coast age is not available.</strong> There are no regular contributions to stop, or
-					the target remains out of reach.
 				{/if}
 			</div>
+
+			<p class="verdict-disclaimer" role="note">
+				<strong>Planning estimate — not personal financial advice.</strong> Figures above are tested model
+				scenarios, not recommendations, and depend entirely on the inputs and market assumptions you chose.
+				Weigh your full circumstances and regulated professional advice before acting.
+			</p>
 		</section>
 
-		<section class="card phase-card" aria-labelledby="lifetime-phase-title">
-			<div class="phase-heading">
-				<span>2</span>
-				<div>
-					<p>After retirement</p>
-					<h3 id="lifetime-phase-title">
-						Through retirement · age {fmtNum(input.simulateUntilAge)}
-					</h3>
-				</div>
-			</div>
+		<div class="phase-grid">
+			<section class="card phase-card tone-{accumulationTone}" aria-labelledby="accumulation-title">
+				<p class="phase-eyebrow">{alreadyRetired ? 'Starting position' : 'Before retirement'}</p>
+				<h3 id="accumulation-title" class="stat-sentence">
+					<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>
+					{#if alreadyRetired}
+						portfolio today, at the start of the plan
+					{:else}
+						median projected portfolio at retirement age {fmtNum(input.retirementAge)}
+					{/if}
+				</h3>
 
-			<div class="lifetime-overview">
-				<div>
-					<h4>Spending fully covered</h4>
-					<strong class="metric-value mono-value"
-						>{percentFormatter.format(lifetimeProbability)}</strong
-					>
-					<p>Every planned month was funded in this share of simulated futures.</p>
-				</div>
-				<div>
-					<h4>Ending balance</h4>
-					<strong class="metric-value mono-value"
-						>{fmtCompactCurrency(stats.finalMedian)} median</strong
-					>
-					<p class="mono-value">
-						10–90% range: {fmtCompactCurrency(stats.finalLow)}–{fmtCompactCurrency(stats.finalHigh)}
+				{#if !alreadyRetired}
+					<p class="phase-range mono-value">
+						Range of outcomes: {fmtCompactCurrency(stats.retireLow)}–{fmtCompactCurrency(
+							stats.retireHigh
+						)} (central 80%)
 					</p>
-				</div>
-			</div>
+				{/if}
 
-			<details class="downside-details" open={lifetimeProbability < FI_TARGET_SUCCESS_PROBABILITY}>
-				<summary>
-					<span>What weaker outcomes look like</span>
-					<span class="mono-value"
-						>Worst 10% shortfall: {fmtCompactCurrency(stats.shortfallHigh)}</span
-					>
-				</summary>
-				<p class="downside-definition">
-					A future counts as unsuccessful after even one short month. These figures show the size
-					and duration of misses, so a small shortfall is not treated like a prolonged depletion.
+				<dl class="phase-facts">
+					<div>
+						<dt>Capital needed for the goal</dt>
+						<dd class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</dd>
+					</div>
+					<div>
+						<dt>{alreadyRetired ? 'Position versus that' : 'Median versus that'}</dt>
+						<dd
+							class="mono-value"
+							class:amount-positive={capitalGap >= 0}
+							class:amount-negative={capitalGap < 0}
+						>
+							{fmtSignedCurrency(capitalGap)} ({fmtMargin(capitalMargin)})
+						</dd>
+					</div>
+					{#if !alreadyRetired}
+						<div>
+							<dt>Chance of reaching it by then</dt>
+							<dd class="mono-value">{percentFormatter.format(retirementGoalProbability)}</dd>
+						</div>
+					{/if}
+				</dl>
+
+				<p class="phase-note">
+					{#if alreadyRetired}
+						Retirement has already started, so this is a capital comparison rather than a
+						projection.
+					{:else if stats.coastAge != null}
+						Coast point: regular saving could stop at age {Math.ceil(stats.coastAge)} and the plan still
+						reaches this target in the model. Planned deficits and lump sums still apply.
+					{:else}
+						No coast point: there are no regular contributions to stop, or the target stays out of
+						reach even with them.
+					{/if}
 				</p>
-				<div class="downside-grid">
+			</section>
+
+			<section class="card phase-card tone-{drawdownTone}" aria-labelledby="drawdown-title">
+				<p class="phase-eyebrow">After retirement</p>
+				<!--
+					One decile, one question: what actually happens down there? The verdict card
+					already owns *how often* a plan fails, so restating a probability here would be
+					noise — this card only ever reports an outcome the verdict cannot show.
+
+					An age, when the money runs out: it beats "years at a zero balance", which was
+					measured against an end-of-plan age the user picked arbitrarily. A balance, when
+					it does not: still money, still higher-is-better, so it never reads as a
+					reversed-polarity twin of the capital figure in the card to its left. Both
+					branches keep the figure first and the qualifier in the same trailing clause.
+				-->
+				<h3 id="drawdown-title" class="stat-sentence">
+					{#if depletionAgeWorstDecile != null}
+						<strong class="mono-value">age {fmtNum(Math.floor(depletionAgeWorstDecile))}</strong>
+						is when the money ran out, in the worst 10% of simulations
+					{:else}
+						<strong class="mono-value">{fmtCompactCurrency(stats.finalLow)}</strong>
+						still left at age {fmtNum(input.simulateUntilAge)} in the worst 10% of simulations
+					{/if}
+				</h3>
+
+				{#if depletionAgeMedian != null}
+					<p class="phase-range">
+						Even the median future ran out, by age {fmtNum(Math.floor(depletionAgeMedian))}.
+					</p>
+				{:else if depletionAgeWorstDecile != null}
+					<p class="phase-range">More than half of all futures never ran out at all.</p>
+				{/if}
+
+				<dl class="phase-facts">
+					{#if stats.shortfallHigh > 0}
+						<div>
+							<dt>Spending left unfunded</dt>
+							<dd class="mono-value amount-negative">−{fmtCompactCurrency(stats.shortfallHigh)}</dd>
+						</div>
+						<div>
+							<dt>Years spent at a zero balance</dt>
+							<dd class="mono-value" class:amount-negative={stats.depletedYearsHigh > 0}>
+								{fmtNum(stats.depletedYearsHigh, 1)}
+							</dd>
+						</div>
+					{/if}
 					<div>
-						<h4>Cumulative spending shortfall</h4>
-						<p class="mono-value">
-							<span class:amount-negative={stats.shortfallHigh > 0}
-								>Worst 10%: {fmtCompactCurrency(stats.shortfallHigh)}</span
-							>
-							<span>Median: {fmtCompactCurrency(stats.shortfallMedian)}</span>
-							<span>Best 10%: {fmtCompactCurrency(stats.shortfallLow)}</span>
-						</p>
+						<dt>Left at age {fmtNum(input.simulateUntilAge)} · median future</dt>
+						<dd class="mono-value">{fmtCompactCurrency(stats.finalMedian)}</dd>
 					</div>
 					<div>
-						<h4>Years at zero balance</h4>
-						<p class="mono-value">
-							<span class:amount-negative={stats.depletedYearsHigh > 0}
-								>Worst 10%: {fmtNum(stats.depletedYearsHigh, 1)}</span
-							>
-							<span>Median: {fmtNum(stats.depletedYearsMedian, 1)}</span>
-							<span>Best 10%: {fmtNum(stats.depletedYearsLow, 1)}</span>
-						</p>
+						<dt>Left at age {fmtNum(input.simulateUntilAge)} · best 10%</dt>
+						<dd class="mono-value">{fmtCompactCurrency(stats.finalHigh)}</dd>
 					</div>
-				</div>
-			</details>
-		</section>
+				</dl>
+
+				<p class="phase-note">
+					{#if depletionAgeWorstDecile != null}
+						This age is the first month planned spending could not be met in full. Later income or a
+						lump sum can lift the balance above zero again afterwards, so it marks the onset of
+						trouble rather than a permanent end.
+					{:else}
+						No future in the weakest decile exhausted the portfolio, so market sequence alone did
+						not break this plan. The assumptions above — returns, inflation, spending, longevity —
+						still can.
+					{/if}
+				</p>
+			</section>
+		</div>
 
 		<details class="model-scope">
 			<summary>What this assessment includes</summary>
 			<p>
 				Retirement timing, changing spending periods, pensions and other income, lump sums, taxes
-				and fees, inflation, withdrawal strategy, and simulated sequences of market returns. Open
-				the advanced statistics below the charts for numerical diagnostics and model precision.
+				and fees, inflation, withdrawal strategy, and simulated sequences of market returns. The
+				advanced statistics below carry the numerical diagnostics and model precision.
 			</p>
 		</details>
 	</div>

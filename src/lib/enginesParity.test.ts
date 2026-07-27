@@ -365,6 +365,14 @@ describe('seeded PRNG parity', () => {
 });
 
 describe('cross-engine simulation parity', () => {
+	/**
+	 * `depletionAgeP10` is null on any plan that fails in under 10% of futures, so a suite
+	 * of comfortable scenarios would compare null against null and assert nothing. This
+	 * records whether any scenario actually produced an age, and the guard below fails if
+	 * none did — the parity assertion would otherwise rot silently.
+	 */
+	let sawNonNullDepletionAge = false;
+
 	for (const scenario of scenarios) {
 		it(`matches for: ${scenario.name}`, () => {
 			const scenarioIncome = scenario.incomeSources ?? incomeSources;
@@ -426,6 +434,20 @@ describe('cross-engine simulation parity', () => {
 			expect(rust.stats.coastAge === null).toBe(ts.stats.coastAge === null);
 			if (ts.stats.coastAge !== null && rust.stats.coastAge !== null) {
 				expectClose(rust.stats.coastAge, ts.stats.coastAge, 'stats.coastAge');
+			}
+
+			// Depletion ages are nullable for the same reason and are derived from a
+			// nearest-rank quantile over a series carrying +Infinity, so both the rank
+			// arithmetic and the never-depleted sentinel have to agree across engines.
+			for (const key of ['depletionAgeP10', 'depletionAgeP50'] as const) {
+				// serde-wasm-bindgen may hand back `undefined` for `Option::None`.
+				const rustAge = (rust.stats[key] as number | null | undefined) ?? null;
+				const tsAge = ts.stats[key];
+				expect(rustAge === null, `stats.${key} null-ness`).toBe(tsAge === null);
+				if (tsAge !== null && rustAge !== null) {
+					sawNonNullDepletionAge = true;
+					expectClose(rustAge, tsAge, `stats.${key}`);
+				}
 			}
 
 			const scalarStats = [
@@ -512,4 +534,8 @@ describe('cross-engine simulation parity', () => {
 			});
 		});
 	}
+
+	it('exercised a scenario that actually depletes, so the age parity is not vacuous', () => {
+		expect(sawNonNullDepletionAge).toBe(true);
+	});
 });

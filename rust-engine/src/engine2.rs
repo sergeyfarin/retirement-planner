@@ -438,6 +438,11 @@ pub struct PathEvaluation {
     pub final_balance: f64,
     pub cumulative_shortfall: f64,
     pub depleted_months: usize,
+    /// Month index of the first shortfall, or `None` if the path never ran short. This is
+    /// the *onset*, which `depleted_months` cannot supply: a balance may return above zero
+    /// when a pension starts or a lump sum lands, so the zero months are not necessarily
+    /// contiguous and `months - depleted_months` is not the age the money first ran out.
+    pub first_depletion_month: Option<usize>,
     pub depleted: bool,
     pub annual_real_returns: Vec<f64>,
 }
@@ -473,6 +478,7 @@ pub fn evaluate_path(
     let mut depleted = false;
     let mut cumulative_shortfall = 0.0;
     let mut depleted_months = 0;
+    let mut first_depletion_month: Option<usize> = None;
     let mut yearly_pnl = 0.0;
     let mut realized_inflation_index = 1.0;
     let mut sequence_year_growth = 1.0;
@@ -500,6 +506,9 @@ pub fn evaluate_path(
         balance += income - effective_spending + cashflows.lump_sum_by_month[month];
         if balance < 0.0 {
             cumulative_shortfall += -balance;
+            if !depleted {
+                first_depletion_month = Some(month);
+            }
             depleted = true;
             balance = 0.0;
         }
@@ -549,6 +558,7 @@ pub fn evaluate_path(
         final_balance: balance,
         cumulative_shortfall,
         depleted_months,
+        first_depletion_month,
         depleted,
         annual_real_returns,
     }

@@ -231,6 +231,19 @@ export type SummaryStats = {
 	depletedYearsLow: number;
 	depletedYearsMedian: number;
 	depletedYearsHigh: number;
+	/**
+	 * Age by which the money had first run out, at the 10th and 50th percentile of the
+	 * first-shortfall distribution. `depletionAgeP10` reads as "in the worst 10% of
+	 * futures, funds were gone by this age".
+	 *
+	 * `null` when that percentile lands on a path that never ran short — e.g. a plan
+	 * succeeding in 96% of futures has no median depletion age. Paths that never deplete
+	 * are ranked as "never", so they push the percentile later rather than being dropped;
+	 * dropping them would report the depletion age *among failures only*, which looks
+	 * alarming on a plan that rarely fails at all.
+	 */
+	depletionAgeP10: number | null;
+	depletionAgeP50: number | null;
 	retireLow: number;
 	finalMedian: number;
 	finalLow: number;
@@ -748,6 +761,13 @@ export type PathEvaluation = {
 	finalBalance: number;
 	cumulativeShortfall: number;
 	depletedMonths: number;
+	/**
+	 * Month index of the first shortfall, or `null` if the path never ran short. This is
+	 * the *onset*, which `depletedMonths` cannot supply: a balance may return above zero
+	 * when a pension starts or a lump sum lands, so the zero months are not necessarily
+	 * contiguous and `months - depletedMonths` is not the age the money first ran out.
+	 */
+	firstDepletionMonth: number | null;
 	depleted: boolean;
 	annualRealReturns: number[];
 };
@@ -778,6 +798,7 @@ export function evaluatePath(
 	let depleted = false;
 	let cumulativeShortfall = 0;
 	let depletedMonths = 0;
+	let firstDepletionMonth: number | null = null;
 	let yearlyPnl = 0;
 	let realizedInflationIndex = 1;
 	let sequenceYearGrowth = 1;
@@ -809,6 +830,7 @@ export function evaluatePath(
 		balance += income - effectiveSpending + cashflows.lumpSumByMonth[month];
 		if (balance < 0) {
 			cumulativeShortfall += -balance;
+			if (!depleted) firstDepletionMonth = month;
 			depleted = true;
 			balance = 0;
 		}
@@ -853,6 +875,7 @@ export function evaluatePath(
 		finalBalance: balance,
 		cumulativeShortfall,
 		depletedMonths,
+		firstDepletionMonth,
 		depleted,
 		annualRealReturns
 	};
@@ -1515,6 +1538,7 @@ export function runMonteCarloSimulation(
 	const retireBalances: number[] = [];
 	const shortfallTotals: number[] = [];
 	const depletedYearsSeries: number[] = [];
+	const firstDepletionMonths: number[] = [];
 	const depletedFlags: boolean[] = [];
 	const successFlags: boolean[] = [];
 	const annualRealReturnsBySim: number[][] = [];
@@ -1672,6 +1696,7 @@ export function runMonteCarloSimulation(
 		finalBalances.push(evaluation.finalBalance);
 		shortfallTotals.push(evaluation.cumulativeShortfall);
 		depletedYearsSeries.push(evaluation.depletedMonths / 12);
+		firstDepletionMonths.push(evaluation.firstDepletionMonth ?? Number.POSITIVE_INFINITY);
 		depletedFlags.push(evaluation.depleted);
 		annualRealReturnsBySim.push(evaluation.annualRealReturns);
 
@@ -1756,6 +1781,19 @@ export function runMonteCarloSimulation(
 
 	const shortfallPercentiles = summarize(shortfallTotals);
 	const depletedYearsPercentiles = summarize(depletedYearsSeries);
+	const sortedFirstDepletion = [...firstDepletionMonths].sort((a, b) => a - b);
+	const depletionAge = (quantile: number): number | null => {
+		if (sortedFirstDepletion.length === 0) return null;
+		// Nearest-rank, deliberately not the interpolating `percentile` helper: the series
+		// carries +Infinity for paths that never ran short, and interpolating towards it
+		// yields Infinity or NaN. Nearest-rank also keeps the Rust port exact.
+		const rank = Math.min(
+			sortedFirstDepletion.length - 1,
+			Math.floor(quantile * sortedFirstDepletion.length)
+		);
+		const month = sortedFirstDepletion[rank];
+		return Number.isFinite(month) ? input.currentAge + month / 12 : null;
+	};
 	const sequenceRisk = buildSequenceRiskSummary(
 		annualRealReturnsBySim,
 		finalBalances,
@@ -1808,6 +1846,8 @@ export function runMonteCarloSimulation(
 		depletedYearsLow: depletedYearsPercentiles.p10,
 		depletedYearsMedian: depletedYearsPercentiles.p50,
 		depletedYearsHigh: depletedYearsPercentiles.p90,
+		depletionAgeP10: depletionAge(0.1),
+		depletionAgeP50: depletionAge(0.5),
 		retireLow: simulation.retirePercentiles.p10,
 		finalMedian: simulation.finalPercentiles.p50,
 		finalLow: simulation.finalPercentiles.p10,

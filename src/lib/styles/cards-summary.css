@@ -51,312 +51,263 @@ h2 {
 	margin-bottom: 0;
 }
 
-.assessment-card {
+/* ─── Tone: one severity vocabulary shared by every result card ───── */
+.tone-good {
+	--tone-line: #0f766e;
+	--tone-ink: #0f766e;
+	--tone-wash: rgba(240, 253, 250, 0.98);
+}
+
+.tone-warn {
+	--tone-line: #d97706;
+	--tone-ink: #b45309;
+	--tone-wash: rgba(255, 251, 235, 0.98);
+}
+
+.tone-bad {
+	--tone-line: #dc2626;
+	--tone-ink: #b91c1c;
+	--tone-wash: rgba(254, 242, 242, 0.98);
+}
+
+/* ─── Verdict: result, levers, and caveat in one card ─────────────── */
+.verdict-card {
 	padding: 1rem 1.1rem;
-	border-left: 5px solid #0f766e;
-	background: linear-gradient(135deg, rgba(240, 253, 250, 0.98), rgba(255, 255, 255, 0.92));
+	border-left: 5px solid var(--tone-line);
+	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));
 }
 
-.assessment-card.assessment-warning {
-	border-left-color: #d97706;
-	background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.92));
-}
-
-.assessment-card.assessment-critical {
-	border-left-color: #dc2626;
-	background: linear-gradient(135deg, rgba(254, 242, 242, 0.98), rgba(255, 255, 255, 0.92));
-}
-
-.assessment-eyebrow,
-.action-eyebrow {
+.verdict-eyebrow,
+.phase-eyebrow {
 	margin: 0;
-	font-size: 0.68rem;
+	font-size: 0.66rem;
 	font-weight: 750;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	color: #64748b;
 }
 
-.assessment-card h3 {
-	margin: 0.12rem 0 0;
-	font-size: clamp(1.15rem, 2vw, 1.55rem);
-	line-height: 1.22;
-	letter-spacing: -0.025em;
+/*
+ * Figure and caption as one sentence: the number leads inline, the rest of the clause
+ * flows around it. Selector has to out-specify the base `.card h3` (0,1,1), which would
+ * otherwise uppercase and letter-space the prose half of the sentence.
+ */
+.card h3.stat-sentence {
+	margin: 0.3rem 0 0;
+	font-weight: 500;
+	letter-spacing: normal;
 	text-transform: none;
-	color: #0f172a;
+	color: #475569;
 }
 
-.horizon-grid {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	align-items: stretch;
-	gap: 0.65rem;
-	margin-top: 0.85rem;
+.card h3.stat-sentence strong {
+	margin-right: 0.14em;
+	font-weight: 780;
+	line-height: 1.05;
+	letter-spacing: -0.055em;
+	color: var(--tone-ink);
 }
 
-.horizon-result {
-	padding: 0.65rem 0.75rem;
-	border: 1px solid rgba(148, 163, 184, 0.25);
-	border-radius: 9px;
-	background: rgba(255, 255, 255, 0.68);
+.verdict-card h3.stat-sentence {
+	margin-top: 0.45rem;
+	font-size: 0.92rem;
+	line-height: 1.5;
 }
 
-.horizon-label {
-	margin: 0;
-	font-size: 0.7rem;
+.verdict-card h3.stat-sentence strong {
+	font-size: clamp(2rem, 4vw, 2.9rem);
+}
+
+.verdict-gauge {
+	margin-top: 0.75rem;
+}
+
+.gauge-track {
+	position: relative;
+	height: 0.5rem;
+	margin-top: 0.55rem;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.28);
+	overflow: hidden;
+}
+
+.gauge-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: var(--tone-line);
+}
+
+.gauge-goal {
+	position: absolute;
+	top: -0.15rem;
+	bottom: -0.15rem;
+	width: 2px;
+	background: #0f172a;
+}
+
+.gauge-scale {
+	display: flex;
+	justify-content: space-between;
+	margin: 0.24rem 0 0;
+	font-size: 0.63rem;
+	color: #94a3b8;
+}
+
+.gauge-goal-label {
 	font-weight: 700;
 	color: #475569;
 }
 
-.horizon-value {
-	margin-top: 0.14rem;
-	font-size: clamp(1.7rem, 3vw, 2.45rem);
-	font-weight: 780;
-	line-height: 1;
-	letter-spacing: -0.055em;
-	color: #0f766e;
+.verdict-detail {
+	margin: 0.7rem 0 0;
+	font-size: 0.8rem;
+	line-height: 1.5;
+	color: #334155;
 }
 
-.assessment-warning .horizon-value {
-	color: #b45309;
-}
-
-.assessment-critical .horizon-value {
-	color: #b91c1c;
-}
-
-.horizon-value span {
-	font-size: 0.4em;
-	letter-spacing: -0.01em;
-}
-
-.horizon-result > p:last-child {
-	margin: 0.28rem 0 0;
-	font-size: 0.72rem;
-	line-height: 1.4;
-	color: #64748b;
-}
-
-.horizon-connector {
-	align-self: center;
-	font-size: 1.2rem;
-	font-weight: 700;
-	color: #94a3b8;
-}
-
-.results-disclaimer {
-	padding: 0.65rem 0.8rem;
-	border: 1px solid #fde68a;
+.verdict-next {
+	margin-top: 0.75rem;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid rgba(148, 163, 184, 0.3);
 	border-radius: 9px;
-	background: #fffbeb;
-	font-size: 0.74rem;
-	line-height: 1.45;
-	color: #713f12;
+	background: rgba(255, 255, 255, 0.7);
 }
 
-.results-disclaimer strong {
-	color: #422006;
+.verdict-next h4 {
+	margin: 0;
+	font-size: 0.68rem;
+	font-weight: 750;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: #475569;
 }
 
-/* ─── Action message ──────────────────────────────────────────────── */
-.action-card {
-	padding: 0.85rem 0.9rem;
-	border-left: 4px solid #6366f1;
-	background: linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(255, 255, 255, 0.9));
-}
-
-.action-card h3 {
-	margin: 0.12rem 0 0;
-	font-size: 1rem;
-	line-height: 1.3;
-	letter-spacing: -0.01em;
-	text-transform: none;
-	color: #0f172a;
-}
-
-.action-card p {
-	margin: 0.38rem 0 0;
+.verdict-next p {
+	margin: 0.34rem 0 0;
 	font-size: 0.78rem;
 	line-height: 1.5;
 	color: #475569;
 }
 
-.action-options {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-	margin-top: 0.55rem;
-}
-
-.action-options > div {
-	min-width: 175px;
-	padding: 0.48rem 0.6rem;
-	border: 1px solid #c7d2fe;
-	border-radius: 8px;
-	background: rgba(255, 255, 255, 0.76);
-}
-
-.action-options span,
-.action-options strong {
-	display: block;
-}
-
-.action-options span {
-	font-size: 0.64rem;
-	color: #64748b;
-}
-
-.action-options strong {
-	margin-top: 0.12rem;
-	font-size: 0.82rem;
-	color: #312e81;
-}
-
-.combined-action {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.2rem 0.42rem;
-}
-
-.combined-action strong,
-.best-scenario strong {
-	color: #312e81;
-}
-
-.action-card .action-caveat {
+.verdict-next .next-caveat {
 	font-size: 0.69rem;
 	color: #64748b;
 }
 
-/* ─── Two planning phases ─────────────────────────────────────────── */
-.phase-card {
-	padding: 0.85rem 0.9rem;
-}
-
-.phase-heading {
+.lever-list {
 	display: flex;
-	align-items: center;
-	gap: 0.55rem;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+	margin: 0.5rem 0 0;
+	padding: 0;
+	list-style: none;
 }
 
-.phase-heading > span {
-	display: grid;
-	width: 1.7rem;
-	height: 1.7rem;
-	place-items: center;
-	border-radius: 50%;
-	background: #e0f2fe;
-	font-size: 0.72rem;
-	font-weight: 750;
-	color: #0369a1;
+.lever-list li {
+	flex: 1 1 130px;
+	padding: 0.42rem 0.6rem;
+	border: 1px solid rgba(148, 163, 184, 0.35);
+	border-radius: 8px;
+	background: #fff;
 }
 
-.phase-heading p {
-	margin: 0;
-	font-size: 0.62rem;
-	font-weight: 700;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: #94a3b8;
+.lever-list span {
+	display: block;
+	font-size: 0.63rem;
+	color: #64748b;
 }
 
-.phase-card .phase-heading h3 {
-	margin: 0.04rem 0 0;
-	font-size: 1rem;
-	line-height: 1.25;
-	letter-spacing: -0.01em;
-	text-transform: none;
+.lever-list strong {
+	display: block;
+	margin-top: 0.1rem;
+	font-size: 0.92rem;
 	color: #0f172a;
 }
 
-.metric-grid {
+.verdict-disclaimer {
+	margin: 0.7rem 0 0;
+	padding-top: 0.55rem;
+	border-top: 1px solid rgba(148, 163, 184, 0.3);
+	font-size: 0.69rem;
+	line-height: 1.45;
+	color: #64748b;
+}
+
+.verdict-disclaimer strong {
+	color: #334155;
+}
+
+/* ─── Two planning phases, side by side where there is room ───────── */
+.phase-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 0.55rem;
-	margin-top: 0.7rem;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+	gap: 0.65rem;
 }
 
-.metric-panel {
-	padding: 0.65rem 0.7rem;
-	border: 1px solid #e2e8f0;
-	border-radius: 9px;
-	background: rgba(248, 250, 252, 0.75);
+.phase-card {
+	display: flex;
+	flex-direction: column;
+	padding: 0.8rem 0.9rem;
+	border-left: 4px solid var(--tone-line);
 }
 
-.metric-panel.primary-metric {
-	border-color: #99f6e4;
-	background: rgba(240, 253, 250, 0.8);
+.phase-card h3.stat-sentence {
+	font-size: 0.78rem;
+	line-height: 1.5;
 }
 
-.metric-panel.secondary-metric {
-	background: rgba(248, 250, 252, 0.45);
+.phase-card h3.stat-sentence strong {
+	font-size: clamp(1.45rem, 2.6vw, 1.85rem);
 }
 
-.metric-panel h4,
-.lifetime-overview h4,
-.downside-grid h4,
+.phase-range {
+	margin: 0.28rem 0 0;
+	font-size: 0.69rem;
+	line-height: 1.4;
+	color: #64748b;
+}
+
+.phase-facts {
+	display: grid;
+	gap: 0.2rem;
+	margin: 0.6rem 0 0;
+}
+
+.phase-facts > div {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.6rem;
+	padding-bottom: 0.2rem;
+	border-bottom: 1px solid #e2e8f0;
+	font-size: 0.71rem;
+	line-height: 1.4;
+}
+
+.phase-facts dt {
+	color: #64748b;
+}
+
+.phase-facts dd {
+	margin: 0;
+	text-align: right;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.phase-note {
+	margin: 0.55rem 0 0;
+	padding-top: 0.45rem;
+	font-size: 0.69rem;
+	line-height: 1.45;
+	color: #64748b;
+}
+
 .diagnostics-grid h4 {
 	margin: 0;
 	font-size: 0.7rem;
 	color: #64748b;
 }
 
-.metric-value {
-	display: block;
-	margin-top: 0.16rem;
-	font-size: 1.2rem;
-	line-height: 1.15;
-	color: #0f172a;
-}
-
-.metric-panel p,
-.lifetime-overview p {
-	margin: 0.24rem 0 0;
-	font-size: 0.71rem;
-	line-height: 1.4;
-	color: #475569;
-}
-
-.metric-panel > span {
-	display: block;
-	margin-top: 0.3rem;
-	font-size: 0.65rem;
-	line-height: 1.35;
-	color: #94a3b8;
-}
-
-.coast-callout {
-	margin-top: 0.6rem;
-	padding: 0.5rem 0.65rem;
-	border-radius: 7px;
-	background: #f8fafc;
-	font-size: 0.72rem;
-	line-height: 1.45;
-	color: #475569;
-}
-
-.lifetime-overview {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.55rem;
-	margin-top: 0.7rem;
-}
-
-.lifetime-overview > div {
-	padding: 0.65rem 0.7rem;
-	border: 1px solid #e2e8f0;
-	border-radius: 9px;
-	background: #f8fafc;
-}
-
-.downside-details {
-	margin-top: 0.6rem;
-	padding-top: 0.55rem;
-	border-top: 1px solid #e2e8f0;
-}
-
-.downside-details > summary,
 .diagnostics-card > summary,
 .model-scope > summary {
 	cursor: pointer;
@@ -364,20 +315,6 @@ h2 {
 	color: #0f172a;
 }
 
-.downside-details > summary {
-	display: flex;
-	justify-content: space-between;
-	gap: 0.75rem;
-	font-size: 0.78rem;
-}
-
-.downside-details > summary span:last-child {
-	font-size: 0.68rem;
-	font-weight: 500;
-	color: #64748b;
-}
-
-.downside-definition,
 .diagnostics-intro {
 	margin: 0.35rem 0 0;
 	font-size: 0.7rem;
@@ -385,26 +322,17 @@ h2 {
 	color: #64748b;
 }
 
-.downside-grid,
 .diagnostics-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
 	gap: 0.65rem;
 	margin-top: 0.55rem;
 }
 
-.downside-grid > div,
 .diagnostics-grid > section {
 	padding: 0.58rem 0.65rem;
 	border-radius: 8px;
 	background: #f8fafc;
-}
-
-.downside-grid p {
-	display: grid;
-	gap: 0.18rem;
-	margin: 0.3rem 0 0;
-	font-size: 0.69rem;
 }
 
 .model-scope {
@@ -418,9 +346,9 @@ h2 {
 	line-height: 1.45;
 }
 
-/* ─── Advanced statistics below charts ────────────────────────────── */
+/* ─── Advanced statistics, between the cards and the charts ───────── */
 .diagnostics-card {
-	margin-top: 0.65rem;
+	margin: 0.65rem 0;
 	padding: 0.75rem 0.8rem;
 }
 
@@ -459,25 +387,17 @@ h2 {
 }
 
 @media (max-width: 760px) {
-	.horizon-grid,
-	.metric-grid,
-	.lifetime-overview,
-	.downside-grid,
+	.phase-grid,
 	.diagnostics-grid {
 		grid-template-columns: 1fr;
 	}
 
-	.horizon-connector {
-		justify-self: center;
-		transform: rotate(90deg);
+	.phase-facts > div {
+		flex-direction: column;
+		gap: 0.05rem;
 	}
 
-	.downside-details > summary {
-		display: list-item;
-	}
-
-	.downside-details > summary span:last-child {
-		display: block;
-		margin-top: 0.22rem;
+	.phase-facts dd {
+		text-align: left;
 	}
 }

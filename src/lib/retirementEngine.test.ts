@@ -794,6 +794,43 @@ describe('exact path evaluator', () => {
 		expect(result.cumulativeShortfall).toBe(0);
 		expect(result.depleted).toBe(false);
 		expect(result.depletedMonths).toBe(0);
+		expect(result.firstDepletionMonth).toBeNull();
+	});
+
+	/**
+	 * The reason `firstDepletionMonth` has to be recorded rather than inferred: a balance
+	 * can come back above zero when later income or a lump sum arrives, so the zero months
+	 * are neither contiguous nor at the tail, and `months - depletedMonths` is not the
+	 * month the money first ran out. Here the run is short in months 1-2 and solvent again
+	 * from month 3 — onset is month 1, but only two months were ever spent at zero.
+	 */
+	it('records the first shortfall month, not one inferred from the zero-month count', () => {
+		const months = 6;
+		const zeroes = new Float64Array(months);
+		const income = new Float64Array(months);
+		income[3] = 500; // a pension or lump sum landing after the shortfall
+		const result = evaluatePath(
+			{ assetReturns: zeroes, inflationRates: zeroes },
+			{
+				monthlyRealIncomeFlow: income,
+				monthlyNominalIncomeFlow: zeroes,
+				monthlyRealSpendingFlow: new Float64Array(months).fill(100),
+				monthlyNominalSpendingFlow: zeroes,
+				lumpSumByMonth: zeroes
+			},
+			100,
+			months,
+			fixed,
+			0,
+			0,
+			0
+		);
+
+		expect(result.firstDepletionMonth).toBe(1);
+		expect(result.depletedMonths).toBe(2);
+		// The naive inference would put onset at month 4, two months too late.
+		expect(months - result.depletedMonths).not.toBe(result.firstDepletionMonth);
+		expect(result.finalBalance).toBeGreaterThan(0);
 	});
 
 	it("deflates nominal cash flows by the tape's realized inflation", () => {

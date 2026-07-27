@@ -2130,6 +2130,17 @@
 					{actionableRecommendations}
 				/>
 
+				<PlannerDiagnostics
+					{stats}
+					{input}
+					simCount={lastSimulatedCount}
+					{percentFormatter}
+					{fmtNum}
+					{fmtCompactCurrency}
+					{retirementYearlySpending}
+					{FI_TARGET_SUCCESS_PROBABILITY}
+				/>
+
 				<div class="chart-row">
 					<PlannerTimelinePlot
 						{Plotly}
@@ -2155,15 +2166,6 @@
 						{fmtHoverCompactCurrency}
 					/>
 				</div>
-
-				<PlannerDiagnostics
-					{stats}
-					{input}
-					simCount={lastSimulatedCount}
-					{percentFormatter}
-					{fmtNum}
-					{fmtCompactCurrency}
-				/>
 			</div>
 		{/if}
 	</section>

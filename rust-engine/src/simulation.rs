@@ -334,6 +334,7 @@ pub fn run_monte_carlo_simulation(
     let mut retire_balances = Vec::with_capacity(sim_count);
     let mut shortfall_totals = Vec::with_capacity(sim_count);
     let mut depleted_years_series = Vec::with_capacity(sim_count);
+    let mut first_depletion_months: Vec<f64> = Vec::with_capacity(sim_count);
     let mut depleted_flags = Vec::with_capacity(sim_count);
     let mut success_flags = Vec::with_capacity(sim_count);
     let mut annual_real_returns_by_sim = Vec::with_capacity(sim_count);
@@ -515,6 +516,11 @@ pub fn run_monte_carlo_simulation(
         final_balances.push(evaluation.final_balance);
         shortfall_totals.push(evaluation.cumulative_shortfall);
         depleted_years_series.push((evaluation.depleted_months as f64) / 12.0);
+        first_depletion_months.push(
+            evaluation
+                .first_depletion_month
+                .map_or(f64::INFINITY, |month| month as f64),
+        );
         depleted_flags.push(evaluation.depleted);
         annual_real_returns_by_sim.push(evaluation.annual_real_returns);
 
@@ -666,6 +672,24 @@ pub fn run_monte_carlo_simulation(
 
     let shortfall_percentiles = summarize(&shortfall_totals);
     let depleted_years_percentiles = summarize(&depleted_years_series);
+    let mut sorted_first_depletion = first_depletion_months.clone();
+    sorted_first_depletion.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    // Nearest-rank, deliberately not the interpolating `summarize`: the series carries
+    // +Infinity for paths that never ran short, and interpolating towards it yields
+    // Infinity or NaN. Mirrors `depletionAge` in `retirementEngine.ts` exactly.
+    let depletion_age = |quantile: f64| -> Option<f64> {
+        if sorted_first_depletion.is_empty() {
+            return None;
+        }
+        let rank = ((quantile * sorted_first_depletion.len() as f64).floor() as usize)
+            .min(sorted_first_depletion.len() - 1);
+        let month = sorted_first_depletion[rank];
+        if month.is_finite() {
+            Some(input.current_age + month / 12.0)
+        } else {
+            None
+        }
+    };
     let sequence_risk = build_sequence_risk_summary(
         &annual_real_returns_by_sim,
         &final_balances,
@@ -719,6 +743,8 @@ pub fn run_monte_carlo_simulation(
         depleted_years_low: depleted_years_percentiles.p10,
         depleted_years_median: depleted_years_percentiles.p50,
         depleted_years_high: depleted_years_percentiles.p90,
+        depletion_age_p10: depletion_age(0.1),
+        depletion_age_p50: depletion_age(0.5),
         retire_low: retire_percentiles.p10,
         final_median: final_percentiles.p50,
         final_low: final_percentiles.p10,

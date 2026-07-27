@@ -1,6 +1,16 @@
 <script lang="ts">
-	let { stats, input, simCount = 0, percentFormatter, fmtNum, fmtCompactCurrency } = $props();
+	let {
+		stats,
+		input,
+		simCount = 0,
+		percentFormatter,
+		fmtNum,
+		fmtCompactCurrency,
+		retirementYearlySpending = 0,
+		FI_TARGET_SUCCESS_PROBABILITY = 0.95
+	} = $props();
 
+	const targetPercent = $derived(Math.round(FI_TARGET_SUCCESS_PROBABILITY * 100));
 	const successProbabilitySE = $derived(
 		simCount > 0 && stats
 			? Math.sqrt((stats.successProbability * (1 - stats.successProbability)) / simCount)
@@ -31,83 +41,154 @@
 				return 'Fixed real spending';
 		}
 	});
+
+	/** Column of the sensitivity surface that matches the planned retirement age. */
+	const baselineAgeIndex = $derived.by(() => {
+		const ages: number[] = stats?.ruinSurface?.retirementAges ?? [];
+		return ages.reduce(
+			(best, age, index) =>
+				Math.abs(age - input.retirementAge) < Math.abs(ages[best] - input.retirementAge)
+					? index
+					: best,
+			0
+		);
+	});
+
+	/**
+	 * Largest tested spending level that still clears the goal at the planned retirement age.
+	 * This is the spending capacity of the plan as designed — a number no other card carries,
+	 * and the one a reader actually budgets against.
+	 */
+	const sustainableMultiplier = $derived.by(() => {
+		if (!stats?.ruinSurface) return null;
+		const { spendingMultipliers, ruinProbabilities } = stats.ruinSurface;
+		let best: number | null = null;
+		for (let row = 0; row < spendingMultipliers.length; row++) {
+			const success = 1 - ruinProbabilities[row][baselineAgeIndex];
+			if (success >= FI_TARGET_SUCCESS_PROBABILITY) {
+				best = best == null ? spendingMultipliers[row] : Math.max(best, spendingMultipliers[row]);
+			}
+		}
+		return best;
+	});
+	const sustainableSpending = $derived(
+		sustainableMultiplier == null ? null : retirementYearlySpending * sustainableMultiplier
+	);
+	/**
+	 * The sweep is bounded, so a plan that clears the goal at the highest tested spending level
+	 * has capacity somewhere above it. Reporting that ceiling as *the* answer would understate
+	 * the plan; the copy says "at least" instead.
+	 */
+	const sustainableIsCapped = $derived(
+		sustainableMultiplier != null &&
+			sustainableMultiplier >= Math.max(...(stats?.ruinSurface?.spendingMultipliers ?? [0]))
+	);
+
+	/**
+	 * Sequence-of-returns exposure: the spread in ruin probability between the worst and best
+	 * early-return buckets. Two plans with the same headline probability can differ sharply
+	 * here, and the difference is what makes early-retirement years fragile.
+	 */
+	const sequenceBuckets = $derived(stats?.sequenceRisk ?? []);
+	const sequenceSpread = $derived.by(() => {
+		if (sequenceBuckets.length === 0) return 0;
+		const ruins = sequenceBuckets.map(
+			(bucket: { ruinProbability: number }) => bucket.ruinProbability
+		);
+		return Math.max(...ruins) - Math.min(...ruins);
+	});
 </script>
 
 {#if stats}
 	<details class="card diagnostics-card">
 		<summary>Advanced statistics and model diagnostics</summary>
 		<p class="diagnostics-intro">
-			Detailed outcome percentiles, sampling precision, sensitivity-test coverage, and the return
-			distribution used for this run. Hidden by default because these figures support—not
-			replace—the planning assessment above.
+			Spending capacity, sequence-risk exposure, sampling precision, and the return distribution
+			this run actually produced. Hidden by default because these figures support — not replace —
+			the assessment above.
 		</p>
 		<div class="diagnostics-grid">
 			<section>
-				<h4>Planning probabilities and targets</h4>
+				<h4>Spending capacity at the {targetPercent}% goal</h4>
+				{#if sustainableSpending != null}
+					<dl class="diagnostics-table mono-value">
+						<div>
+							<dt>Sustainable yearly spending</dt>
+							<dd>
+								{sustainableIsCapped ? '≥ ' : ''}{fmtCompactCurrency(sustainableSpending)}
+							</dd>
+						</div>
+						<div>
+							<dt>Versus planned spending</dt>
+							<dd>
+								{sustainableIsCapped ? '≥ ' : ''}{percentFormatter.format(sustainableMultiplier)}
+							</dd>
+						</div>
+					</dl>
+					<p>
+						{#if sustainableIsCapped}
+							The plan still clears the goal at the highest spending level this sweep tests, so its
+							real capacity at age {fmtNum(input.retirementAge)} is somewhere above this figure.
+						{:else}
+							Highest tested spending level that still clears the goal at age {fmtNum(
+								input.retirementAge
+							)}. Resolution is limited to the tested levels listed below.
+						{/if}
+					</p>
+				{:else}
+					<p>
+						No tested spending level cleared the goal at age {fmtNum(input.retirementAge)}, so a
+						sustainable figure cannot be reported from this sweep.
+					</p>
+				{/if}
+			</section>
+
+			<section>
+				<h4>Rule-of-thumb comparison</h4>
 				<dl class="diagnostics-table mono-value">
 					<div>
-						<dt>Spending fully covered</dt>
-						<dd>{percentFormatter.format(stats.successProbability)}</dd>
+						<dt>Spending-rule target</dt>
+						<dd>{fmtCompactCurrency(stats.fiTargetSWR)}</dd>
 					</div>
 					<div>
-						<dt>Reach simulation target</dt>
-						<dd>{percentFormatter.format(stats.fiProbabilityP95)}</dd>
-					</div>
-					<div>
-						<dt>Reach spending-rule estimate</dt>
+						<dt>Chance of reaching it</dt>
 						<dd>{percentFormatter.format(stats.fiProbabilitySWR)}</dd>
 					</div>
 					<div>
 						<dt>Simulation-based target</dt>
 						<dd>{fmtCompactCurrency(stats.fiTargetP95)}</dd>
 					</div>
-					<div>
-						<dt>Spending-rule estimate</dt>
-						<dd>{fmtCompactCurrency(stats.fiTargetSWR)}</dd>
-					</div>
 				</dl>
+				<p>
+					The spending-rule target divides spending by the selected withdrawal rate, net of other
+					income. It ignores sequence risk and your actual horizon, so where the two targets
+					disagree, the simulated one is the one the assessment uses.
+				</p>
 			</section>
 
 			<section>
-				<h4>Outcome percentiles</h4>
-				<dl class="diagnostics-table mono-value">
-					<div>
-						<dt>At retirement · P10</dt>
-						<dd>{fmtCompactCurrency(stats.retireLow)}</dd>
-					</div>
-					<div>
-						<dt>At retirement · median</dt>
-						<dd>{fmtCompactCurrency(stats.retireMedian)}</dd>
-					</div>
-					<div>
-						<dt>At retirement · P90</dt>
-						<dd>{fmtCompactCurrency(stats.retireHigh)}</dd>
-					</div>
-					<div>
-						<dt>Ending balance · P10</dt>
-						<dd>{fmtCompactCurrency(stats.finalLow)}</dd>
-					</div>
-					<div>
-						<dt>Ending balance · median</dt>
-						<dd>{fmtCompactCurrency(stats.finalMedian)}</dd>
-					</div>
-					<div>
-						<dt>Ending balance · P90</dt>
-						<dd>{fmtCompactCurrency(stats.finalHigh)}</dd>
-					</div>
-					<div>
-						<dt>Shortfall · worst 10%</dt>
-						<dd>{fmtCompactCurrency(stats.shortfallHigh)}</dd>
-					</div>
-					<div>
-						<dt>Zero-balance years · worst 10%</dt>
-						<dd>{fmtNum(stats.depletedYearsHigh, 1)}</dd>
-					</div>
-				</dl>
+				<h4>Sequence-of-returns exposure</h4>
+				{#if sequenceBuckets.length > 0}
+					<dl class="diagnostics-table mono-value">
+						{#each sequenceBuckets as bucket (bucket.bucketLabel)}
+							<div>
+								<dt>{bucket.bucketLabel}</dt>
+								<dd>{percentFormatter.format(bucket.ruinProbability)} ruin</dd>
+							</div>
+						{/each}
+					</dl>
+					<p>
+						Ruin probability spans {(sequenceSpread * 100).toFixed(1)} percentage points between the worst
+						and best early-return groups. A wide spread means the plan's outcome is decided mainly by
+						the first years after retirement, where a flexible spending rule or a cash buffer helps most.
+					</p>
+				{:else}
+					<p>Sequence-risk buckets are unavailable for this run.</p>
+				{/if}
 			</section>
 
 			<section>
-				<h4>Simulation reliability</h4>
+				<h4>Sampling precision</h4>
 				{#if simCount > 0}
 					<p class="mono-value">
 						Monte Carlo noise: ±{(successProbabilitySE * 1.96 * 100).toFixed(1)} percentage points (approximate

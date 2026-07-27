@@ -99,6 +99,11 @@ pub struct SummaryStats {
     pub depleted_years_low: f64,
     pub depleted_years_median: f64,
     pub depleted_years_high: f64,
+    /// Age by which the money had first run out, at the 10th and 50th percentile of the
+    /// first-shortfall distribution. `None` when that percentile lands on a path that
+    /// never ran short. See `SummaryStats` in `retirementEngine.ts` for the rationale.
+    pub depletion_age_p10: Option<f64>,
+    pub depletion_age_p50: Option<f64>,
     pub retire_low: f64,
     pub final_median: f64,
     pub final_low: f64,
