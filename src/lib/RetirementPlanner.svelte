@@ -2162,6 +2162,7 @@
 					simCount={lastSimulatedCount}
 					{percentFormatter}
 					{fmtNum}
+					{fmtCompactCurrency}
 				/>
 			</div>
 		{/if}

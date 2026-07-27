@@ -26,7 +26,7 @@
 	font-size: 0.7rem;
 	font-weight: 700;
 	color: #64748b;
-	margin: 0 0 0.3rem 0;
+	margin: 0 0 0.3rem;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 }
@@ -41,164 +41,287 @@ h2 {
 	line-height: 1.2;
 }
 
-/* ─── Result hierarchy ────────────────────────────────────────────── */
+/* ─── Results overview ────────────────────────────────────────────── */
 .results-summary {
 	display: grid;
-	gap: 0.6rem;
+	gap: 0.65rem;
 }
 
 .results-summary .card {
 	margin-bottom: 0;
 }
 
-.result-hero {
+.assessment-card {
 	padding: 1rem 1.1rem;
 	border-left: 5px solid #0f766e;
-	background: linear-gradient(135deg, rgba(240, 253, 250, 0.98), rgba(255, 255, 255, 0.9));
+	background: linear-gradient(135deg, rgba(240, 253, 250, 0.98), rgba(255, 255, 255, 0.92));
 }
 
-.result-hero-warning {
+.assessment-card.assessment-warning {
 	border-left-color: #d97706;
-	background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.9));
+	background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.92));
 }
 
-.result-hero-negative {
+.assessment-card.assessment-critical {
 	border-left-color: #dc2626;
-	background: linear-gradient(135deg, rgba(254, 242, 242, 0.98), rgba(255, 255, 255, 0.9));
+	background: linear-gradient(135deg, rgba(254, 242, 242, 0.98), rgba(255, 255, 255, 0.92));
 }
 
-.result-hero-main {
-	display: grid;
-	grid-template-columns: minmax(155px, auto) 1fr;
-	align-items: end;
-	gap: 1rem;
-}
-
-.result-hero h3,
-.readiness-card h3 {
+.assessment-eyebrow,
+.action-eyebrow {
 	margin: 0;
-	font-size: 0.78rem;
+	font-size: 0.68rem;
+	font-weight: 750;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	letter-spacing: 0.07em;
 	color: #64748b;
 }
 
-.hero-probability {
-	font-size: clamp(2.25rem, 4.5vw, 3.6rem);
+.assessment-card h3 {
+	margin: 0.12rem 0 0;
+	font-size: clamp(1.15rem, 2vw, 1.55rem);
+	line-height: 1.22;
+	letter-spacing: -0.025em;
+	text-transform: none;
+	color: #0f172a;
+}
+
+.horizon-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: stretch;
+	gap: 0.65rem;
+	margin-top: 0.85rem;
+}
+
+.horizon-result {
+	padding: 0.65rem 0.75rem;
+	border: 1px solid rgba(148, 163, 184, 0.25);
+	border-radius: 9px;
+	background: rgba(255, 255, 255, 0.68);
+}
+
+.horizon-label {
+	margin: 0;
+	font-size: 0.7rem;
+	font-weight: 700;
+	color: #475569;
+}
+
+.horizon-value {
+	margin-top: 0.14rem;
+	font-size: clamp(1.7rem, 3vw, 2.45rem);
 	font-weight: 780;
-	line-height: 0.95;
-	letter-spacing: -0.06em;
+	line-height: 1;
+	letter-spacing: -0.055em;
 	color: #0f766e;
 }
 
-.result-hero-warning .hero-probability {
+.assessment-warning .horizon-value {
 	color: #b45309;
 }
-.result-hero-negative .hero-probability {
+
+.assessment-critical .horizon-value {
 	color: #b91c1c;
 }
 
-.hero-probability span {
-	font-size: 0.38em;
+.horizon-value span {
+	font-size: 0.4em;
+	letter-spacing: -0.01em;
+}
+
+.horizon-result > p:last-child {
+	margin: 0.28rem 0 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: #64748b;
+}
+
+.horizon-connector {
+	align-self: center;
+	font-size: 1.2rem;
 	font-weight: 700;
-	letter-spacing: -0.02em;
-}
-
-.hero-copy {
-	max-width: 36rem;
-	margin: 0;
-	font-size: clamp(1rem, 1.7vw, 1.3rem);
-	line-height: 1.35;
-	color: #1e293b;
-}
-
-.hero-action {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 0.35rem 0.55rem;
-	margin: 0.8rem 0 0;
-	padding: 0.65rem 0.75rem;
-	border-radius: 8px;
-	background: rgba(255, 255, 255, 0.7);
-	color: #334155;
-	font-size: 0.84rem;
-}
-
-.hero-action strong {
-	color: #0f172a;
-}
-.action-or {
 	color: #94a3b8;
 }
 
-.hero-definition {
-	margin: 0.55rem 0 0;
-	font-size: 0.72rem;
+.results-disclaimer {
+	padding: 0.65rem 0.8rem;
+	border: 1px solid #fde68a;
+	border-radius: 9px;
+	background: #fffbeb;
+	font-size: 0.74rem;
+	line-height: 1.45;
+	color: #713f12;
+}
+
+.results-disclaimer strong {
+	color: #422006;
+}
+
+/* ─── Action message ──────────────────────────────────────────────── */
+.action-card {
+	padding: 0.85rem 0.9rem;
+	border-left: 4px solid #6366f1;
+	background: linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(255, 255, 255, 0.9));
+}
+
+.action-card h3 {
+	margin: 0.12rem 0 0;
+	font-size: 1rem;
+	line-height: 1.3;
+	letter-spacing: -0.01em;
+	text-transform: none;
+	color: #0f172a;
+}
+
+.action-card p {
+	margin: 0.38rem 0 0;
+	font-size: 0.78rem;
+	line-height: 1.5;
+	color: #475569;
+}
+
+.action-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.55rem;
+}
+
+.action-options > div {
+	min-width: 175px;
+	padding: 0.48rem 0.6rem;
+	border: 1px solid #c7d2fe;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.76);
+}
+
+.action-options span,
+.action-options strong {
+	display: block;
+}
+
+.action-options span {
+	font-size: 0.64rem;
 	color: #64748b;
 }
 
-.readiness-card {
+.action-options strong {
+	margin-top: 0.12rem;
+	font-size: 0.82rem;
+	color: #312e81;
+}
+
+.combined-action {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.2rem 0.42rem;
+}
+
+.combined-action strong,
+.best-scenario strong {
+	color: #312e81;
+}
+
+.action-card .action-caveat {
+	font-size: 0.69rem;
+	color: #64748b;
+}
+
+/* ─── Two planning phases ─────────────────────────────────────────── */
+.phase-card {
 	padding: 0.85rem 0.9rem;
 }
 
-.section-intro,
-.diagnostics-intro,
-.downside-definition {
-	margin: 0.2rem 0 0;
-	color: #64748b;
-	font-size: 0.78rem;
-	line-height: 1.4;
+.phase-heading {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
 }
 
-.readiness-grid {
+.phase-heading > span {
+	display: grid;
+	width: 1.7rem;
+	height: 1.7rem;
+	place-items: center;
+	border-radius: 50%;
+	background: #e0f2fe;
+	font-size: 0.72rem;
+	font-weight: 750;
+	color: #0369a1;
+}
+
+.phase-heading p {
+	margin: 0;
+	font-size: 0.62rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: #94a3b8;
+}
+
+.phase-card .phase-heading h3 {
+	margin: 0.04rem 0 0;
+	font-size: 1rem;
+	line-height: 1.25;
+	letter-spacing: -0.01em;
+	text-transform: none;
+	color: #0f172a;
+}
+
+.metric-grid {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 0.55rem;
-	margin-top: 0.65rem;
+	margin-top: 0.7rem;
 }
 
-.readiness-metric {
+.metric-panel {
 	padding: 0.65rem 0.7rem;
 	border: 1px solid #e2e8f0;
 	border-radius: 9px;
 	background: rgba(248, 250, 252, 0.75);
 }
 
-.readiness-metric.primary-metric {
+.metric-panel.primary-metric {
 	border-color: #99f6e4;
 	background: rgba(240, 253, 250, 0.8);
 }
 
-.readiness-metric.secondary-metric {
+.metric-panel.secondary-metric {
 	background: rgba(248, 250, 252, 0.45);
 }
 
-.readiness-metric h4,
+.metric-panel h4,
+.lifetime-overview h4,
 .downside-grid h4,
 .diagnostics-grid h4 {
 	margin: 0;
-	font-size: 0.72rem;
+	font-size: 0.7rem;
 	color: #64748b;
 }
 
-.readiness-value {
-	margin-top: 0.18rem;
-	font-size: 1.25rem;
-	font-weight: 750;
+.metric-value {
+	display: block;
+	margin-top: 0.16rem;
+	font-size: 1.2rem;
+	line-height: 1.15;
 	color: #0f172a;
 }
 
-.readiness-metric p {
-	margin: 0.25rem 0 0;
-	font-size: 0.74rem;
-	line-height: 1.35;
+.metric-panel p,
+.lifetime-overview p {
+	margin: 0.24rem 0 0;
+	font-size: 0.71rem;
+	line-height: 1.4;
+	color: #475569;
 }
 
-.readiness-metric > span {
+.metric-panel > span {
 	display: block;
 	margin-top: 0.3rem;
-	font-size: 0.67rem;
+	font-size: 0.65rem;
 	line-height: 1.35;
 	color: #94a3b8;
 }
@@ -208,27 +331,57 @@ h2 {
 	padding: 0.5rem 0.65rem;
 	border-radius: 7px;
 	background: #f8fafc;
-	font-size: 0.75rem;
-	line-height: 1.4;
+	font-size: 0.72rem;
+	line-height: 1.45;
 	color: #475569;
 }
 
-.downside-card > summary,
-.diagnostics-card > summary {
+.lifetime-overview {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.55rem;
+	margin-top: 0.7rem;
+}
+
+.lifetime-overview > div {
+	padding: 0.65rem 0.7rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 9px;
+	background: #f8fafc;
+}
+
+.downside-details {
+	margin-top: 0.6rem;
+	padding-top: 0.55rem;
+	border-top: 1px solid #e2e8f0;
+}
+
+.downside-details > summary,
+.diagnostics-card > summary,
+.model-scope > summary {
 	cursor: pointer;
 	font-weight: 700;
 	color: #0f172a;
 }
 
-.downside-card > summary {
+.downside-details > summary {
 	display: flex;
 	justify-content: space-between;
 	gap: 0.75rem;
+	font-size: 0.78rem;
 }
 
-.downside-summary {
-	font-size: 0.72rem;
+.downside-details > summary span:last-child {
+	font-size: 0.68rem;
 	font-weight: 500;
+	color: #64748b;
+}
+
+.downside-definition,
+.diagnostics-intro {
+	margin: 0.35rem 0 0;
+	font-size: 0.7rem;
+	line-height: 1.45;
 	color: #64748b;
 }
 
@@ -236,48 +389,95 @@ h2 {
 .diagnostics-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.75rem;
-	margin-top: 0.65rem;
+	gap: 0.65rem;
+	margin-top: 0.55rem;
 }
 
 .downside-grid > div,
 .diagnostics-grid > section {
-	padding: 0.6rem 0.7rem;
+	padding: 0.58rem 0.65rem;
 	border-radius: 8px;
 	background: #f8fafc;
 }
 
 .downside-grid p {
 	display: grid;
-	gap: 0.2rem;
-	margin: 0.35rem 0 0;
-	font-size: 0.72rem;
+	gap: 0.18rem;
+	margin: 0.3rem 0 0;
+	font-size: 0.69rem;
 }
 
+.model-scope {
+	padding: 0.2rem 0.35rem;
+	font-size: 0.71rem;
+	color: #64748b;
+}
+
+.model-scope p {
+	margin: 0.35rem 0 0;
+	line-height: 1.45;
+}
+
+/* ─── Advanced statistics below charts ────────────────────────────── */
 .diagnostics-card {
 	margin-top: 0.65rem;
+	padding: 0.75rem 0.8rem;
 }
 
 .diagnostics-grid p {
 	margin: 0.32rem 0 0;
-	font-size: 0.71rem;
+	font-size: 0.69rem;
 	line-height: 1.45;
 	color: #64748b;
 }
 
+.diagnostics-table {
+	display: grid;
+	gap: 0.18rem;
+	margin: 0.4rem 0 0;
+}
+
+.diagnostics-table > div {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.65rem;
+	padding-bottom: 0.16rem;
+	border-bottom: 1px solid #e2e8f0;
+	font-size: 0.67rem;
+	line-height: 1.35;
+}
+
+.diagnostics-table dt {
+	color: #64748b;
+}
+
+.diagnostics-table dd {
+	margin: 0;
+	text-align: right;
+	font-weight: 700;
+	color: #334155;
+}
+
 @media (max-width: 760px) {
-	.result-hero-main,
-	.readiness-grid,
+	.horizon-grid,
+	.metric-grid,
+	.lifetime-overview,
 	.downside-grid,
 	.diagnostics-grid {
 		grid-template-columns: 1fr;
 	}
 
-	.downside-card > summary {
+	.horizon-connector {
+		justify-self: center;
+		transform: rotate(90deg);
+	}
+
+	.downside-details > summary {
 		display: list-item;
 	}
-	.downside-summary {
+
+	.downside-details > summary span:last-child {
 		display: block;
-		margin-top: 0.25rem;
+		margin-top: 0.22rem;
 	}
 }

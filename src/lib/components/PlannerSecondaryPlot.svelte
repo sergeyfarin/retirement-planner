@@ -418,23 +418,6 @@
 {#if stats && simulation}
 	<div class="card chart-card">
 		<p class="chart-question">How much might I have left?</p>
-		<div class="chart-kpis" aria-label={`Ending balance distribution at age ${simulateUntilAge}`}>
-			<div>
-				<span>Median</span><strong class="mono-value"
-					>{fmtHoverCompactCurrency(stats.finalMedian)}</strong
-				>
-			</div>
-			<div>
-				<span>Lower 10%</span><strong class="mono-value"
-					>{fmtHoverCompactCurrency(stats.finalLow)}</strong
-				>
-			</div>
-			<div>
-				<span>Upper 10%</span><strong class="mono-value"
-					>{fmtHoverCompactCurrency(stats.finalHigh)}</strong
-				>
-			</div>
-		</div>
 		<p class="chart-explainer">
 			See the range of balances the simulations reached by age {simulateUntilAge}. Hover over the
 			line to read the chance of ending with that amount or less.

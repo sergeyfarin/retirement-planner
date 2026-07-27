@@ -26,6 +26,7 @@ describe('buildActionableRecommendations', () => {
 
 		expect(result.yearlySpendingReduction).toBeCloseTo(3_000);
 		expect(result.monthsLonger).toBe(27);
+		expect(result.targetResult).toBe('single-lever');
 	});
 
 	it('omits a lever when the sampled range never reaches the target', () => {
@@ -34,9 +35,15 @@ describe('buildActionableRecommendations', () => {
 			row.map(() => 0.1)
 		);
 
-		expect(buildActionableRecommendations(stats, 65, 40_000)).toEqual({
+		expect(buildActionableRecommendations(stats, 65, 40_000)).toMatchObject({
 			yearlySpendingReduction: null,
-			monthsLonger: null
+			monthsLonger: null,
+			targetResult: 'outside-tested-range'
+		});
+		expect(buildActionableRecommendations(stats, 65, 40_000).bestTestedScenario).toMatchObject({
+			retirementAge: 65,
+			spendingMultiplier: 1,
+			successProbability: 0.9
 		});
 	});
 
@@ -54,6 +61,7 @@ describe('buildActionableRecommendations', () => {
 
 		expect(result.yearlySpendingReduction).toBeCloseTo(3_000);
 		expect(result.monthsLonger).toBeNull();
+		expect(result.retirementDelayAvailable).toBe(false);
 	});
 
 	it('keeps work-longer advice when non-default income ends outside the age sweep', () => {
@@ -69,5 +77,37 @@ describe('buildActionableRecommendations', () => {
 		]);
 
 		expect(result.monthsLonger).toBe(27);
+	});
+
+	it('finds a combined tested route when neither lever reaches the target alone', () => {
+		const stats = statsWithSurface();
+		stats.successProbability = 0.8;
+		stats.ruinSurface.ruinProbabilities = [
+			[0.2, 0.1, 0.03],
+			[0.25, 0.15, 0.08],
+			[0.3, 0.2, 0.1],
+			[0.4, 0.3, 0.2],
+			[0.5, 0.4, 0.3]
+		];
+
+		const result = buildActionableRecommendations(stats, 65, 40_000);
+
+		expect(result.yearlySpendingReduction).toBeNull();
+		expect(result.monthsLonger).toBeNull();
+		expect(result.targetResult).toBe('combined');
+		expect(result.combinedScenario).toMatchObject({
+			retirementAge: 68,
+			spendingMultiplier: 0.8,
+			successProbability: 0.97
+		});
+	});
+
+	it('reports that the goal is already met without manufacturing an adjustment', () => {
+		const stats = statsWithSurface();
+		stats.successProbability = 0.97;
+
+		const result = buildActionableRecommendations(stats, 65, 40_000);
+
+		expect(result.targetResult).toBe('already-met');
 	});
 });

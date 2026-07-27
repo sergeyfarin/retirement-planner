@@ -148,3 +148,25 @@ describe('RetirementPlanner currency switching', () => {
 		}
 	}, 30_000);
 });
+
+describe('RetirementPlanner result communication', () => {
+	it('separates retirement readiness from lifetime funding and keeps advanced statistics closed', async () => {
+		const { container } = await render(RetirementPlanner);
+
+		await vi.waitFor(() => expect(container.querySelector('.assessment-card')).not.toBeNull(), {
+			timeout: 20_000
+		});
+
+		expect(container.querySelectorAll('.horizon-result')).toHaveLength(2);
+		expect(container.querySelector('.results-disclaimer')?.textContent).toContain(
+			'Planning estimate—not personal financial advice'
+		);
+		expect(container.querySelectorAll('.phase-card')).toHaveLength(2);
+
+		const diagnostics = container.querySelector<HTMLDetailsElement>('.diagnostics-card');
+		expect(diagnostics).not.toBeNull();
+		expect(diagnostics?.open).toBe(false);
+		expect(diagnostics?.textContent).toContain('Outcome percentiles');
+		expect(diagnostics?.textContent).toContain('Sensitivity-test coverage');
+	});
+});
