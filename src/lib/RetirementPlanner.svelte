@@ -2126,7 +2126,6 @@
 					{FI_TARGET_SUCCESS_PROBABILITY}
 					{percentFormatter}
 					{fmtNum}
-					simCount={lastSimulatedCount}
 					{alreadyRetired}
 					{actionableRecommendations}
 				/>

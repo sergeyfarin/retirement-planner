@@ -75,7 +75,11 @@
 /* ─── Results overview ────────────────────────────────────────────── */
 .results-summary {
 	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.65rem;
+	justify-content: start;
+	width: min(100%, 65rem);
+	max-width: 65rem;
 }
 
 .results-summary .card {
@@ -109,8 +113,18 @@
 
 /* ─── Verdict card ────────────────────────────────────────────────── */
 .verdict-card {
-	padding: 1rem 1.1rem;
-	border-left: 5px solid var(--tone-line);
+	padding: 0.9rem 1rem;
+	border-left: 4px solid var(--tone-line);
+	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));
+}
+
+.outcome-card {
+	min-width: 0;
+}
+
+.retirement-card {
+	padding: 0.9rem 1rem;
+	border-left: 4px solid var(--tone-line);
 	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));
 }
 
@@ -145,73 +159,12 @@
 	font-size: clamp(2rem, 4vw, 2.9rem);
 }
 
-.downside-card .stat-sentence strong,
-.portfolio-card .stat-sentence strong {
+.retirement-card .stat-sentence strong {
 	font-size: clamp(1.4rem, 2.6vw, 1.8rem);
 }
 
-.verdict-gauge {
-	margin-top: 0.75rem;
-}
-
-.gauge-track {
-	position: relative;
-	height: 0.5rem;
-	margin-top: 0.55rem;
-	border-radius: var(--radius-pill);
-	background: rgba(148, 163, 184, 0.28);
-	overflow: hidden;
-}
-
-.gauge-fill {
-	height: 100%;
-	border-radius: var(--radius-pill);
-	background: var(--tone-line);
-}
-
-.gauge-goal {
-	position: absolute;
-	top: -0.15rem;
-	bottom: -0.15rem;
-	width: 2px;
-	background: var(--ink);
-}
-
-.gauge-scale {
-	display: flex;
-	justify-content: space-between;
-	margin: 0.24rem 0 0;
-	font-size: var(--text-micro);
-	color: var(--ink-faint);
-}
-
-.gauge-goal-label {
-	font-weight: 700;
-	color: var(--ink-muted);
-}
-
-.verdict-detail {
-	margin: 0.7rem 0 0;
-	font-size: var(--text-body);
-	line-height: 1.5;
-	color: var(--ink-body);
-}
-
-/* ─── Portfolio and downside cards ────────────────────────────────── */
-.portfolio-card,
-.downside-card {
-	border-left: 4px solid var(--tone-line, var(--line-strong));
-}
-
-.portfolio-card {
-	padding: 0.9rem 1rem;
-}
-
-.downside-card {
-	padding: 0.8rem 0.9rem;
-}
-
 .scope-note {
+	grid-column: 1 / -1;
 	margin: 0.1rem 0 0;
 	padding: 0 0.15rem;
 	font-size: var(--text-small);
@@ -231,6 +184,10 @@
 	margin-top: 0.6rem;
 	border-collapse: collapse;
 	font-size: var(--text-body);
+}
+
+.stat-table-compact {
+	margin-top: 0.5rem;
 }
 
 .stat-table caption {
@@ -319,6 +276,10 @@
 }
 
 @media (max-width: 760px) {
+	.results-summary {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.diagnostics-grid {
 		grid-template-columns: 1fr;
 	}

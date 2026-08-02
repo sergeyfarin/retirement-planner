@@ -162,45 +162,35 @@ describe('RetirementPlanner result communication', () => {
 			timeout: 40_000
 		});
 
-		// The verdict carries the result, the levers, and the caveat — the three cards that
-		// used to sit side by side. Splitting them again is the regression this guards.
+		// The default summary has two compact, non-overlapping questions: whether the plan
+		// lasts, and where the portfolio stands at retirement.
+		expect(container.querySelectorAll('.outcome-card')).toHaveLength(2);
 		const verdict = container.querySelector('.verdict-card');
-		// Figure and caption are one sentence, not a stranded number between two headings.
-		// Source indentation lands in textContent, so compare on collapsed whitespace.
-		expect(verdict?.querySelector('.gauge-track')).not.toBeNull();
+		expect(verdict?.querySelector('.gauge-track')).toBeNull();
 		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
-		expect(squashed(verdict?.querySelector('.verdict-disclaimer'))).toContain(
-			'not personal financial advice'
-		);
 
 		expect(squashed(verdict?.querySelector('h3.stat-sentence'))).toMatch(
 			/^\d+% estimated chance your plan stays funded through age \d+$/
 		);
-		expect(squashed(verdict)).toContain('simulated market paths');
+		expect(squashed(verdict)).not.toContain('simulated market paths');
+		expect(squashed(verdict)).not.toContain('meets the 95%');
 
-		// Retirement money context is visible without opening advanced details.
-		const snapshot = container.querySelector('.retirement-snapshot');
-		expect(squashed(snapshot)).toContain('Typical portfolio');
-		expect(squashed(snapshot)).toContain('Simulation-based target');
-		expect(squashed(snapshot)).toContain('Chance of reaching target');
-
-		// The downside card combines failure frequency with severity among failed paths,
-		// avoiding the all-green P10 result when fewer than 10% of paths fail.
-		const drawdown = container.querySelector('.downside-card');
-		expect(squashed(drawdown?.querySelector('h3.stat-sentence'))).toMatch(
-			/^\d+% of simulations ran short; among those, the typical first shortfall began around age \d+/
-		);
-		expect(squashed(drawdown?.querySelector('p.stat-sentence-second'))).toMatch(
-			/of planned spending went unfunded in a typical shortfall scenario$/
-		);
-
-		// Portfolio figures are present but hidden until requested, and the depleted-years
-		// row is unconditional so the details keep the same shape as the plan degrades.
-		const portfolioDetails = container.querySelector<HTMLDetailsElement>('.portfolio-details');
-		expect(portfolioDetails?.open).toBe(false);
-		expect(squashed(portfolioDetails)).toContain('Simulation-based target');
-		expect(squashed(portfolioDetails)).toContain('Years at zero · difficult outcome');
+		const retirement = container.querySelector('.retirement-card');
+		expect(squashed(retirement)).toContain('At retirement age');
+		expect(squashed(retirement)).toContain('Typical outcome');
+		expect(squashed(retirement)).toContain('Simulation-based target');
+		expect(squashed(retirement)).toContain('Chance of hitting it');
+		expect(container.querySelector('.downside-card')).toBeNull();
 		expect(container.querySelector('.terminal-wealth-chart')).toBeNull();
+		expect(squashed(container.querySelector('.scope-note'))).toContain(
+			'not personal financial advice'
+		);
+
+		const portfolioChart = container.querySelector('.chart-card-main');
+		expect(squashed(portfolioChart?.querySelector('.phase-eyebrow'))).toBe('Portfolio outlook');
+		expect(squashed(portfolioChart?.querySelector('.card-title'))).toMatch(
+			/^Portfolio projection — inflation-adjusted \(.+\)$/
+		);
 
 		const diagnostics = container.querySelector<HTMLDetailsElement>('.diagnostics-card');
 		expect(diagnostics).not.toBeNull();

@@ -417,10 +417,6 @@
 		}
 
 		const layout = {
-			title: {
-				text: `Portfolio projection — inflation-adjusted (${currencySymbol})`,
-				font: { size: 15, color: '#334155', family: 'Inter, system-ui, sans-serif' }
-			},
 			xaxis: {
 				title: {
 					text: 'Age',
@@ -474,7 +470,7 @@
 			paper_bgcolor: 'transparent',
 			shapes,
 			annotations,
-			margin: { t: 55, l: 70, r: 20, b: 50 }
+			margin: { t: 20, l: 70, r: 20, b: 50 }
 		};
 
 		const config = {
@@ -500,6 +496,12 @@
 </script>
 
 <div class="card chart-card chart-card-main">
+	<div class="chart-card-heading">
+		<div>
+			<p class="phase-eyebrow">Portfolio outlook</p>
+			<h3 class="card-title">Portfolio projection — inflation-adjusted ({currencySymbol})</h3>
+		</div>
+	</div>
 	<div class="chart" bind:this={chartEl}></div>
 	<p class="note">
 		Fan shows the middle 50% and 80% of outcomes. The vertical dotted line marks your target
