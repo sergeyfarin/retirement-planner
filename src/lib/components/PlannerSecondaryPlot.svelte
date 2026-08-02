@@ -121,10 +121,7 @@
 			[0.5, '#fed7aa'],
 			[0.75, '#fef3c7'],
 			[0.9, '#d9f99d'],
-			[0.9479, '#86efac'],
-			[0.948, '#166534'],
-			[0.952, '#166534'],
-			[0.9521, '#86efac'],
+			[0.95, '#86efac'],
 			[0.975, '#4ade80'],
 			[1, '#16a34a']
 		];
@@ -155,6 +152,10 @@
 		);
 		const spendingScenarioProbability = zValues[scenarioSpendingIndex][baselineAgeIndex];
 		const ageScenarioProbability = zValues[baselineSpendingIndex][scenarioAgeIndex];
+		const goalColor = '#166534';
+		const colorbarLength = 0.9;
+		const colorbarY = 0.5;
+		const goalLegendY = colorbarY - colorbarLength / 2 + colorbarLength * warpProbability(0.95);
 		const contourTrace = {
 			type: spendingOnly ? 'heatmap' : 'contour',
 			x: retirementAges,
@@ -185,13 +186,27 @@
 				ticks: 'outside',
 				tickcolor: '#475569',
 				thickness: 18,
-				len: 0.9,
-				y: 0.5,
+				len: colorbarLength,
+				x: 1.045,
+				xanchor: 'left',
+				xpad: 0,
+				y: colorbarY,
 				yanchor: 'middle'
 			},
 			hovertemplate: spendingOnly
 				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
 				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
+		};
+		const goalContour = {
+			type: 'contour',
+			x: retirementAges,
+			y: spendingChanges,
+			z: zValues,
+			contours: { coloring: 'none', start: 0.95, end: 0.95, size: 0.01, showlabels: false },
+			line: { width: 2, color: goalColor, smoothing: 0.75 },
+			showscale: false,
+			hoverinfo: 'skip',
+			showlegend: false
 		};
 		const currentPlan = {
 			type: 'scatter',
@@ -317,6 +332,19 @@
 				fixedrange: true
 			},
 			annotations: scenarioAnnotations,
+			shapes: [
+				{
+					type: 'line',
+					xref: 'paper',
+					yref: 'paper',
+					x0: 1.043,
+					x1: 1.075,
+					y0: goalLegendY,
+					y1: goalLegendY,
+					line: { color: goalColor, width: 3 },
+					layer: 'above'
+				}
+			],
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
 		};
@@ -327,7 +355,10 @@
 			staticPlot: false
 		};
 
-		void Plotly.react(ruinSurfaceEl, [contourTrace, currentPlan], layout, config);
+		const traces = spendingOnly
+			? [contourTrace, currentPlan]
+			: [contourTrace, goalContour, currentPlan];
+		void Plotly.react(ruinSurfaceEl, traces, layout, config);
 	}
 
 	function buildYAxisTicksForRange(
@@ -485,7 +516,7 @@
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			The arrows compare practical changes with your current plan. The thin dark-green band marks
+			The arrows compare practical changes with your current plan. The thin dark-green line marks
 			the 95% planning goal on both the surface and legend. The smooth surface is estimated from 81
 			replayed combinations; values between them are interpolated. The colour scale expands the
 			90–100% range so differences near the goal remain visible.
