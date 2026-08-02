@@ -155,19 +155,41 @@
 		const surfaceProbabilities = zValues.flat();
 		const goalIsInSurface =
 			Math.min(...surfaceProbabilities) <= 0.95 && Math.max(...surfaceProbabilities) >= 0.95;
-		let goalLabel = {
-			x: retirementAges[baselineAgeIndex],
-			y: spendingChanges[baselineSpendingIndex],
-			distance: Number.POSITIVE_INFINITY
-		};
-		for (let row = 0; row < zValues.length; row++) {
-			for (let column = 0; column < zValues[row].length; column++) {
-				const distance = Math.abs(zValues[row][column] - 0.95);
-				if (distance < goalLabel.distance) {
-					goalLabel = { x: retirementAges[column], y: spendingChanges[row], distance };
+		const goalCrossings: Array<{ x: number; y: number; column: number }> = [];
+		for (let column = 0; column < retirementAges.length; column++) {
+			for (let row = 0; row < zValues.length - 1; row++) {
+				const lowerProbability = zValues[row][column];
+				const upperProbability = zValues[row + 1][column];
+				if ((lowerProbability - 0.95) * (upperProbability - 0.95) <= 0) {
+					const probabilityRange = upperProbability - lowerProbability;
+					const interpolation =
+						Math.abs(probabilityRange) < 1e-9 ? 0.5 : (0.95 - lowerProbability) / probabilityRange;
+					goalCrossings.push({
+						x: retirementAges[column],
+						y:
+							spendingChanges[row] +
+							interpolation * (spendingChanges[row + 1] - spendingChanges[row]),
+						column
+					});
+					break;
 				}
 			}
 		}
+		// Keep the goal label away from the active scenario arrows: use the left side while
+		// improving a plan and the right side when showing what a strong plan can afford.
+		const preferredGoalColumn = (retirementAges.length - 1) * (movingToSaferPlan ? 0.2 : 0.8);
+		const goalLabel = goalCrossings.reduce(
+			(best, crossing) =>
+				Math.abs(crossing.column - preferredGoalColumn) <
+				Math.abs(best.column - preferredGoalColumn)
+					? crossing
+					: best,
+			goalCrossings[0] ?? {
+				x: retirementAges[baselineAgeIndex],
+				y: spendingChanges[baselineSpendingIndex],
+				column: baselineAgeIndex
+			}
+		);
 
 		const contourTrace = {
 			type: spendingOnly ? 'heatmap' : 'contour',
@@ -254,17 +276,15 @@
 				font: { size: 10, color: '#0f172a' }
 			}
 		];
-		if (goalIsInSurface) {
+		if (goalIsInSurface && !spendingOnly) {
 			scenarioAnnotations.push({
 				x: goalLabel.x,
 				y: goalLabel.y,
 				text: '<b>95% planning goal</b>',
 				showarrow: false,
 				textangle: -28,
-				xshift: 4,
-				yshift: 4,
-				bgcolor: 'rgba(255,255,255,0.72)',
-				borderpad: 2,
+				bgcolor: '#86efac',
+				borderpad: 3,
 				font: { size: 10, color: '#166534' }
 			});
 		}
