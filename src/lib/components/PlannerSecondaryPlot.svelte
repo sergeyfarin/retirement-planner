@@ -96,7 +96,9 @@
 		);
 		// Express the vertical axis as improvement, so the two useful directions are
 		// literally up (spend less) and right (retire later).
-		const spendingChanges = spendingMultipliers.map((multiplier) => (1 - multiplier) * 100);
+		const spendingChanges = spendingMultipliers.map(
+			(multiplier) => Math.round((1 - multiplier) * 1000) / 10
+		);
 		const colorscale: Array<[number, string]> = [
 			[0, '#fee2e2'],
 			[0.5, '#fed7aa'],

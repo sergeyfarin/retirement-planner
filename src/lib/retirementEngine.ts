@@ -1091,7 +1091,10 @@ function buildRuinSurface(
 	simCount: number,
 	strategy: WithdrawalStrategy
 ): SummaryStats['ruinSurface'] {
-	const spendingMultipliers = [0.8, 0.9, 1.0, 1.1, 1.2];
+	// Nine points per axis give the contour UI real local resolution instead of asking it
+	// to visually invent most of the surface between a 5×5 grid. Replays remain capped at
+	// 2,000 common paths, so this increases accounting work without increasing memory.
+	const spendingMultipliers = Array.from({ length: 9 }, (_, index) => (80 + index * 5) / 100);
 	// Already retired: the retirement-age axis is gone, not merely shifted. Sweeping it
 	// would clamp every candidate to `currentAge + 1..+6` and label the result "retire
 	// later", but with the salary already ended a later retirement age changes nothing
@@ -1099,15 +1102,12 @@ function buildRuinSurface(
 	// counterpart. The surface collapses to the one axis that still means something:
 	// sensitivity to spending. See README §7.6.
 	const alreadyRetired = isAlreadyRetired(input);
-	const candidateAges = [
-		input.retirementAge - 6,
-		input.retirementAge - 3,
-		input.retirementAge,
-		input.retirementAge + 3,
-		input.retirementAge + 6
-	].map((age) =>
-		Math.round(Math.min(input.simulateUntilAge - 1, Math.max(input.currentAge + 1, age)))
-	);
+	const candidateAges = Array.from(
+		{ length: 9 },
+		(_, index) => input.retirementAge - 6 + index * 1.5
+	)
+		.map((age) => Math.min(input.simulateUntilAge - 1, Math.max(input.currentAge + 1, age)))
+		.map((age) => Math.round(age * 2) / 2);
 	const retirementAges = alreadyRetired
 		? [Math.round(input.currentAge)]
 		: Array.from(new Set(candidateAges)).sort((a, b) => a - b);

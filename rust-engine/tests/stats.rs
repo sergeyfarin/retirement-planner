@@ -420,10 +420,15 @@ fn the_ruin_surface_sweeps_both_axes() {
         &fixed_strategy(),
     );
 
-    assert_eq!(surface.spending_multipliers, vec![0.8, 0.9, 1.0, 1.1, 1.2]);
-    // Retirement age 65 ± {0, 3, 6}.
-    assert_eq!(surface.retirement_ages, vec![59, 62, 65, 68, 71]);
-    assert_eq!(surface.ruin_probabilities.len(), 5);
+    assert_eq!(surface.spending_multipliers.len(), 9);
+    assert_eq!(surface.spending_multipliers.first(), Some(&0.8));
+    assert_eq!(surface.spending_multipliers.last(), Some(&1.2));
+    // Retirement age 65 ± 6 years, sampled every 18 months.
+    assert_eq!(
+        surface.retirement_ages,
+        vec![59.0, 60.5, 62.0, 63.5, 65.0, 66.5, 68.0, 69.5, 71.0]
+    );
+    assert_eq!(surface.ruin_probabilities.len(), 9);
     assert!(surface
         .ruin_probabilities
         .iter()
@@ -487,10 +492,10 @@ fn the_retirement_age_axis_is_bounded_by_the_plan_horizon() {
     assert!(surface
         .retirement_ages
         .iter()
-        .all(|&age| age >= 61 && age <= 65));
+        .all(|&age| age >= 61.0 && age <= 65.0));
     // Sorted and deduplicated after clamping.
     let mut sorted = surface.retirement_ages.clone();
-    sorted.sort_unstable();
+    sorted.sort_by(|a, b| a.total_cmp(b));
     sorted.dedup();
     assert_eq!(sorted, surface.retirement_ages);
 }
@@ -514,7 +519,7 @@ fn an_already_retired_plan_collapses_the_retirement_age_axis() {
         1,
         &fixed_strategy(),
     );
-    assert_eq!(surface.retirement_ages, vec![67]);
+    assert_eq!(surface.retirement_ages, vec![67.0]);
     assert!(surface.ruin_probabilities.iter().all(|row| row.len() == 1));
 }
 

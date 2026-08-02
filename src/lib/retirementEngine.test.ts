@@ -1694,9 +1694,9 @@ describe('already-retired mode', () => {
 		);
 
 		expect(stats.ruinSurface.retirementAges).toEqual([66]);
-		expect(stats.ruinSurface.spendingMultipliers).toHaveLength(5);
-		// Still 5 spending rows, now one cell wide — the axis that survived.
-		expect(stats.ruinSurface.ruinProbabilities).toHaveLength(5);
+		expect(stats.ruinSurface.spendingMultipliers).toHaveLength(9);
+		// Still nine spending rows, now one cell wide — the axis that survived.
+		expect(stats.ruinSurface.ruinProbabilities).toHaveLength(9);
 		for (const row of stats.ruinSurface.ruinProbabilities) {
 			expect(row).toHaveLength(1);
 		}

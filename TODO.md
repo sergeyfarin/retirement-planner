@@ -689,7 +689,7 @@ loosened:
   so the bisection is exact to tolerance and uses the shared exact path evaluator.
 - **Ruin surface** would have clamped its retirement-age axis to `currentAge + 1..+6` and
   captioned it "retire later", but with no salary a later retirement age only moves when
-  the withdrawal strategy starts. Collapsed to 5×1 over spending, and the chart relabels
+  the withdrawal strategy starts. Collapsed to 9×1 over spending, and the chart relabels
   itself rather than presenting one column as a two-way trade-off.
 - **"Chance to reach FI"** has no future age to reach. The card is replaced by capital held
   vs. capital required, and the engine computes the probabilities from `currentSavings`

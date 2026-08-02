@@ -250,7 +250,12 @@ pub fn build_ruin_surface(
     sim_count: usize,
     strategy: &WithdrawalStrategy,
 ) -> RuinSurface {
-    let spending_multipliers = vec![0.8, 0.9, 1.0, 1.1, 1.2];
+    // Nine points per axis give the contour UI real local resolution instead of asking it
+    // to visually invent most of the surface between a 5×5 grid. Replays remain capped at
+    // 2,000 common paths, so this increases accounting work without increasing memory.
+    let spending_multipliers: Vec<f64> = (0..9)
+        .map(|index| (80 + index * 5) as f64 / 100.0)
+        .collect();
 
     // Already retired: the retirement-age axis is gone, not merely shifted. Sweeping it
     // would clamp every candidate to `current_age + 1..+6` and label the result "retire
@@ -260,23 +265,22 @@ pub fn build_ruin_surface(
     // sensitivity to spending. See README §7.6.
     let already_retired = is_already_retired(input);
 
-    let mut retirement_ages: Vec<usize> = if already_retired {
-        vec![input.current_age.round() as usize]
+    let mut retirement_ages: Vec<f64> = if already_retired {
+        vec![input.current_age.round()]
     } else {
-        let offsets = vec![-6.0, -3.0, 0.0, 3.0, 6.0];
-        offsets
-            .iter()
-            .map(|&offset| {
+        (0..9)
+            .map(|index| -6.0 + index as f64 * 1.5)
+            .map(|offset| {
                 let age = input.retirement_age + offset;
-                (input.simulate_until_age - 1.0)
-                    .min((input.current_age + 1.0).max(age))
-                    .round() as usize
+                let bounded = (input.simulate_until_age - 1.0)
+                    .min((input.current_age + 1.0).max(age));
+                (bounded * 2.0).round() / 2.0
             })
             .collect()
     };
 
-    retirement_ages.sort_unstable();
-    retirement_ages.dedup();
+    retirement_ages.sort_by(|a, b| a.total_cmp(b));
+    retirement_ages.dedup_by(|a, b| (*a - *b).abs() < f64::EPSILON);
 
     // Must stay in sync with RUIN_SAMPLE_CAP in simulation.rs.
     let sampled_scenarios = sim_count.min(2000);
@@ -296,14 +300,14 @@ pub fn build_ruin_surface(
                 .iter()
                 .map(|&ret_age| {
                     let mut adjusted_input = input.clone();
-                    adjusted_input.retirement_age = ret_age as f64;
+                    adjusted_input.retirement_age = ret_age;
 
                     let adjusted_income: Vec<IncomeSource> = income_sources
                         .iter()
                         .map(|source| {
                             if source.id == "is-default" {
                                 IncomeSource {
-                                    to_age: ret_age as f64,
+                                    to_age: ret_age,
                                     ..source.clone()
                                 }
                             } else {
@@ -326,7 +330,7 @@ pub fn build_ruin_surface(
                     let cell_retire_month = if already_retired {
                         0
                     } else {
-                        (((ret_age as f64 - input.current_age) * 12.0)
+                        (((ret_age - input.current_age) * 12.0)
                             .round()
                             .max(0.0) as usize)
                             .min(months as usize)

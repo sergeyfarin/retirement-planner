@@ -726,12 +726,12 @@ the same stored paths. For someone at or near retirement the two windows coincid
 
 ### 7.5 Ruin Surface Heatmap
 
-A 5×5 grid of ruin probabilities across:
+A 9×9 grid of ruin probabilities across:
 
-- **Retirement ages**: `[retAge−6, retAge−3, retAge, retAge+3, retAge+6]`
-- **Spending multipliers**: `[0.8, 0.9, 1.0, 1.1, 1.2]`
+- **Retirement ages**: nine points from `retAge−6` to `retAge+6`, every 18 months
+- **Spending multipliers**: nine points from `0.8` to `1.2`, every 5 percentage points
 
-(5×1, spending only, when the plan is already in drawdown — see §7.6.)
+(9×1, spending only, when the plan is already in drawdown — see §7.6.)
 
 Each cell replays up to 2000 stored exogenous return/inflation paths through the same
 accounting evaluator as the main simulation. Nominal cash flows use realized inflation;
@@ -774,7 +774,7 @@ relaxation:
 | -------------------------- | --------------------------------------------------- | ---------------------------------------------- |
 | Coast FIRE age             | earliest age to stop contributing                   | `null` — no contributions left to stop         |
 | FI Target (P95)            | minimum _balance at retirement_ clearing 95% (§7.2) | minimum _starting capital today_ clearing 95%  |
-| Ruin surface               | 5×5 over retirement age × spending (§7.5)           | 5×1 over spending only                         |
+| Ruin surface               | 9×9 over retirement age × spending (§7.5)           | 9×1 over spending only                         |
 | "Chance to reach FI" cards | fraction of paths clearing the target               | today's capital vs. the target — a yes/no fact |
 
 **Why the P95 target has to change construction.** The accumulating version reads its

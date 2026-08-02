@@ -63,7 +63,7 @@ pub struct SequenceRiskBucket {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RuinSurface {
-    pub retirement_ages: Vec<usize>,
+    pub retirement_ages: Vec<f64>,
     pub spending_multipliers: Vec<f64>,
     pub ruin_probabilities: Vec<Vec<f64>>,
     /// Paths replayed per cell. Capped independently of `simulations`, so the UI must

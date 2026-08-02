@@ -318,8 +318,8 @@ fn the_ruin_surface_is_reported_with_its_own_sample_count() {
     let plan = plan();
     let result = run(&plan);
     let surface = &result.stats.ruin_surface;
-    assert_eq!(surface.spending_multipliers.len(), 5);
-    assert_eq!(surface.ruin_probabilities.len(), 5);
+    assert_eq!(surface.spending_multipliers.len(), 9);
+    assert_eq!(surface.ruin_probabilities.len(), 9);
     assert!(surface.sample_count <= result.sim_count as usize);
     assert!(surface.sample_count <= 2000);
     assert!(surface
@@ -479,7 +479,7 @@ fn an_already_retired_plan_reports_a_required_capital_instead_of_a_coast_age() {
     // Coast FIRE is meaningless with no accumulation phase ahead.
     assert_eq!(result.stats.coast_age, None);
     // The retirement-age axis collapses to today.
-    assert_eq!(result.stats.ruin_surface.retirement_ages, vec![67]);
+    assert_eq!(result.stats.ruin_surface.retirement_ages, vec![67.0]);
     // The P95 target becomes a required starting capital, and the "probability" is the
     // yes/no comparison against the capital actually held.
     assert!(result.stats.fi_target_p95 > 0.0);
