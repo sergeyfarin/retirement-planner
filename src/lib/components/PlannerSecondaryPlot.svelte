@@ -518,8 +518,7 @@
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			Arrows show tested changes from your plan. The dark-green line marks the 95% goal; the legend
-			expands 90–100% so differences near it remain visible.
+			Arrows show tested changes from your plan. The dark-green line marks the 95% goal.
 		</p>
 		{#if surfaceSampleCount > 0}
 			<p
