@@ -86,7 +86,25 @@
 }
 
 .ruin-surface-chart {
-	height: 440px;
+	height: 390px;
+}
+
+.chart-card-heading {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.25rem 0.25rem 0;
+}
+
+.chart-direction {
+	margin: 0;
+	flex: 0 0 auto;
+	text-align: right;
+	font-size: 0.72rem;
+	font-weight: 700;
+	line-height: 1.45;
+	color: #0f766e;
 }
 
 .sequence-risk-chart {
@@ -125,5 +143,17 @@
 
 	.ruin-surface-chart {
 		height: 300px;
+	}
+}
+
+@media (max-width: 600px) {
+	.chart-card-heading {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.chart-direction {
+		text-align: left;
 	}
 }

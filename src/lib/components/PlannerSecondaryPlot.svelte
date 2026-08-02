@@ -83,29 +83,41 @@
 			row.map((value) => Math.max(0, Math.min(1, 1 - value)))
 		);
 
-		// Each cell is a proportion estimated from `sampleCount` replayed paths, so it
-		// carries binomial sampling error: SE = sqrt(p(1-p)/N), shown at 95% confidence.
-		// Cells share the same underlying paths (common random numbers), which makes
-		// *differences* between cells steadier than these absolute margins suggest.
-		const cellMarginPercent = zValues.map((row) =>
-			row.map((survival) =>
-				surfaceSampleCount > 0
-					? 1.96 * Math.sqrt((survival * (1 - survival)) / surfaceSampleCount) * 100
-					: 0
-			)
-		);
 		// Express the vertical axis as improvement, so the two useful directions are
 		// literally up (spend less) and right (retire later).
 		const spendingChanges = spendingMultipliers.map(
 			(multiplier) => Math.round((1 - multiplier) * 1000) / 10
 		);
+		const baselineAgeIndex = retirementAges.reduce(
+			(best, age, index) =>
+				Math.abs(age - retirementAge) < Math.abs(retirementAges[best] - retirementAge)
+					? index
+					: best,
+			0
+		);
+		const baselineSpendingIndex = spendingMultipliers.reduce(
+			(best, multiplier, index) =>
+				Math.abs(multiplier - 1) < Math.abs(spendingMultipliers[best] - 1) ? index : best,
+			0
+		);
+		const currentPlanProbability = zValues[baselineSpendingIndex][baselineAgeIndex];
+		const currentPlanColor =
+			currentPlanProbability >= 0.95
+				? '#16a34a'
+				: currentPlanProbability >= 0.75
+					? '#f59e0b'
+					: currentPlanProbability >= 0.5
+						? '#f97316'
+						: '#dc2626';
 		const colorscale: Array<[number, string]> = [
 			[0, '#fee2e2'],
+			[0.25, '#fecaca'],
 			[0.5, '#fed7aa'],
 			[0.75, '#fef3c7'],
-			[0.949, '#d9f99d'],
-			[0.95, '#99f6e4'],
-			[1, '#5eead4']
+			[0.9, '#d9f99d'],
+			[0.95, '#86efac'],
+			[0.975, '#4ade80'],
+			[1, '#16a34a']
 		];
 
 		const contourTrace = {
@@ -120,13 +132,12 @@
 				? undefined
 				: {
 						coloring: 'fill',
-						showlabels: true,
+						showlabels: false,
 						start: 0,
 						end: 1,
-						size: 0.05,
-						labelfont: { size: 9, color: '#334155' }
+						size: 0.025
 					},
-			line: spendingOnly ? undefined : { width: 1, color: 'rgba(71,85,105,0.45)', smoothing: 0.75 },
+			line: spendingOnly ? undefined : { width: 0, smoothing: 0.75 },
 			showscale: true,
 			colorbar: {
 				title: { text: 'Plan funded', side: 'right' },
@@ -140,25 +151,9 @@
 				y: 0.5,
 				yanchor: 'middle'
 			},
-			hoverinfo: 'skip'
-		};
-		const testedPoints = {
-			type: 'scatter',
-			mode: 'markers',
-			x: zValues.flatMap((row) => retirementAges.map((age) => age)),
-			y: spendingChanges.flatMap((change) => retirementAges.map(() => change)),
-			marker: { size: 6, color: '#fff', line: { width: 1.5, color: '#334155' } },
-			customdata: zValues.flatMap((row, rowIndex) =>
-				row.map((survival, columnIndex) => [
-					survival,
-					cellMarginPercent[rowIndex][columnIndex],
-					spendingMultipliers[rowIndex]
-				])
-			),
 			hovertemplate: spendingOnly
-				? 'Spending %{customdata[2]:.0%}<br>Funded %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
-				: 'Retire at age %{x}<br>Spending %{customdata[2]:.0%}<br>Funded %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>',
-			showlegend: false
+				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{z:.1%}<extra></extra>'
+				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{z:.1%}<extra></extra>'
 		};
 		const goalContour = {
 			type: 'contour',
@@ -176,23 +171,25 @@
 			mode: 'markers+text',
 			x: [retirementAge],
 			y: [0],
-			text: ['Your plan'],
-			textposition: 'bottom center',
-			textfont: { size: 10, color: '#0f172a' },
-			marker: { size: 11, color: '#0f172a', symbol: 'diamond' },
+			text: [`${Math.round(currentPlanProbability * 100)}% chance funded`],
+			textposition: 'top center',
+			textfont: { size: 11, color: '#0f172a' },
+			marker: {
+				size: 15,
+				color: currentPlanColor,
+				symbol: 'circle',
+				line: { width: 3, color: '#fff' }
+			},
 			hoverinfo: 'skip',
 			showlegend: false
 		};
 
+		const retirementTicks = Array.from(
+			new Set([retirementAges[0], retirementAge, retirementAges[retirementAges.length - 1]])
+		).sort((a, b) => a - b);
+		const spendingTicks = [Math.min(...spendingChanges), 0, Math.max(...spendingChanges)];
 		const layout = {
-			title: {
-				text: spendingOnly
-					? `Sensitivity to spending<br />Portfolio surviving chance until age ${simulateUntilAge}`
-					: `Sensitivity to retirement age and spending<br />Portfolio surviving chance until age ${simulateUntilAge}`,
-				font: { size: 13, color: '#334155', family: 'Inter, system-ui, sans-serif' },
-				pad: { b: 12 }
-			},
-			margin: { t: 56, l: 72, r: 66, b: 52 },
+			margin: { t: 24, l: 72, r: 66, b: 52 },
 			paper_bgcolor: 'transparent',
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
@@ -201,8 +198,8 @@
 					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
-				tickvals: retirementAges,
-				ticktext: retirementAges.map((age) => (spendingOnly ? `age ${age} (now)` : `${age}`)),
+				tickvals: retirementTicks,
+				ticktext: retirementTicks.map((age) => (spendingOnly ? `age ${age} (now)` : `${age}`)),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
 				showgrid: false,
 				fixedrange: true
@@ -213,26 +210,13 @@
 					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
-				tickvals: spendingChanges,
-				ticktext: spendingChanges.map((change) =>
+				tickvals: spendingTicks,
+				ticktext: spendingTicks.map((change) =>
 					change === 0 ? 'Current' : change > 0 ? `${change}% less` : `${Math.abs(change)}% more`
 				),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
 				fixedrange: true
 			},
-			annotations: spendingOnly
-				? []
-				: [
-						{
-							x: 0.5,
-							y: 1.08,
-							xref: 'paper',
-							yref: 'paper',
-							text: 'Spend less ↑ &nbsp;&nbsp; Retire later →',
-							showarrow: false,
-							font: { size: 11, color: '#0f766e' }
-						}
-					],
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
 		};
@@ -245,9 +229,7 @@
 
 		void Plotly.react(
 			ruinSurfaceEl,
-			spendingOnly
-				? [contourTrace, testedPoints]
-				: [contourTrace, goalContour, testedPoints, currentPlan],
+			spendingOnly ? [contourTrace, currentPlan] : [contourTrace, goalContour, currentPlan],
 			layout,
 			config
 		);
@@ -396,11 +378,23 @@
 
 {#if stats && simulation}
 	<div class="card chart-card chart-card-ruin">
+		<div class="chart-card-heading">
+			<div>
+				<p class="phase-eyebrow">Plan adjustment map</p>
+				<h3 class="card-title">
+					{stats.ruinSurface.retirementAges.length === 1
+						? `How spending changes the chance of staying funded to age ${simulateUntilAge}`
+						: `How retirement timing and spending change the chance of staying funded to age ${simulateUntilAge}`}
+				</h3>
+			</div>
+			{#if stats.ruinSurface.retirementAges.length > 1}
+				<p class="chart-direction">Spend less ↑<br />Retire later →</p>
+			{/if}
+		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			Move up to spend less or right to retire later. The dark-green boundary marks the 95% planning
-			goal. The smooth surface interpolates between the 25 tested combinations; dots are the actual
-			calculations and show exact estimates on hover.
+			The dark-green boundary marks the 95% planning goal. The smooth surface is estimated from 81
+			replayed combinations; values between them are interpolated.
 		</p>
 		{#if surfaceSampleCount > 0}
 			<p
@@ -408,11 +402,11 @@
 				title="Each cell replays the same stored set of simulated market paths against that cell's retirement age and spending level. Because every cell reuses the same paths, differences between neighbouring cells are more reliable than each cell's own margin suggests."
 			>
 				Each cell is estimated from {surfaceSampleCount.toLocaleString()} simulated paths, so individual
-				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise (hover a
-				cell for its own margin; cells near 0% or 100% are more precise). This sample is capped
-				independently of the “Simulations” setting — raising that number sharpens the summary cards
-				above, not this chart. Read it for the shape of the trade-off between retiring earlier and
-				spending more, rather than for any single cell's exact value.
+				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise; cells near
+				0% or 100% are more precise. This sample is capped independently of the “Simulations”
+				setting — raising that number sharpens the summary cards above, not this chart. Read it for
+				the shape of the trade-off between retiring earlier and spending more, rather than for any
+				single cell's exact value.
 			</p>
 		{/if}
 	</div>

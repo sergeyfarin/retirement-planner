@@ -231,7 +231,7 @@
 			<div class="snapshot-heading">
 				<div>
 					<p class="phase-eyebrow">Retirement readiness</p>
-					<h3 id="retirement-snapshot-title">
+					<h3 id="retirement-snapshot-title" class="card-title">
 						{alreadyRetired
 							? 'Your portfolio today versus the plan target'
 							: `At retirement age ${fmtNum(input.retirementAge)}`}

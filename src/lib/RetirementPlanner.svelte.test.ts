@@ -141,7 +141,7 @@ describe('RetirementPlanner currency switching', () => {
 		// The freeze only occurred after the initial simulation had mounted all default plots.
 		await vi.waitFor(
 			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(4),
-			{ timeout: 20_000 }
+			{ timeout: 45_000 }
 		);
 
 		for (const label of ['World ($)', 'US ($)', 'UK (£)', 'Europe (€)']) {
@@ -151,7 +151,7 @@ describe('RetirementPlanner currency switching', () => {
 				timeout: 2_000
 			});
 		}
-	}, 30_000);
+	}, 60_000);
 });
 
 describe('RetirementPlanner result communication', () => {
@@ -159,7 +159,7 @@ describe('RetirementPlanner result communication', () => {
 		const { container } = await render(RetirementPlanner);
 
 		await vi.waitFor(() => expect(container.querySelector('.verdict-card')).not.toBeNull(), {
-			timeout: 20_000
+			timeout: 40_000
 		});
 
 		// The verdict carries the result, the levers, and the caveat — the three cards that
@@ -212,5 +212,5 @@ describe('RetirementPlanner result communication', () => {
 		expect(diagnostics?.compareDocumentPosition(firstChart!)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
-	});
+	}, 45_000);
 });

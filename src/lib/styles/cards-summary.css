@@ -266,7 +266,7 @@ h2 {
 	gap: 1rem;
 }
 
-.snapshot-heading h3 {
+.card h3.card-title {
 	margin: 0.2rem 0 0;
 	font-size: 0.92rem;
 	font-weight: 700;
