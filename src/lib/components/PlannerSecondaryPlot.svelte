@@ -83,10 +83,10 @@
 			row.map((value) => Math.max(0, Math.min(1, 1 - value)))
 		);
 
-		// Express the vertical axis as improvement, so the two useful directions are
-		// literally up (spend less) and right (retire later).
+		// Keep the vertical axis conventional: larger spending changes appear higher.
+		// This makes the safer directions down (spend less) and right (retire later).
 		const spendingChanges = spendingMultipliers.map(
-			(multiplier) => Math.round((1 - multiplier) * 1000) / 10
+			(multiplier) => Math.round((multiplier - 1) * 1000) / 10
 		);
 		const baselineAgeIndex = retirementAges.reduce(
 			(best, age, index) =>
@@ -129,7 +129,7 @@
 			([probability, color]) => [warpProbability(probability), color] as [number, string]
 		);
 		const movingToSaferPlan = currentPlanProbability < 0.95;
-		const scenarioSpendingChange = movingToSaferPlan ? 10 : -10;
+		const scenarioSpendingChange = movingToSaferPlan ? -10 : 10;
 		const scenarioAge = Math.max(
 			retirementAges[0],
 			Math.min(
@@ -246,10 +246,9 @@
 				y: 0,
 				text: `<b>Your plan: ${Math.round(currentPlanProbability * 100)}%</b><br>chance funded`,
 				showarrow: false,
-				xanchor: movingToSaferPlan ? 'right' : 'left',
-				yanchor: movingToSaferPlan ? 'top' : 'bottom',
-				xshift: movingToSaferPlan ? -10 : 10,
-				yshift: movingToSaferPlan ? -12 : 12,
+				xanchor: 'center',
+				yanchor: movingToSaferPlan ? 'bottom' : 'top',
+				yshift: movingToSaferPlan ? 12 : -12,
 				bgcolor: annotationBackground,
 				borderpad: 3,
 				font: { size: 10, color: '#0f172a' }
@@ -261,7 +260,7 @@
 				y: goalLabel.y,
 				text: '<b>95% planning goal</b>',
 				showarrow: false,
-				textangle: -18,
+				textangle: -28,
 				xshift: 4,
 				yshift: 4,
 				bgcolor: 'rgba(255,255,255,0.72)',
@@ -289,9 +288,8 @@
 			text: `<b>Spend 10% ${movingToSaferPlan ? 'less' : 'more'}</b><br>${Math.round(spendingScenarioProbability * 100)}% chance funded`,
 			showarrow: false,
 			xanchor: 'left',
-			yanchor: movingToSaferPlan ? 'bottom' : 'top',
+			yanchor: 'middle',
 			xshift: 10,
-			yshift: movingToSaferPlan ? 6 : -6,
 			bgcolor: annotationBackground,
 			borderpad: 3,
 			font: { size: 10, color: '#334155' }
@@ -316,9 +314,8 @@
 				y: 0,
 				text: `<b>Retire ${actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1)} years ${movingToSaferPlan ? 'later' : 'earlier'}</b><br>${Math.round(ageScenarioProbability * 100)}% chance funded`,
 				showarrow: false,
-				xanchor: movingToSaferPlan ? 'left' : 'right',
+				xanchor: 'center',
 				yanchor: 'bottom',
-				xshift: movingToSaferPlan ? 6 : -6,
 				yshift: 8,
 				bgcolor: annotationBackground,
 				borderpad: 3,
@@ -351,7 +348,7 @@
 				tickmode: 'array',
 				tickvals: spendingTicks,
 				ticktext: spendingTicks.map((change) =>
-					change === 0 ? 'Current' : change > 0 ? `${change}% less` : `${Math.abs(change)}% more`
+					change === 0 ? 'Current' : change > 0 ? `${change}% more` : `${Math.abs(change)}% less`
 				),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
 				ticks: 'outside',
