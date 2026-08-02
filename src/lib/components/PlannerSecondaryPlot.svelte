@@ -194,8 +194,10 @@
 				tickmode: 'array',
 				tickvals: [0, 0.5, 0.75, 0.9, 0.95, 0.99, 1].map(warpProbability),
 				ticktext: ['0%', '50%', '75%', '90%', '95% goal', '99%', '100%'],
-				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#475569' },
+				tickfont: { family: "'JetBrains Mono', monospace", size: 9, color: '#334155' },
+				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#334155' },
+				ticks: 'outside',
+				tickcolor: '#475569',
 				thickness: 12,
 				len: 0.9,
 				y: 0.5,
@@ -218,12 +220,9 @@
 		};
 		const currentPlan = {
 			type: 'scatter',
-			mode: 'markers+text',
+			mode: 'markers',
 			x: [retirementAge],
 			y: [0],
-			text: [`${Math.round(currentPlanProbability * 100)}% chance funded`],
-			textposition: 'top center',
-			textfont: { size: 11, color: '#0f172a' },
 			marker: {
 				size: 15,
 				color: currentPlanColor,
@@ -239,18 +238,34 @@
 		).sort((a, b) => a - b);
 		const spendingTicks = [Math.min(...spendingChanges), 0, Math.max(...spendingChanges)];
 		const actualAgeChange = Math.abs(retirementAges[scenarioAgeIndex] - retirementAge);
-		const scenarioAnnotations: Array<Record<string, unknown>> = [];
+		const arrowColor = '#172554';
+		const annotationBackground = 'rgba(255,255,255,0.78)';
+		const scenarioAnnotations: Array<Record<string, unknown>> = [
+			{
+				x: retirementAge,
+				y: 0,
+				text: `<b>Your plan: ${Math.round(currentPlanProbability * 100)}%</b><br>chance funded`,
+				showarrow: false,
+				xanchor: movingToSaferPlan ? 'right' : 'left',
+				yanchor: movingToSaferPlan ? 'top' : 'bottom',
+				xshift: movingToSaferPlan ? -10 : 10,
+				yshift: movingToSaferPlan ? -12 : 12,
+				bgcolor: annotationBackground,
+				borderpad: 3,
+				font: { size: 10, color: '#0f172a' }
+			}
+		];
 		if (goalIsInSurface) {
 			scenarioAnnotations.push({
 				x: goalLabel.x,
 				y: goalLabel.y,
 				text: '<b>95% planning goal</b>',
 				showarrow: false,
-				xshift: 8,
-				yshift: 10,
-				bgcolor: 'rgba(255,255,255,0.88)',
-				bordercolor: 'rgba(22,101,52,0.35)',
-				borderpad: 3,
+				textangle: -18,
+				xshift: 4,
+				yshift: 4,
+				bgcolor: 'rgba(255,255,255,0.72)',
+				borderpad: 2,
 				font: { size: 10, color: '#166534' }
 			});
 		}
@@ -261,15 +276,23 @@
 			ay: 0,
 			axref: 'x',
 			ayref: 'y',
-			text: `<b>Spend 10% ${movingToSaferPlan ? 'less' : 'more'}</b><br>${Math.round(spendingScenarioProbability * 100)}% chance funded`,
+			text: '',
 			showarrow: true,
 			arrowhead: 3,
 			arrowsize: 1,
 			arrowwidth: 2,
-			arrowcolor: currentPlanColor,
+			arrowcolor: arrowColor
+		});
+		scenarioAnnotations.push({
+			x: retirementAge,
+			y: spendingChanges[scenarioSpendingIndex],
+			text: `<b>Spend 10% ${movingToSaferPlan ? 'less' : 'more'}</b><br>${Math.round(spendingScenarioProbability * 100)}% chance funded`,
+			showarrow: false,
 			xanchor: 'left',
+			yanchor: movingToSaferPlan ? 'bottom' : 'top',
 			xshift: 10,
-			bgcolor: 'rgba(255,255,255,0.9)',
+			yshift: movingToSaferPlan ? 6 : -6,
+			bgcolor: annotationBackground,
 			borderpad: 3,
 			font: { size: 10, color: '#334155' }
 		});
@@ -281,15 +304,23 @@
 				ay: 0,
 				axref: 'x',
 				ayref: 'y',
-				text: `<b>Retire ${actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1)} years ${movingToSaferPlan ? 'later' : 'earlier'}</b><br>${Math.round(ageScenarioProbability * 100)}% chance funded`,
+				text: '',
 				showarrow: true,
 				arrowhead: 3,
 				arrowsize: 1,
 				arrowwidth: 2,
-				arrowcolor: currentPlanColor,
-				yanchor: movingToSaferPlan ? 'top' : 'bottom',
-				yshift: movingToSaferPlan ? -12 : 12,
-				bgcolor: 'rgba(255,255,255,0.9)',
+				arrowcolor: arrowColor
+			});
+			scenarioAnnotations.push({
+				x: retirementAges[scenarioAgeIndex],
+				y: 0,
+				text: `<b>Retire ${actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1)} years ${movingToSaferPlan ? 'later' : 'earlier'}</b><br>${Math.round(ageScenarioProbability * 100)}% chance funded`,
+				showarrow: false,
+				xanchor: movingToSaferPlan ? 'left' : 'right',
+				yanchor: 'bottom',
+				xshift: movingToSaferPlan ? 6 : -6,
+				yshift: 8,
+				bgcolor: annotationBackground,
 				borderpad: 3,
 				font: { size: 10, color: '#334155' }
 			});
@@ -301,26 +332,30 @@
 			xaxis: {
 				title: {
 					text: spendingOnly ? 'Already retired' : 'Retirement age',
-					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+					font: { size: 11, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
 				tickvals: retirementTicks,
 				ticktext: retirementTicks.map((age) => (spendingOnly ? `age ${age} (now)` : `${age}`)),
-				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
+				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
+				ticks: 'outside',
+				tickcolor: '#475569',
 				showgrid: false,
 				fixedrange: true
 			},
 			yaxis: {
 				title: {
 					text: 'Change annual spending',
-					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+					font: { size: 11, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
 				tickvals: spendingTicks,
 				ticktext: spendingTicks.map((change) =>
 					change === 0 ? 'Current' : change > 0 ? `${change}% less` : `${Math.abs(change)}% more`
 				),
-				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
+				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
+				ticks: 'outside',
+				tickcolor: '#475569',
 				fixedrange: true
 			},
 			annotations: scenarioAnnotations,

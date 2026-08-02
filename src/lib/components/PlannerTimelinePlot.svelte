@@ -424,28 +424,32 @@
 			xaxis: {
 				title: {
 					text: 'Age',
-					font: { size: 12, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+					font: { size: 12, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				showgrid: false,
 				linecolor: '#e2e8f0',
-				tickfont: { family: "'JetBrains Mono', monospace", size: 11 },
+				tickfont: { family: "'JetBrains Mono', monospace", size: 11, color: '#334155' },
+				ticks: 'outside',
+				ticklen: 5,
+				tickwidth: 1,
+				tickcolor: '#475569',
 				autorange: false,
 				range: initialXAxisRange
 			},
 			yaxis: {
 				title: {
 					text: `Portfolio value (${currencySymbol})`,
-					font: { size: 12, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
+					font: { size: 12, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				showgrid: true,
 				gridwidth: 1,
 				gridcolor: '#e2e8f0',
 				linecolor: '#e2e8f0',
-				tickfont: { family: "'JetBrains Mono', monospace", size: 11 },
+				tickfont: { family: "'JetBrains Mono', monospace", size: 11, color: '#334155' },
 				ticks: 'outside',
 				ticklen: 5,
 				tickwidth: 1,
-				tickcolor: '#cbd5e1',
+				tickcolor: '#475569',
 				tickmode: 'array',
 				tickvals: yTicks.values,
 				ticktext: yTicks.labels,
