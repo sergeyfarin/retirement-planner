@@ -109,7 +109,13 @@
 					: currentPlanProbability >= 0.5
 						? '#f97316'
 						: '#dc2626';
-		const colorscale: Array<[number, string]> = [
+		// A logarithmic-style transform devotes much more of the legend to 90–100%, where
+		// planning decisions are made. All labels and overlays continue to use raw probability.
+		const colorStretch = 19;
+		const warpProbability = (probability: number): number =>
+			1 - Math.log1p(colorStretch * (1 - probability)) / Math.log1p(colorStretch);
+		const colorZValues = zValues.map((row) => row.map(warpProbability));
+		const rawColorStops: Array<[number, string]> = [
 			[0, '#fee2e2'],
 			[0.25, '#fecaca'],
 			[0.5, '#fed7aa'],
@@ -119,12 +125,56 @@
 			[0.975, '#4ade80'],
 			[1, '#16a34a']
 		];
+		const colorscale = rawColorStops.map(
+			([probability, color]) => [warpProbability(probability), color] as [number, string]
+		);
+		const movingToSaferPlan = currentPlanProbability < 0.95;
+		const scenarioSpendingChange = movingToSaferPlan ? 10 : -10;
+		const scenarioAge = Math.max(
+			retirementAges[0],
+			Math.min(
+				retirementAges[retirementAges.length - 1],
+				retirementAge + (movingToSaferPlan ? 3 : -3)
+			)
+		);
+		const scenarioSpendingIndex = spendingChanges.reduce(
+			(best, change, index) =>
+				Math.abs(change - scenarioSpendingChange) <
+				Math.abs(spendingChanges[best] - scenarioSpendingChange)
+					? index
+					: best,
+			0
+		);
+		const scenarioAgeIndex = retirementAges.reduce(
+			(best, age, index) =>
+				Math.abs(age - scenarioAge) < Math.abs(retirementAges[best] - scenarioAge) ? index : best,
+			0
+		);
+		const spendingScenarioProbability = zValues[scenarioSpendingIndex][baselineAgeIndex];
+		const ageScenarioProbability = zValues[baselineSpendingIndex][scenarioAgeIndex];
+		const surfaceProbabilities = zValues.flat();
+		const goalIsInSurface =
+			Math.min(...surfaceProbabilities) <= 0.95 && Math.max(...surfaceProbabilities) >= 0.95;
+		let goalLabel = {
+			x: retirementAges[baselineAgeIndex],
+			y: spendingChanges[baselineSpendingIndex],
+			distance: Number.POSITIVE_INFINITY
+		};
+		for (let row = 0; row < zValues.length; row++) {
+			for (let column = 0; column < zValues[row].length; column++) {
+				const distance = Math.abs(zValues[row][column] - 0.95);
+				if (distance < goalLabel.distance) {
+					goalLabel = { x: retirementAges[column], y: spendingChanges[row], distance };
+				}
+			}
+		}
 
 		const contourTrace = {
 			type: spendingOnly ? 'heatmap' : 'contour',
 			x: retirementAges,
 			y: spendingChanges,
-			z: zValues,
+			z: colorZValues,
+			customdata: zValues,
 			zmin: 0,
 			zmax: 1,
 			colorscale,
@@ -140,10 +190,10 @@
 			line: spendingOnly ? undefined : { width: 0, smoothing: 0.75 },
 			showscale: true,
 			colorbar: {
-				title: { text: 'Plan funded', side: 'right' },
+				title: { text: 'Chance funded', side: 'right' },
 				tickmode: 'array',
-				tickvals: [0, 0.5, 0.75, 0.95, 1],
-				ticktext: ['0%', '50%', '75%', '95% goal', '100%'],
+				tickvals: [0, 0.5, 0.75, 0.9, 0.95, 0.99, 1].map(warpProbability),
+				ticktext: ['0%', '50%', '75%', '90%', '95% goal', '99%', '100%'],
 				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
 				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#475569' },
 				thickness: 12,
@@ -152,8 +202,8 @@
 				yanchor: 'middle'
 			},
 			hovertemplate: spendingOnly
-				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{z:.1%}<extra></extra>'
-				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{z:.1%}<extra></extra>'
+				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
+				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
 		};
 		const goalContour = {
 			type: 'contour',
@@ -161,7 +211,7 @@
 			y: spendingChanges,
 			z: zValues,
 			contours: { coloring: 'none', start: 0.95, end: 0.95, size: 0.01, showlabels: false },
-			line: { width: 4, color: '#0f766e', smoothing: 0.75 },
+			line: { width: 2, color: '#166534', smoothing: 0.75 },
 			showscale: false,
 			hoverinfo: 'skip',
 			showlegend: false
@@ -188,6 +238,62 @@
 			new Set([retirementAges[0], retirementAge, retirementAges[retirementAges.length - 1]])
 		).sort((a, b) => a - b);
 		const spendingTicks = [Math.min(...spendingChanges), 0, Math.max(...spendingChanges)];
+		const actualAgeChange = Math.abs(retirementAges[scenarioAgeIndex] - retirementAge);
+		const scenarioAnnotations: Array<Record<string, unknown>> = [];
+		if (goalIsInSurface) {
+			scenarioAnnotations.push({
+				x: goalLabel.x,
+				y: goalLabel.y,
+				text: '<b>95% planning goal</b>',
+				showarrow: false,
+				xshift: 8,
+				yshift: 10,
+				bgcolor: 'rgba(255,255,255,0.88)',
+				bordercolor: 'rgba(22,101,52,0.35)',
+				borderpad: 3,
+				font: { size: 10, color: '#166534' }
+			});
+		}
+		scenarioAnnotations.push({
+			x: retirementAge,
+			y: spendingChanges[scenarioSpendingIndex],
+			ax: retirementAge,
+			ay: 0,
+			axref: 'x',
+			ayref: 'y',
+			text: `<b>Spend 10% ${movingToSaferPlan ? 'less' : 'more'}</b><br>${Math.round(spendingScenarioProbability * 100)}% chance funded`,
+			showarrow: true,
+			arrowhead: 3,
+			arrowsize: 1,
+			arrowwidth: 2,
+			arrowcolor: currentPlanColor,
+			xanchor: 'left',
+			xshift: 10,
+			bgcolor: 'rgba(255,255,255,0.9)',
+			borderpad: 3,
+			font: { size: 10, color: '#334155' }
+		});
+		if (!spendingOnly && actualAgeChange > 0) {
+			scenarioAnnotations.push({
+				x: retirementAges[scenarioAgeIndex],
+				y: 0,
+				ax: retirementAge,
+				ay: 0,
+				axref: 'x',
+				ayref: 'y',
+				text: `<b>Retire ${actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1)} years ${movingToSaferPlan ? 'later' : 'earlier'}</b><br>${Math.round(ageScenarioProbability * 100)}% chance funded`,
+				showarrow: true,
+				arrowhead: 3,
+				arrowsize: 1,
+				arrowwidth: 2,
+				arrowcolor: currentPlanColor,
+				yanchor: movingToSaferPlan ? 'top' : 'bottom',
+				yshift: movingToSaferPlan ? -12 : 12,
+				bgcolor: 'rgba(255,255,255,0.9)',
+				borderpad: 3,
+				font: { size: 10, color: '#334155' }
+			});
+		}
 		const layout = {
 			margin: { t: 24, l: 72, r: 66, b: 52 },
 			paper_bgcolor: 'transparent',
@@ -217,6 +323,7 @@
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
 				fixedrange: true
 			},
+			annotations: scenarioAnnotations,
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
 		};
@@ -227,12 +334,11 @@
 			staticPlot: false
 		};
 
-		void Plotly.react(
-			ruinSurfaceEl,
-			spendingOnly ? [contourTrace, currentPlan] : [contourTrace, goalContour, currentPlan],
-			layout,
-			config
-		);
+		const traces =
+			spendingOnly || !goalIsInSurface
+				? [contourTrace, currentPlan]
+				: [contourTrace, goalContour, currentPlan];
+		void Plotly.react(ruinSurfaceEl, traces, layout, config);
 	}
 
 	function buildYAxisTicksForRange(
@@ -387,14 +493,13 @@
 						: `How retirement timing and spending change the chance of staying funded to age ${simulateUntilAge}`}
 				</h3>
 			</div>
-			{#if stats.ruinSurface.retirementAges.length > 1}
-				<p class="chart-direction">Spend less ↑<br />Retire later →</p>
-			{/if}
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			The dark-green boundary marks the 95% planning goal. The smooth surface is estimated from 81
-			replayed combinations; values between them are interpolated.
+			The arrows compare practical changes with your current plan. When it falls within the tested
+			range, the labelled green boundary marks the 95% planning goal. The smooth surface is
+			estimated from 81 replayed combinations; values between them are interpolated. The colour
+			scale expands the 90–100% range so differences near the goal remain visible.
 		</p>
 		{#if surfaceSampleCount > 0}
 			<p

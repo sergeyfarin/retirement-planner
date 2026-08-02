@@ -97,16 +97,6 @@
 	padding: 0.25rem 0.25rem 0;
 }
 
-.chart-direction {
-	margin: 0;
-	flex: 0 0 auto;
-	text-align: right;
-	font-size: 0.72rem;
-	font-weight: 700;
-	line-height: 1.45;
-	color: #0f766e;
-}
-
 .sequence-risk-chart {
 	height: 220px;
 	margin-top: 0.35rem;
@@ -151,9 +141,5 @@
 		align-items: flex-start;
 		flex-direction: column;
 		gap: 0.4rem;
-	}
-
-	.chart-direction {
-		text-align: left;
 	}
 }
