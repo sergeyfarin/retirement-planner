@@ -111,20 +111,20 @@
 			<section>
 				<h4>Spending capacity at the {targetPercent}% goal</h4>
 				{#if sustainableSpending != null}
-					<dl class="diagnostics-table mono-value">
-						<div>
-							<dt>Sustainable yearly spending</dt>
-							<dd>
-								{sustainableIsCapped ? '≥ ' : ''}{fmtCompactCurrency(sustainableSpending)}
-							</dd>
-						</div>
-						<div>
-							<dt>Versus planned spending</dt>
-							<dd>
-								{sustainableIsCapped ? '≥ ' : ''}{percentFormatter.format(sustainableMultiplier)}
-							</dd>
-						</div>
-					</dl>
+					<table class="stat-table stat-table-dense mono-value">
+						<tbody>
+							<tr
+								><th scope="row">Sustainable yearly spending</th><td>
+									{sustainableIsCapped ? '≥ ' : ''}{fmtCompactCurrency(sustainableSpending)}
+								</td></tr
+							>
+							<tr
+								><th scope="row">Versus planned spending</th><td>
+									{sustainableIsCapped ? '≥ ' : ''}{percentFormatter.format(sustainableMultiplier)}
+								</td></tr
+							>
+						</tbody>
+					</table>
 					<p>
 						{#if sustainableIsCapped}
 							The plan still clears the goal at the highest spending level this sweep tests, so its
@@ -145,20 +145,25 @@
 
 			<section>
 				<h4>Rule-of-thumb comparison</h4>
-				<dl class="diagnostics-table mono-value">
-					<div>
-						<dt>Spending-rule target</dt>
-						<dd>{fmtCompactCurrency(stats.fiTargetSWR)}</dd>
-					</div>
-					<div>
-						<dt>Chance of reaching it</dt>
-						<dd>{percentFormatter.format(stats.fiProbabilitySWR)}</dd>
-					</div>
-					<div>
-						<dt>Simulation-based target</dt>
-						<dd>{fmtCompactCurrency(stats.fiTargetP95)}</dd>
-					</div>
-				</dl>
+				<table class="stat-table stat-table-dense mono-value">
+					<tbody>
+						<tr
+							><th scope="row">Spending-rule target</th><td
+								>{fmtCompactCurrency(stats.fiTargetSWR)}</td
+							></tr
+						>
+						<tr
+							><th scope="row">Chance of reaching it</th><td
+								>{percentFormatter.format(stats.fiProbabilitySWR)}</td
+							></tr
+						>
+						<tr
+							><th scope="row">Simulation-based target</th><td
+								>{fmtCompactCurrency(stats.fiTargetP95)}</td
+							></tr
+						>
+					</tbody>
+				</table>
 				<p>
 					The spending-rule target divides spending by the selected withdrawal rate, net of other
 					income. It ignores sequence risk and your actual horizon, so where the two targets
@@ -169,14 +174,17 @@
 			<section>
 				<h4>Sequence-of-returns exposure</h4>
 				{#if sequenceBuckets.length > 0}
-					<dl class="diagnostics-table mono-value">
-						{#each sequenceBuckets as bucket (bucket.bucketLabel)}
-							<div>
-								<dt>{bucket.bucketLabel}</dt>
-								<dd>{percentFormatter.format(bucket.ruinProbability)} ruin</dd>
-							</div>
-						{/each}
-					</dl>
+					<table class="stat-table stat-table-dense mono-value">
+						<tbody>
+							{#each sequenceBuckets as bucket (bucket.bucketLabel)}
+								<tr
+									><th scope="row">{bucket.bucketLabel}</th><td
+										>{percentFormatter.format(bucket.ruinProbability)} ruin</td
+									></tr
+								>
+							{/each}
+						</tbody>
+					</table>
 					<p>
 						Ruin probability spans {(sequenceSpread * 100).toFixed(1)} percentage points between the worst
 						and best early-return groups. A wide spread means the plan's outcome is decided mainly by

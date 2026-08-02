@@ -355,7 +355,7 @@
 			</div>
 
 			<div class="section-split">
-				<p class="section-label">One-Time Events</p>
+				<p class="eyebrow">One-Time Events</p>
 				{#if lumpSumEvents.length > 0}
 					<div class="data-table data-table-events">
 						<div class="table-header">
@@ -386,7 +386,7 @@
 		</div>
 
 		<div class="section-split withdrawal-strategy-block">
-			<p class="section-label">
+			<p class="eyebrow">
 				Spending in retirement
 				<span
 					class="strategy-hint"
@@ -397,7 +397,7 @@
 			<div class="strategy-toggle-group" role="group" aria-label="Withdrawal strategy">
 				<button
 					type="button"
-					class="btn-mode strategy-btn"
+					class="btn-mode"
 					class:active={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
 					onclick={() => setWithdrawalKind('fixed')}
 					aria-pressed={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
@@ -407,7 +407,7 @@
 				</button>
 				<button
 					type="button"
-					class="btn-mode strategy-btn"
+					class="btn-mode"
 					class:active={input.withdrawalStrategy?.kind === 'guardrails'}
 					onclick={() => setWithdrawalKind('guardrails')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'guardrails'}
@@ -417,7 +417,7 @@
 				</button>
 				<button
 					type="button"
-					class="btn-mode strategy-btn"
+					class="btn-mode"
 					class:active={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
 					onclick={() => setWithdrawalKind('percentOfPortfolio')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
@@ -540,12 +540,12 @@
 	</div>
 
 	<details
-		class="card assumptions-details"
+		class="card"
 		ontoggle={(e) => {
 			if ((e.target as HTMLDetailsElement).open) onAssumptionsToggle?.();
 		}}
 	>
-		<summary class="font-semibold cursor-pointer select-none" style="outline: none;">
+		<summary>
 			Advanced assumptions
 			<span class="assumptions-summary-line">
 				{#if input.simulationMode === 'parametric'}
@@ -1160,9 +1160,7 @@
 		</div>
 	</details>
 	<details class="card mt-4 mb-2">
-		<summary class="font-semibold cursor-pointer select-none" style="outline: none;"
-			>Expert simulation tuning</summary
-		>
+		<summary>Expert simulation tuning</summary>
 		<div class="mt-3 pt-3 border-t border-slate-200">
 			<div class="mb-3">
 				<label

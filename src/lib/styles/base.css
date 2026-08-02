@@ -1,0 +1,363 @@
+/*
+ * Element defaults and the shared text primitives every panel uses.
+ * Anything that appears in both the input column and the results column lives
+ * here so the two columns cannot drift apart again.
+ */
+
+/* ─── Headings ────────────────────────────────────────────────────── */
+h2 {
+	margin: 0 0 0.15rem;
+	font-size: var(--text-page);
+	font-weight: 700;
+	line-height: 1.2;
+	letter-spacing: -0.03em;
+	color: var(--ink);
+}
+
+/*
+ * One micro-label for the whole app. Card eyebrows, sub-section labels, table
+ * column heads, and field labels were four separate rules that differed only by
+ * a hundredth of a rem; they are one rule with two optional modifiers now.
+ */
+.eyebrow,
+label,
+.allocation-head,
+.stat-table caption,
+.stat-table thead th,
+.table-header,
+.assumptions-table th,
+.diagnostics-grid h4 {
+	margin: 0;
+	font-size: var(--text-eyebrow);
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--ink-soft);
+}
+
+/* Column heads sit behind their data, so they step back one shade. */
+.eyebrow-faint,
+.stat-table thead th,
+.table-header,
+.assumptions-table th {
+	color: var(--ink-faint);
+}
+
+/*
+ * Editable data grids keep the numeric face in their heads so the head aligns with
+ * the tabular figures beneath it. Read-only summary tables do not need it.
+ */
+.eyebrow-mono,
+.table-header,
+.assumptions-table th {
+	font-family: var(--font-mono);
+	font-variant-numeric: normal;
+}
+
+/* The densest grids drop a step below the shared eyebrow size. */
+.table-header,
+.assumptions-table th {
+	font-size: 0.58rem;
+	letter-spacing: 0.05em;
+}
+
+/* ─── Numerals ────────────────────────────────────────────────────── */
+.mono-value {
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+}
+
+.amount-positive {
+	color: var(--positive);
+	font-weight: 700;
+}
+
+.amount-negative {
+	color: var(--negative);
+	font-weight: 700;
+}
+
+/* ─── Notes and hints ─────────────────────────────────────────────── */
+/*
+ * Two weights of secondary text, not the ten that had accumulated. `.note` is an
+ * aside next to a control; `.card-note` is the sentence that qualifies a figure
+ * and therefore stays a shade darker and a step larger.
+ */
+.note {
+	margin: 0.12rem 0;
+	font-size: var(--text-note);
+	line-height: 1.4;
+	color: var(--ink-faint);
+}
+
+.card-note,
+.chart-explainer,
+.diagnostics-intro {
+	margin: 0.55rem 0 0;
+	font-size: var(--text-note);
+	line-height: 1.5;
+	color: var(--ink-soft);
+}
+
+.card-note strong,
+.chart-explainer strong {
+	color: var(--ink-body);
+}
+
+.chart-explainer {
+	margin: 0.15rem 0 0.5rem;
+}
+
+.hint {
+	margin-top: 0.04rem;
+	font-size: var(--text-micro);
+	line-height: 1.25;
+	font-weight: 500;
+	font-style: italic;
+	letter-spacing: normal;
+	text-transform: none;
+	color: var(--ink-faint);
+}
+
+/*
+ * A standing caveat about what the model deliberately does not do, rather than a
+ * passing hint. Kept legible instead of muted, because it changes how the number
+ * above it should be read.
+ */
+.note.tax-caveat {
+	margin: 0.3rem 0 0.1rem;
+	padding: 0.4rem 0.55rem;
+	border: 1px solid var(--warning-line);
+	border-radius: var(--radius-xs);
+	background: var(--warning-wash);
+	line-height: 1.45;
+	color: var(--warning-ink);
+}
+
+.error {
+	margin-top: 0.25rem;
+	padding: 0.28rem 0.45rem;
+	border: 1px solid var(--negative-line);
+	border-radius: var(--radius-xs);
+	background: var(--negative-wash);
+	font-size: var(--text-body);
+	font-weight: 500;
+	color: var(--negative);
+}
+
+.methodology-info {
+	margin-top: 0.1rem;
+	padding: 0.3rem 0.35rem;
+	border: 1px solid #dbeafe;
+	border-radius: var(--radius-sm);
+	background: rgba(239, 246, 255, 0.4);
+	line-height: 1.45;
+}
+
+.inline-link {
+	margin-left: 0.4rem;
+	padding: 0;
+	border: none;
+	background: none;
+	box-shadow: none;
+	font-family: var(--font-mono);
+	font-size: var(--text-note);
+	color: #2563eb;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.inline-link:hover {
+	color: #1d4ed8;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────── */
+button {
+	margin-top: 0.1rem;
+	margin-right: 0.3rem;
+	padding: 0.38rem 0.8rem;
+	border: none;
+	border-radius: 7px;
+	background: linear-gradient(135deg, var(--positive), var(--positive-deep));
+	box-shadow: 0 1px 3px rgba(21, 128, 61, 0.2);
+	font-family: var(--font-sans);
+	font-size: var(--text-body);
+	font-weight: 600;
+	line-height: 1.2;
+	letter-spacing: 0.01em;
+	color: var(--surface);
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+	transform: translateY(-1px);
+	box-shadow: 0 3px 10px rgba(21, 128, 61, 0.25);
+	filter: brightness(1.05);
+}
+
+button:active:not(:disabled) {
+	transform: translateY(0);
+}
+
+button:disabled {
+	background: var(--ink-faint);
+	box-shadow: none;
+	cursor: not-allowed;
+}
+
+button.btn-add {
+	margin-top: 0.25rem;
+	margin-bottom: 0.15rem;
+	padding: 0.22rem 0.55rem;
+	border-radius: var(--radius-xs);
+	background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+	box-shadow: 0 1px 3px rgba(79, 70, 229, 0.2);
+	font-size: var(--text-small);
+}
+
+button.btn-add:hover:not(:disabled) {
+	box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
+}
+
+button.btn-remove {
+	width: 1.25rem;
+	min-width: 1.25rem;
+	margin: 0;
+	padding: 0.08rem 0;
+	border: 1px solid var(--negative-line);
+	border-radius: var(--radius-xs);
+	background: transparent;
+	box-shadow: none;
+	font-size: var(--text-small);
+	font-weight: 500;
+	line-height: 1;
+	color: var(--negative);
+}
+
+button.btn-remove:hover {
+	transform: none;
+	border-color: #fca5a5;
+	background: var(--negative-wash);
+	box-shadow: none;
+}
+
+/*
+ * The neutral chip. Seven buttons — mode toggles, presets, reset, info, close,
+ * share — each carried its own copy of this same quiet grey treatment, with the
+ * same hover, written out seven times. One rule, then size-only variants.
+ */
+.btn-chip,
+button.btn-mode,
+button.btn-preset,
+.assumptions-reset-cell-btn,
+.btn-share {
+	margin: 0;
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius-xs);
+	background: var(--surface-sunken);
+	box-shadow: none;
+	font-weight: 600;
+	color: var(--ink-muted);
+}
+
+.btn-chip:hover:not(:disabled),
+button.btn-mode:hover:not(:disabled),
+button.btn-preset:hover:not(:disabled),
+.assumptions-reset-cell-btn:hover:not(:disabled),
+.btn-share:hover:not(:disabled) {
+	transform: none;
+	filter: none;
+	border-color: var(--accent-soft);
+	background: var(--accent-wash);
+	box-shadow: none;
+}
+
+button.btn-mode {
+	padding: 0.22rem 0.55rem;
+	font-size: var(--text-small);
+}
+
+button.btn-mode.active {
+	border-color: #4338ca;
+	background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+	box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
+	color: var(--surface);
+}
+
+button.btn-preset {
+	padding: 0.2rem 0.5rem;
+	border-style: dashed;
+	border-color: var(--ink-faint);
+	font-size: var(--text-small);
+	white-space: nowrap;
+}
+
+.assumptions-reset-cell-btn {
+	padding: 0.08rem 0.28rem;
+	font-size: 0.58rem;
+	line-height: 1.2;
+}
+
+.btn-share {
+	padding: 0.35rem 0.7rem;
+	border-radius: var(--radius-sm);
+	background: transparent;
+	font-size: var(--text-body);
+	white-space: nowrap;
+}
+
+/* ─── Inputs ──────────────────────────────────────────────────────── */
+label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.04rem;
+}
+
+input {
+	width: 100%;
+	max-width: 6rem;
+	padding: 0.25rem 0.38rem;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--surface);
+	box-sizing: border-box;
+	font-family: var(--font-mono);
+	font-size: var(--text-body);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.2;
+	color: var(--ink-strong);
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+input:focus {
+	outline: none;
+	border-color: var(--focus-line);
+	box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+input[type='number'] {
+	max-width: 4rem;
+}
+
+input[type='number'],
+input[inputmode='numeric'],
+input[inputmode='decimal'] {
+	text-align: center;
+}
+
+/* ─── Page header ─────────────────────────────────────────────────── */
+.page-header {
+	margin: 0 0 0.45rem;
+}
+
+.page-header h2 {
+	margin: 0 0 0.1rem;
+	background: linear-gradient(135deg, #0f766e 0%, #0ea5a4 45%, #22c55e 100%);
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+}

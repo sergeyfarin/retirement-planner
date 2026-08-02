@@ -2198,33 +2198,20 @@
 		pointer-events: none;
 	}
 	.status-banner.attention {
-		border-left: 4px solid var(--color-warning, #f59e0b);
-		background-color: var(--bg-warning-light, rgba(245, 158, 11, 0.05));
+		border-left: 4px solid var(--warning);
+		background-color: rgba(245, 158, 11, 0.05);
 	}
 	.disclaimer-footer {
 		max-width: 60rem;
 		margin: 1.5rem auto 0;
 		padding: 0 0.5rem;
-		font-size: 0.8rem;
+		font-size: var(--text-note);
 		line-height: 1.4;
-		color: var(--color-text-muted, #6b7280);
+		color: var(--ink-soft);
 		text-align: center;
 	}
 	.disclaimer-footer a {
 		color: inherit;
 		text-decoration: underline;
-	}
-	.btn-share {
-		font-size: 0.78rem;
-		padding: 0.35rem 0.7rem;
-		border: 1px solid var(--color-border, #cbd5e1);
-		border-radius: 6px;
-		background: transparent;
-		color: var(--color-text-muted, #475569);
-		cursor: pointer;
-		white-space: nowrap;
-	}
-	.btn-share:hover {
-		background: var(--bg-hover, rgba(148, 163, 184, 0.12));
 	}
 </style>

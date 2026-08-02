@@ -1,0 +1,73 @@
+/*
+ * Design tokens — the single source for colour, type, and elevation.
+ *
+ * Before this file the same slate ramp was written out as hex literals in five
+ * stylesheets (#64748b alone appeared 25 times), and a handful of rules referenced
+ * `var(--color-text-muted, #6b7280)`-style variables that were never defined
+ * anywhere, so they always fell through to a fallback grey that did not match the
+ * literals beside it. Everything below is named once and referenced by name.
+ */
+:root {
+	/* ─── Ink: one ramp, darkest to faintest ────────────────────────── */
+	--ink: #0f172a;
+	--ink-strong: #1e293b;
+	--ink-body: #334155;
+	--ink-muted: #475569;
+	--ink-soft: #64748b;
+	--ink-faint: #94a3b8;
+
+	/* ─── Surfaces ──────────────────────────────────────────────────── */
+	--surface: #ffffff;
+	--surface-card: rgba(255, 255, 255, 0.82);
+	--surface-sunken: #f8fafc;
+	--surface-muted: #f1f5f9;
+	--surface-hover: rgba(248, 250, 252, 0.65);
+
+	/* ─── Lines ─────────────────────────────────────────────────────── */
+	--line: #e2e8f0;
+	--line-strong: #cbd5e1;
+	--line-hairline: rgba(0, 0, 0, 0.06);
+
+	/* ─── Accents and semantics ─────────────────────────────────────── */
+	--accent: #4f46e5;
+	--accent-bright: #6366f1;
+	--accent-soft: #a5b4fc;
+	--accent-wash: #eef2ff;
+	--positive: #16a34a;
+	--positive-deep: #15803d;
+	--negative: #dc2626;
+	--negative-line: #fecaca;
+	--negative-wash: #fef2f2;
+	--warning: #d97706;
+	--warning-ink: #78350f;
+	--warning-line: #fde68a;
+	--warning-wash: #fffbeb;
+	--focus-ring: rgba(129, 140, 248, 0.12);
+	--focus-line: #818cf8;
+
+	/* ─── Type ──────────────────────────────────────────────────────── */
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+	/*
+	 * Six sizes for the whole app. The old sheets used fourteen, most of them
+	 * within 0.02rem of a neighbour, which is why nothing lined up.
+	 */
+	--text-micro: 0.62rem; /* hints, densest table cells */
+	--text-eyebrow: 0.64rem; /* every uppercase micro-label */
+	--text-small: 0.7rem; /* supporting notes inside cards */
+	--text-note: 0.74rem; /* prose notes, explainers */
+	--text-body: 0.78rem; /* inputs, table values, buttons */
+	--text-title: 0.92rem; /* card titles and disclosure summaries */
+	--text-page: 1.45rem; /* the page heading */
+
+	/* ─── Shape and elevation ───────────────────────────────────────── */
+	--radius-xs: 4px;
+	--radius-sm: 6px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+	--radius-pill: 9999px;
+
+	--shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03), 0 3px 12px rgba(0, 0, 0, 0.04);
+	--shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+}

@@ -1,0 +1,329 @@
+/*
+ * The card is the only container in this app: an input group, a result, a chart,
+ * and a disclosure are all cards. So a card's shell, title, and summary are
+ * defined once here, and the input column and the results column get the same
+ * ones — previously the left column titled its cards with Tailwind utilities,
+ * the results titled theirs with three different bespoke rules, and the two
+ * columns looked like two applications.
+ */
+
+/* ─── Shell ───────────────────────────────────────────────────────── */
+.card {
+	margin-bottom: 0.45rem;
+	padding: 0.55rem 0.7rem;
+	border: 1px solid var(--line-hairline);
+	border-radius: var(--radius-lg);
+	background: var(--surface-card);
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	box-shadow: var(--shadow-card);
+	transition:
+		box-shadow 0.2s ease,
+		border-color 0.2s ease;
+}
+
+.card:hover {
+	border-color: rgba(0, 0, 0, 0.1);
+	box-shadow: var(--shadow-card-hover);
+}
+
+/* ─── Card titles and disclosures ─────────────────────────────────── */
+.card-title,
+.card > summary {
+	font-size: var(--text-title);
+	font-weight: 700;
+	line-height: 1.35;
+	letter-spacing: normal;
+	text-transform: none;
+	color: var(--ink);
+}
+
+.card-title {
+	margin: 0.1rem 0 0;
+	color: var(--ink-body);
+}
+
+/*
+ * Every collapsible card opens the same way, with the same marker in the same
+ * place. This used to be defined only on the assumptions card, so the six other
+ * disclosures rendered the browser's default triangle at a different size.
+ */
+.card > summary {
+	list-style: none;
+	cursor: pointer;
+	outline: none;
+}
+
+.card > summary::-webkit-details-marker {
+	display: none;
+}
+
+.card > summary::before {
+	content: '▸ ';
+	font-size: 0.8em;
+	color: var(--ink-faint);
+}
+
+.card[open] > summary::before {
+	content: '▾ ';
+}
+
+.card[open] > summary {
+	margin-bottom: 0.35rem;
+}
+
+/* ─── Results overview ────────────────────────────────────────────── */
+.results-summary {
+	display: grid;
+	gap: 0.65rem;
+}
+
+.results-summary .card {
+	margin-bottom: 0;
+}
+
+/* ─── Tone: one severity vocabulary shared by every result card ───── */
+.tone-good {
+	--tone-line: #0f766e;
+	--tone-ink: #0f766e;
+	--tone-wash: rgba(240, 253, 250, 0.98);
+}
+
+.tone-warn {
+	--tone-line: var(--warning);
+	--tone-ink: #b45309;
+	--tone-wash: rgba(255, 251, 235, 0.98);
+}
+
+.tone-caution {
+	--tone-line: #ea580c;
+	--tone-ink: #c2410c;
+	--tone-wash: rgba(255, 247, 237, 0.98);
+}
+
+.tone-bad {
+	--tone-line: var(--negative);
+	--tone-ink: #b91c1c;
+	--tone-wash: rgba(254, 242, 242, 0.98);
+}
+
+/* ─── Verdict card ────────────────────────────────────────────────── */
+.verdict-card {
+	padding: 1rem 1.1rem;
+	border-left: 5px solid var(--tone-line);
+	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));
+}
+
+/*
+ * Figure and caption as one sentence: the number leads inline and the rest of the
+ * clause flows around it.
+ */
+.stat-sentence {
+	margin: 0.3rem 0 0;
+	font-size: 0.82rem;
+	font-weight: 500;
+	line-height: 1.5;
+	letter-spacing: normal;
+	text-transform: none;
+	color: var(--ink-muted);
+}
+
+.stat-sentence strong {
+	margin-right: 0.14em;
+	font-weight: 780;
+	line-height: 1.05;
+	letter-spacing: -0.055em;
+	color: var(--tone-ink, var(--ink));
+}
+
+.verdict-card .stat-sentence {
+	margin-top: 0.45rem;
+	font-size: 0.92rem;
+}
+
+.verdict-card .stat-sentence strong {
+	font-size: clamp(2rem, 4vw, 2.9rem);
+}
+
+.downside-card .stat-sentence strong,
+.portfolio-card .stat-sentence strong {
+	font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+}
+
+.verdict-gauge {
+	margin-top: 0.75rem;
+}
+
+.gauge-track {
+	position: relative;
+	height: 0.5rem;
+	margin-top: 0.55rem;
+	border-radius: var(--radius-pill);
+	background: rgba(148, 163, 184, 0.28);
+	overflow: hidden;
+}
+
+.gauge-fill {
+	height: 100%;
+	border-radius: var(--radius-pill);
+	background: var(--tone-line);
+}
+
+.gauge-goal {
+	position: absolute;
+	top: -0.15rem;
+	bottom: -0.15rem;
+	width: 2px;
+	background: var(--ink);
+}
+
+.gauge-scale {
+	display: flex;
+	justify-content: space-between;
+	margin: 0.24rem 0 0;
+	font-size: var(--text-micro);
+	color: var(--ink-faint);
+}
+
+.gauge-goal-label {
+	font-weight: 700;
+	color: var(--ink-muted);
+}
+
+.verdict-detail {
+	margin: 0.7rem 0 0;
+	font-size: var(--text-body);
+	line-height: 1.5;
+	color: var(--ink-body);
+}
+
+/* ─── Portfolio and downside cards ────────────────────────────────── */
+.portfolio-card,
+.downside-card {
+	border-left: 4px solid var(--tone-line, var(--line-strong));
+}
+
+.portfolio-card {
+	padding: 0.9rem 1rem;
+}
+
+.downside-card {
+	padding: 0.8rem 0.9rem;
+}
+
+.scope-note {
+	margin: 0.1rem 0 0;
+	padding: 0 0.15rem;
+	font-size: var(--text-small);
+	line-height: 1.45;
+	color: var(--ink-faint);
+}
+
+/*
+ * Supporting figures for a card: label left, numbers right-aligned under each
+ * other, which is what makes rows comparable at a glance. Deliberately not a box
+ * — a bordered panel inside a bordered card reads as a second card. This is also
+ * the only key/value table in the app now; the results cards and the diagnostics
+ * panel used to have one each, built from different elements.
+ */
+.stat-table {
+	width: 100%;
+	margin-top: 0.6rem;
+	border-collapse: collapse;
+	font-size: var(--text-body);
+}
+
+.stat-table caption {
+	caption-side: top;
+	padding: 0 0 0.15rem;
+	text-align: left;
+}
+
+.stat-table thead th {
+	padding: 0 0 0.15rem 0.5rem;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.stat-table thead th:first-child {
+	padding-left: 0;
+	text-align: left;
+}
+
+.stat-table tbody th {
+	padding: 0.26rem 0.5rem 0.26rem 0;
+	border-top: 1px solid var(--line);
+	font-weight: 600;
+	text-align: left;
+	color: var(--ink-soft);
+}
+
+.stat-table td {
+	padding: 0.26rem 0 0.26rem 0.5rem;
+	border-top: 1px solid var(--line);
+	font-weight: 700;
+	text-align: right;
+	white-space: nowrap;
+	color: var(--ink);
+}
+
+/* A continuation of the row above it, so it loses the rule and the weight. */
+.stat-table .stat-subrow {
+	padding-top: 0;
+	border-top: none;
+	font-weight: 500;
+	color: var(--ink-soft);
+}
+
+/* Denser variant for the diagnostics panel, which stacks six of these. */
+.stat-table-dense {
+	margin-top: 0.4rem;
+	font-size: var(--text-small);
+}
+
+.stat-table-dense tbody th,
+.stat-table-dense td {
+	padding-top: 0.16rem;
+	padding-bottom: 0.16rem;
+}
+
+.stat-table-dense td {
+	font-weight: 700;
+	color: var(--ink-body);
+}
+
+/* ─── Advanced statistics ─────────────────────────────────────────── */
+.diagnostics-card {
+	margin: 0.65rem 0;
+	padding: 0.75rem 0.8rem;
+}
+
+.diagnostics-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+	gap: 0.65rem;
+	margin-top: 0.55rem;
+}
+
+.diagnostics-grid > section {
+	padding: 0.58rem 0.65rem;
+	border-radius: var(--radius-md);
+	background: var(--surface-sunken);
+}
+
+.diagnostics-grid p {
+	margin: 0.32rem 0 0;
+	font-size: var(--text-small);
+	line-height: 1.45;
+	color: var(--ink-soft);
+}
+
+@media (max-width: 760px) {
+	.diagnostics-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.stat-table {
+		font-size: var(--text-note);
+	}
+}

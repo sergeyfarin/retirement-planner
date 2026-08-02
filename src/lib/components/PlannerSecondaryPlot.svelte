@@ -549,10 +549,10 @@
 </script>
 
 {#if stats && simulation}
-	<div class="card chart-card chart-card-ruin">
+	<div class="card chart-card">
 		<div class="chart-card-heading">
 			<div>
-				<p class="phase-eyebrow">Plan adjustment map</p>
+				<p class="eyebrow">Plan adjustment map</p>
 				<h3 class="card-title">
 					{stats.ruinSurface.retirementAges.length === 1
 						? `How spending changes the chance of staying funded to age ${simulateUntilAge}`
@@ -574,16 +574,14 @@
 			>
 				Each cell is estimated from {surfaceSampleCount.toLocaleString()} simulated paths, so individual
 				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise; cells near
-				0% or 100% are more precise. This sample is capped independently of the “Simulations”
-				setting — raising that number sharpens the summary cards above, not this chart. Read it for
-				the shape of the trade-off between retiring earlier and spending more, rather than for any
-				single cell's exact value.
+				0% or 100% are more precise. Read it for the shape of the trade-off rather than for any
+				single cell's exact value — the card above carries the precise figures.
 			</p>
 		{/if}
 	</div>
 
 	{#if stats.sequenceRisk?.length}
-		<details class="card chart-card advanced-chart" ontoggle={handleSequenceRiskToggle}>
+		<details class="card chart-card" ontoggle={handleSequenceRiskToggle}>
 			<summary>How much does the timing of market gains and losses matter?</summary>
 			<p class="chart-explainer">
 				This groups simulations by returns during the first ten years after retirement. Early losses

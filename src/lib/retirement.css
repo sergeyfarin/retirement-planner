@@ -1,6 +1,10 @@
+/*
+ * Import order is the cascade: tokens define the vocabulary, base styles the
+ * elements and shared primitives, then the three regions of the page.
+ */
+@import './styles/tokens.css';
+@import './styles/base.css';
 @import './styles/layout.css';
-@import './styles/input-panel.css';
-@import './styles/cards-summary.css';
-@import './styles/controls-tables.css';
+@import './styles/cards.css';
+@import './styles/forms.css';
 @import './styles/plots.css';
-@import './styles/typography-header-colors.css';

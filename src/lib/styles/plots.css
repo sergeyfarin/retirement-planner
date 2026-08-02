@@ -1,68 +1,16 @@
-/* ─── Chart ───────────────────────────────────────────────────────── */
-.chart {
+/* ─── Charts ──────────────────────────────────────────────────────── */
+.chart,
+.chart-card-main .chart {
 	height: 480px;
 }
 
-/* ─── Derived pills ───────────────────────────────────────────────── */
-.derived-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.3rem;
-	margin: 0.25rem 0 0.08rem;
+.ruin-surface-chart {
+	height: 390px;
 }
 
-.derived-pill {
-	background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
-	border: 1px solid #bbf7d0;
-	border-radius: 20px;
-	padding: 0.12rem 0.45rem;
-	font-size: 0.68rem;
-	color: #166534;
-	font-weight: 500;
-}
-
-.section-split {
-	margin-top: 0.3rem;
-	padding-top: 0.25rem;
-	border-top: 1px solid #f1f5f9;
-}
-
-.section-label {
-	font-size: 0.62rem;
-	font-weight: 700;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: #94a3b8;
-	margin: 0 0 0.15rem;
-}
-
-.status-banner {
-	width: 100%;
-	margin-bottom: 0.55rem;
-}
-
-.status-row {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 0.75rem;
-	flex-wrap: wrap;
-}
-
-.status-controls {
-	display: flex;
-	align-items: end;
-	gap: 0.45rem;
-	flex-wrap: wrap;
-}
-
-.status-controls label {
-	min-width: 160px;
-}
-
-.status-run-btn {
-	min-height: 2.25rem;
-	white-space: nowrap;
+.sequence-risk-chart {
+	height: 220px;
+	margin-top: 0.35rem;
 }
 
 .chart-card {
@@ -70,23 +18,15 @@
 }
 
 .chart-row {
-	margin-top: 0.65rem;
 	display: grid;
 	grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
 	gap: 0.5rem;
 	align-items: start;
+	margin-top: 0.65rem;
 }
 
 .chart-row .chart-card {
 	margin-top: 0;
-}
-
-.chart-card-main .chart {
-	height: 480px;
-}
-
-.ruin-surface-chart {
-	height: 390px;
 }
 
 .chart-card-heading {
@@ -97,33 +37,29 @@
 	padding: 0.25rem 0.25rem 0;
 }
 
-.sequence-risk-chart {
-	height: 220px;
-	margin-top: 0.35rem;
+/* ─── Run status ──────────────────────────────────────────────────── */
+.status-banner {
+	width: 100%;
+	margin-bottom: 0.55rem;
 }
 
-.chart-explainer {
-	margin: 0.15rem 0 0.5rem;
-	color: #64748b;
-	font-size: 0.82rem;
-	line-height: 1.45;
+.status-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
 }
 
-.chart-question,
-.advanced-chart > summary {
-	margin: 0.2rem 0 0.2rem;
-	color: #0f172a;
-	font-size: 1rem;
-	font-weight: 700;
-	line-height: 1.3;
+.status-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 0.45rem;
 }
 
-.advanced-chart > summary {
-	cursor: pointer;
-}
-
-.advanced-chart[open] > summary {
-	margin-bottom: 0.35rem;
+.status-controls label {
+	min-width: 160px;
 }
 
 @media (max-width: 1280px) {
