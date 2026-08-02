@@ -64,6 +64,12 @@ h2 {
 	--tone-wash: rgba(255, 251, 235, 0.98);
 }
 
+.tone-caution {
+	--tone-line: #ea580c;
+	--tone-ink: #c2410c;
+	--tone-wash: rgba(255, 247, 237, 0.98);
+}
+
 .tone-bad {
 	--tone-line: #dc2626;
 	--tone-ink: #b91c1c;
@@ -116,6 +122,12 @@ h2 {
 
 .verdict-card h3.stat-sentence strong {
 	font-size: clamp(2rem, 4vw, 2.9rem);
+}
+
+.simulation-count {
+	margin: 0.15rem 0 0;
+	font-size: 0.67rem;
+	color: #64748b;
 }
 
 .verdict-gauge {
@@ -224,6 +236,25 @@ h2 {
 	color: #0f172a;
 }
 
+.scenario-result {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-top: 0.45rem;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid rgba(148, 163, 184, 0.35);
+	border-radius: 8px;
+	background: #fff;
+	font-size: 0.75rem;
+	color: #475569;
+}
+
+.scenario-result strong {
+	font-size: 1rem;
+	color: #0f172a;
+}
+
 .verdict-disclaimer {
 	margin: 0.7rem 0 0;
 	padding-top: 0.55rem;
@@ -244,20 +275,47 @@ h2 {
 	gap: 0.65rem;
 }
 
-.phase-card {
+.phase-card,
+.downside-card {
 	display: flex;
 	flex-direction: column;
 	padding: 0.8rem 0.9rem;
 	border-left: 4px solid var(--tone-line);
 }
 
-.phase-card h3.stat-sentence {
+.phase-card h3.stat-sentence,
+.downside-card h3.stat-sentence {
 	font-size: 0.78rem;
 	line-height: 1.5;
 }
 
-.phase-card h3.stat-sentence strong {
+.phase-card h3.stat-sentence strong,
+.downside-card h3.stat-sentence strong {
 	font-size: clamp(1.45rem, 2.6vw, 1.85rem);
+}
+
+/*
+ * Second metric of a two-metric card, set a step down so the pair reads as primary and
+ * partner rather than two competing heroes. Both are always rendered — that is the point:
+ * when either saturates, the other still carries the answer, so the card never swaps form.
+ */
+.phase-card p.stat-sentence-second,
+.downside-card p.stat-sentence-second {
+	margin: 0.3rem 0 0;
+	font-size: 0.78rem;
+	line-height: 1.5;
+	font-weight: 500;
+	color: #475569;
+}
+
+.phase-card p.stat-sentence-second strong,
+.downside-card p.stat-sentence-second strong {
+	margin-right: 0.14em;
+	font-size: clamp(1.1rem, 2vw, 1.35rem);
+	font-weight: 780;
+	line-height: 1.05;
+	letter-spacing: -0.045em;
+	color: var(--tone-ink);
 }
 
 .phase-range {
@@ -300,6 +358,29 @@ h2 {
 	font-size: 0.69rem;
 	line-height: 1.45;
 	color: #64748b;
+}
+
+.portfolio-details {
+	padding: 0.75rem 0.8rem;
+}
+
+.portfolio-details > summary {
+	cursor: pointer;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.portfolio-details-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+	gap: 1rem;
+	margin-top: 0.7rem;
+}
+
+.portfolio-details-grid h4 {
+	margin: 0;
+	font-size: 0.72rem;
+	color: #475569;
 }
 
 .diagnostics-grid h4 {
@@ -388,6 +469,7 @@ h2 {
 
 @media (max-width: 760px) {
 	.phase-grid,
+	.portfolio-details-grid,
 	.diagnostics-grid {
 		grid-template-columns: 1fr;
 	}

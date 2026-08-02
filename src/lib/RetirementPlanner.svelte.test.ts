@@ -167,38 +167,39 @@ describe('RetirementPlanner result communication', () => {
 		const verdict = container.querySelector('.verdict-card');
 		// Figure and caption are one sentence, not a stranded number between two headings.
 		// Source indentation lands in textContent, so compare on collapsed whitespace.
-		expect(squashed(verdict?.querySelector('h3.stat-sentence'))).toMatch(
-			/^\d+ of 100 simulations fund your plan through age \d+$/
-		);
 		expect(verdict?.querySelector('.gauge-track')).not.toBeNull();
 		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
 		expect(squashed(verdict?.querySelector('.verdict-disclaimer'))).toContain(
 			'not personal financial advice'
 		);
 
-		// Both phase cards lead with a single figure-first sentence too.
-		for (const card of container.querySelectorAll('.phase-card')) {
-			const sentence = card.querySelector('h3.stat-sentence');
-			expect(sentence?.querySelector('strong')?.textContent?.trim()).toBeTruthy();
-			expect(squashed(sentence).length).toBeGreaterThan(20);
-		}
+		expect(squashed(verdict?.querySelector('h3.stat-sentence'))).toMatch(
+			/^\d+% estimated chance your plan stays funded through age \d+$/
+		);
+		expect(squashed(verdict)).toContain('simulated market paths');
 
-		// The drawdown card must not restate the verdict's probability — it reports an
-		// outcome (a depletion age, or the balance left in the weakest decile) instead.
-		const drawdown = [...container.querySelectorAll('.phase-card')].at(-1);
-		expect(squashed(drawdown)).toContain('in the worst 10% of simulations');
+		// The downside card must not restate the verdict's probability — it reports
+		// outcomes (how long the money lasted, how much went unfunded) instead.
+		const drawdown = container.querySelector('.downside-card');
+		expect(squashed(drawdown)).toContain('in a difficult 1-in-10 outcome');
 		expect(squashed(drawdown)).not.toMatch(/of 100 simulations/);
 
-		// Both phase cards carry a tone class, so a critical phase reads as critical.
-		const phases = [...container.querySelectorAll('.phase-card')];
-		expect(phases).toHaveLength(2);
-		for (const phase of phases) {
-			expect(
-				phase.classList.contains('tone-good') ||
-					phase.classList.contains('tone-warn') ||
-					phase.classList.contains('tone-bad')
-			).toBe(true);
-		}
+		// Both drawdown metrics render unconditionally. Showing only whichever was
+		// non-saturated made the card swap metric — and meaning — as a plan crossed the
+		// 10% failure mark; rendering one of the two again would reintroduce that cliff.
+		expect(squashed(drawdown?.querySelector('h3.stat-sentence'))).toMatch(
+			/^age \d+ is how long spending stayed fully funded in a difficult 1-in-10 outcome/
+		);
+		expect(squashed(drawdown?.querySelector('p.stat-sentence-second'))).toMatch(
+			/of planned spending went unfunded in that outcome$/
+		);
+
+		// Portfolio figures are present but hidden until requested, and the depleted-years
+		// row is unconditional so the details keep the same shape as the plan degrades.
+		const portfolioDetails = container.querySelector<HTMLDetailsElement>('.portfolio-details');
+		expect(portfolioDetails?.open).toBe(false);
+		expect(squashed(portfolioDetails)).toContain('Simulation-based target');
+		expect(squashed(portfolioDetails)).toContain('Years at zero · difficult outcome');
 
 		const diagnostics = container.querySelector<HTMLDetailsElement>('.diagnostics-card');
 		expect(diagnostics).not.toBeNull();
