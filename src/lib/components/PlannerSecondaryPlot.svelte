@@ -8,6 +8,7 @@
 		plotReady = false,
 		simulation = null,
 		stats = null,
+		retirementAge = 0,
 		simulateUntilAge = 0,
 		currencySymbol = '$',
 		fmtCompactValue,
@@ -17,6 +18,7 @@
 		plotReady?: boolean;
 		simulation?: SimulationResult | null;
 		stats?: SummaryStats | null;
+		retirementAge?: number;
 		simulateUntilAge?: number;
 		currencySymbol?: string;
 		fmtCompactValue: (value: number) => string;
@@ -24,7 +26,6 @@
 	} = $props();
 
 	let ruinSurfaceEl: HTMLDivElement | null = $state(null);
-	let terminalWealthEl: HTMLDivElement | null = $state(null);
 	let sequenceRiskEl: HTMLDivElement | null = $state(null);
 
 	// Precision of the heatmap. Each cell replays `sampleCount` stored paths, a cap that
@@ -46,13 +47,6 @@
 	});
 
 	$effect(() => {
-		const finalWealthCdf = simulation?.finalWealthCdf;
-		if (plotReady && Plotly && terminalWealthEl && finalWealthCdf?.balances.length) {
-			untrack(drawTerminalWealthChart);
-		}
-	});
-
-	$effect(() => {
 		const ruinSurface = stats?.ruinSurface;
 		if (plotReady && Plotly && ruinSurfaceEl && ruinSurface) {
 			untrack(drawRuinSurfaceChart);
@@ -70,9 +64,6 @@
 		if (Plotly && ruinSurfaceEl) {
 			Plotly.purge(ruinSurfaceEl);
 		}
-		if (Plotly && terminalWealthEl) {
-			Plotly.purge(terminalWealthEl);
-		}
 		if (Plotly && sequenceRiskEl) {
 			Plotly.purge(sequenceRiskEl);
 		}
@@ -88,12 +79,6 @@
 		// only in when the withdrawal strategy starts. Relabel rather than pretend it is
 		// still a two-way surface. See README §7.6.
 		const spendingOnly = retirementAges.length === 1;
-		const colorStretch = 14;
-		const warpSurvivalForColor = (probability: number): number => {
-			const bounded = Math.max(0, Math.min(1, probability));
-			return 1 - Math.log1p(colorStretch * (1 - bounded)) / Math.log1p(colorStretch);
-		};
-
 		const zValues = stats.ruinSurface.ruinProbabilities.map((row) =>
 			row.map((value) => Math.max(0, Math.min(1, 1 - value)))
 		);
@@ -109,49 +94,43 @@
 					: 0
 			)
 		);
-		const colorZValues = zValues.map((row) => row.map((value) => warpSurvivalForColor(value)));
-		const yLabels = spendingMultipliers.map((multiplier) => `${Math.round(multiplier * 100)}%`);
-		const cellText = zValues.map((row) => row.map((value) => `${Math.round(value * 100)}%`));
-		const baseColorStops: Array<[number, string]> = [
-			[0.0, '#7f1d1d'],
-			[0.08, '#991b1b'],
-			[0.16, '#b91c1c'],
-			[0.3, '#dc2626'],
-			[0.5, '#f87171'],
-			[0.65, '#f59e0b'],
-			[0.8, '#facc15'],
-			[0.9, '#d9f99d'],
-			[0.94, '#86efac'],
-			[0.97, '#22c55e'],
-			[0.99, '#16a34a'],
-			[1.0, '#15803d']
+		// Express the vertical axis as improvement, so the two useful directions are
+		// literally up (spend less) and right (retire later).
+		const spendingChanges = spendingMultipliers.map((multiplier) => (1 - multiplier) * 100);
+		const colorscale: Array<[number, string]> = [
+			[0, '#fee2e2'],
+			[0.5, '#fed7aa'],
+			[0.75, '#fef3c7'],
+			[0.949, '#d9f99d'],
+			[0.95, '#99f6e4'],
+			[1, '#5eead4']
 		];
-		const warpedColorStops = baseColorStops.map(
-			([value, color]) => [warpSurvivalForColor(value), color] as const
-		);
-		const legendTicks = [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1];
 
-		const trace = {
-			type: 'heatmap',
+		const contourTrace = {
+			type: spendingOnly ? 'heatmap' : 'contour',
 			x: retirementAges,
-			y: spendingMultipliers,
-			z: colorZValues,
-			text: cellText,
-			texttemplate: '%{text}',
-			textfont: {
-				size: 10,
-				family: "'JetBrains Mono', monospace",
-				color: '#0f172a'
-			},
+			y: spendingChanges,
+			z: zValues,
 			zmin: 0,
 			zmax: 1,
-			colorscale: warpedColorStops,
+			colorscale,
+			contours: spendingOnly
+				? undefined
+				: {
+						coloring: 'fill',
+						showlabels: true,
+						start: 0,
+						end: 1,
+						size: 0.05,
+						labelfont: { size: 9, color: '#334155' }
+					},
+			line: spendingOnly ? undefined : { width: 1, color: 'rgba(71,85,105,0.45)', smoothing: 0.75 },
 			showscale: true,
 			colorbar: {
-				title: { text: 'Survival chance', side: 'right' },
+				title: { text: 'Plan funded', side: 'right' },
 				tickmode: 'array',
-				tickvals: legendTicks.map((value) => warpSurvivalForColor(value)),
-				ticktext: legendTicks.map((value) => `${Math.round(value * 1000) / 10}%`),
+				tickvals: [0, 0.5, 0.75, 0.95, 1],
+				ticktext: ['0%', '50%', '75%', '95% goal', '100%'],
 				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
 				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#475569' },
 				thickness: 12,
@@ -159,12 +138,48 @@
 				y: 0.5,
 				yanchor: 'middle'
 			},
-			customdata: zValues.map((row, rowIndex) =>
-				row.map((survival, columnIndex) => [survival, cellMarginPercent[rowIndex][columnIndex]])
+			hoverinfo: 'skip'
+		};
+		const testedPoints = {
+			type: 'scatter',
+			mode: 'markers',
+			x: zValues.flatMap((row) => retirementAges.map((age) => age)),
+			y: spendingChanges.flatMap((change) => retirementAges.map(() => change)),
+			marker: { size: 6, color: '#fff', line: { width: 1.5, color: '#334155' } },
+			customdata: zValues.flatMap((row, rowIndex) =>
+				row.map((survival, columnIndex) => [
+					survival,
+					cellMarginPercent[rowIndex][columnIndex],
+					spendingMultipliers[rowIndex]
+				])
 			),
 			hovertemplate: spendingOnly
-				? 'Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
-				: 'Retirement age %{x}<br>Spending %{y:.0%}<br>Survival %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
+				? 'Spending %{customdata[2]:.0%}<br>Funded %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>'
+				: 'Retire at age %{x}<br>Spending %{customdata[2]:.0%}<br>Funded %{customdata[0]:.1%} ±%{customdata[1]:.1f}%<extra></extra>',
+			showlegend: false
+		};
+		const goalContour = {
+			type: 'contour',
+			x: retirementAges,
+			y: spendingChanges,
+			z: zValues,
+			contours: { coloring: 'none', start: 0.95, end: 0.95, size: 0.01, showlabels: false },
+			line: { width: 4, color: '#0f766e', smoothing: 0.75 },
+			showscale: false,
+			hoverinfo: 'skip',
+			showlegend: false
+		};
+		const currentPlan = {
+			type: 'scatter',
+			mode: 'markers+text',
+			x: [retirementAge],
+			y: [0],
+			text: ['Your plan'],
+			textposition: 'bottom center',
+			textfont: { size: 10, color: '#0f172a' },
+			marker: { size: 11, color: '#0f172a', symbol: 'diamond' },
+			hoverinfo: 'skip',
+			showlegend: false
 		};
 
 		const layout = {
@@ -175,7 +190,7 @@
 				font: { size: 13, color: '#334155', family: 'Inter, system-ui, sans-serif' },
 				pad: { b: 12 }
 			},
-			margin: { t: 52, l: 60, r: 44, b: 44 },
+			margin: { t: 56, l: 72, r: 66, b: 52 },
 			paper_bgcolor: 'transparent',
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
@@ -192,16 +207,30 @@
 			},
 			yaxis: {
 				title: {
-					text: 'Spending scale',
+					text: 'Change annual spending',
 					font: { size: 11, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
-				tickvals: spendingMultipliers,
-				ticktext: yLabels,
+				tickvals: spendingChanges,
+				ticktext: spendingChanges.map((change) =>
+					change === 0 ? 'Current' : change > 0 ? `${change}% less` : `${Math.abs(change)}% more`
+				),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10 },
-				autorange: 'reversed',
 				fixedrange: true
 			},
+			annotations: spendingOnly
+				? []
+				: [
+						{
+							x: 0.5,
+							y: 1.08,
+							xref: 'paper',
+							yref: 'paper',
+							text: 'Spend less ↑ &nbsp;&nbsp; Retire later →',
+							showarrow: false,
+							font: { size: 11, color: '#0f766e' }
+						}
+					],
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
 		};
@@ -212,7 +241,14 @@
 			staticPlot: false
 		};
 
-		void Plotly.react(ruinSurfaceEl, [trace], layout, config);
+		void Plotly.react(
+			ruinSurfaceEl,
+			spendingOnly
+				? [contourTrace, testedPoints]
+				: [contourTrace, goalContour, testedPoints, currentPlan],
+			layout,
+			config
+		);
 	}
 
 	function buildYAxisTicksForRange(
@@ -250,65 +286,6 @@
 		}
 
 		return buildYAxisTicksForRange(0, maxValue, 8);
-	}
-
-	function drawTerminalWealthChart() {
-		if (!Plotly || !terminalWealthEl || !simulation?.finalWealthCdf) return;
-
-		const { balances, probabilities } = simulation.finalWealthCdf;
-		const balanceTicks = buildYAxisTicksForRange(
-			Math.min(...balances, 0),
-			Math.max(...balances, 0),
-			6
-		);
-		const trace = {
-			type: 'scatter',
-			mode: 'lines',
-			x: balances,
-			y: probabilities,
-			line: { color: '#2563eb', width: 3, shape: 'hv' },
-			fill: 'tozeroy',
-			fillcolor: 'rgba(37, 99, 235, 0.10)',
-			customdata: balances.map((value) => fmtHoverCompactCurrency(value)),
-			hovertemplate: '%{y:.0%} of simulations ended with<br>%{customdata} or less<extra></extra>'
-		};
-
-		const layout = {
-			height: 260,
-			margin: { t: 10, l: 54, r: 16, b: 48 },
-			showlegend: false,
-			paper_bgcolor: 'transparent',
-			plot_bgcolor: 'rgba(255,255,255,0.45)',
-			xaxis: {
-				title: {
-					text: `Balance at age ${simulateUntilAge} (${currencySymbol})`,
-					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
-				},
-				tickvals: balanceTicks.values,
-				ticktext: balanceTicks.labels,
-				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-				showgrid: true,
-				gridcolor: '#e2e8f0',
-				fixedrange: true
-			},
-			yaxis: {
-				title: {
-					text: 'Chance of this amount or less',
-					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
-				},
-				tickformat: '.0%',
-				range: [0, 1],
-				tickfont: { family: "'JetBrains Mono', monospace", size: 9 },
-				fixedrange: true
-			},
-			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
-			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
-		};
-
-		void Plotly.react(terminalWealthEl, [trace], layout, {
-			responsive: true,
-			displayModeBar: false
-		});
 	}
 
 	function drawSequenceRiskChart() {
@@ -416,29 +393,13 @@
 </script>
 
 {#if stats && simulation}
-	<div class="card chart-card">
-		<p class="chart-question">How much might I have left?</p>
-		<p class="chart-explainer">
-			See the range of balances the simulations reached by age {simulateUntilAge}. Hover over the
-			line to read the chance of ending with that amount or less.
-		</p>
-		<div class="terminal-wealth-chart" bind:this={terminalWealthEl}></div>
-	</div>
-
-	{#if stats.sequenceRisk?.length}
-		<details class="card chart-card advanced-chart" ontoggle={handleSequenceRiskToggle}>
-			<summary>How much does the timing of market gains and losses matter?</summary>
-			<p class="chart-explainer">
-				This groups simulations by returns during the first ten years after retirement. Early losses
-				can do more damage because withdrawals leave less invested for a recovery. This is often
-				called sequence risk.
-			</p>
-			<div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
-		</details>
-	{/if}
-
 	<div class="card chart-card chart-card-ruin">
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
+		<p class="chart-explainer">
+			Move up to spend less or right to retire later. The dark-green boundary marks the 95% planning
+			goal. The smooth surface interpolates between the 25 tested combinations; dots are the actual
+			calculations and show exact estimates on hover.
+		</p>
 		{#if surfaceSampleCount > 0}
 			<p
 				class="note"
@@ -453,4 +414,16 @@
 			</p>
 		{/if}
 	</div>
+
+	{#if stats.sequenceRisk?.length}
+		<details class="card chart-card advanced-chart" ontoggle={handleSequenceRiskToggle}>
+			<summary>How much does the timing of market gains and losses matter?</summary>
+			<p class="chart-explainer">
+				This groups simulations by returns during the first ten years after retirement. Early losses
+				can do more damage because withdrawals leave less invested for a recovery. This is often
+				called sequence risk.
+			</p>
+			<div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
+		</details>
+	{/if}
 {/if}

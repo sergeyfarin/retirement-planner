@@ -48,33 +48,10 @@
 	const capitalMargin = $derived(
 		stats && stats.fiTargetP95 > 0 ? capitalToday / stats.fiTargetP95 - 1 : 0
 	);
-	const depletionAgeWorstDecile = $derived(stats?.depletionAgeP10 ?? null);
-	const depletionAgeMedian = $derived(stats?.depletionAgeP50 ?? null);
-	const worstDecileSurvives = $derived(depletionAgeWorstDecile == null);
-
-	/**
-	 * The engine reports `null` when the 10th percentile lands on a path that never ran
-	 * short. Censoring that at the end of the plan — rather than swapping the card to a
-	 * different metric — is what removes the discontinuity: a path that never depleted did
-	 * stay funded to the end, so the end age *is* its value. Measured across a spending
-	 * sweep the censored series runs 95.0 → 94.0 → 89.8 → 84.0 → 78.2, smooth and monotone,
-	 * where the raw one jumped from `null` straight to 94.
-	 */
-	const fundedThroughAge = $derived(depletionAgeWorstDecile ?? input.simulateUntilAge);
-
-	/**
-	 * Deliberately not the lifetime probability again — this card grades *when* a bad case
-	 * arrives, which is a different question from how often one does. Running out at 94 and
-	 * running out at 70 are the same failure to the headline number and nothing alike here,
-	 * so an early worst-decile depletion is graded critical even when the median survives.
-	 */
-	const drawdownTone = $derived.by(() => {
-		if (!stats) return 'bad';
-		if (worstDecileSurvives) return 'good';
-		if (depletionAgeMedian != null) return 'bad';
-		const midRetirement = (input.retirementAge + input.simulateUntilAge) / 2;
-		return fundedThroughAge < midRetirement ? 'bad' : 'warn';
-	});
+	const failurePercent = $derived(Math.max(0, 100 - lifetimeScore));
+	// Consequence and likelihood are two views of the same plan. Sharing the tone prevents
+	// a 92% plan from presenting an amber assessment beside a falsely reassuring green tail.
+	const drawdownTone = $derived(verdictTone);
 
 	const bestScenario = $derived(actionableRecommendations?.bestTestedScenario ?? null);
 	const baselineAgeIndex = $derived.by(() => {
@@ -250,20 +227,76 @@
 			</p>
 		</section>
 
+		<section class="card retirement-snapshot" aria-labelledby="retirement-snapshot-title">
+			<div class="snapshot-heading">
+				<div>
+					<p class="phase-eyebrow">Retirement readiness</p>
+					<h3 id="retirement-snapshot-title">
+						{alreadyRetired
+							? 'Your portfolio today versus the plan target'
+							: `At retirement age ${fmtNum(input.retirementAge)}`}
+					</h3>
+				</div>
+				<span
+					class:amount-positive={capitalGap >= 0}
+					class:amount-negative={capitalGap < 0}
+					class="snapshot-gap mono-value"
+				>
+					{fmtSignedCurrency(capitalGap)}
+				</span>
+			</div>
+			<div class="snapshot-grid">
+				<div>
+					<span>{alreadyRetired ? 'Portfolio today' : 'Typical portfolio'}</span>
+					<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>
+				</div>
+				<div>
+					<span>Simulation-based target</span>
+					<strong class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</strong>
+				</div>
+				<div
+					class:tile-good={retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY}
+					class:tile-warn={retirementGoalProbability < FI_TARGET_SUCCESS_PROBABILITY}
+				>
+					<span>{alreadyRetired ? 'Position versus target' : 'Chance of reaching target'}</span>
+					<strong class="mono-value"
+						>{alreadyRetired
+							? fmtMargin(capitalMargin)
+							: percentFormatter.format(retirementGoalProbability)}</strong
+					>
+				</div>
+			</div>
+		</section>
+
 		<section class="card downside-card tone-{drawdownTone}" aria-labelledby="drawdown-title">
 			<p class="phase-eyebrow">Downside to understand</p>
-			<h3 id="drawdown-title" class="stat-sentence">
-				<strong class="mono-value">age {fmtNum(Math.floor(fundedThroughAge))}</strong>
-				is how long spending stayed fully funded in a difficult 1-in-10 outcome{#if worstDecileSurvives}
-					— the full plan{/if}
-			</h3>
-			<p class="stat-sentence stat-sentence-second">
-				<strong class="mono-value">{fmtCompactCurrency(stats.shortfallHigh)}</strong>
-				of planned spending went unfunded in that outcome
-			</p>
-			<p class="phase-note">
-				A 1-in-10 outcome is a representative difficult result, not the single worst simulation.
-			</p>
+			{#if stats.failureMedianDepletionAge != null && stats.failureMedianShortfall != null}
+				<h3 id="drawdown-title" class="stat-sentence">
+					<strong class="mono-value">{failurePercent}%</strong>
+					of simulations ran short; among those, the typical first shortfall began around age {fmtNum(
+						Math.floor(stats.failureMedianDepletionAge)
+					)}
+				</h3>
+				<p class="stat-sentence stat-sentence-second">
+					<strong class="mono-value">{fmtCompactCurrency(stats.failureMedianShortfall)}</strong>
+					of planned spending went unfunded in a typical shortfall scenario
+				</p>
+				<p class="phase-note">
+					The age and amount describe failed simulations only; the assessment above shows how often
+					failure occurred.
+				</p>
+			{:else}
+				<h3 id="drawdown-title" class="stat-sentence">
+					<strong class="mono-value">{fmtCompactCurrency(stats.finalLow)}</strong>
+					was still left at age {fmtNum(input.simulateUntilAge)} in a difficult 1-in-10 outcome
+				</h3>
+				<p class="stat-sentence stat-sentence-second">
+					<strong class="mono-value">0%</strong> of simulated paths ran short
+				</p>
+				<p class="phase-note">
+					No simulated failure was available to estimate a failure age or shortfall.
+				</p>
+			{/if}
 		</section>
 
 		<details class="card portfolio-details">

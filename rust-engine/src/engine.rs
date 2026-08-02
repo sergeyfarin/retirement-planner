@@ -104,6 +104,9 @@ pub struct SummaryStats {
     /// never ran short. See `SummaryStats` in `retirementEngine.ts` for the rationale.
     pub depletion_age_p10: Option<f64>,
     pub depletion_age_p50: Option<f64>,
+    /// Typical severity among failed paths only. `None` when every path stayed funded.
+    pub failure_median_depletion_age: Option<f64>,
+    pub failure_median_shortfall: Option<f64>,
     pub retire_low: f64,
     pub final_median: f64,
     pub final_low: f64,

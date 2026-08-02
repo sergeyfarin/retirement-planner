@@ -690,6 +690,22 @@ pub fn run_monte_carlo_simulation(
             None
         }
     };
+    let mut failed_depletion_months: Vec<f64> = first_depletion_months
+        .iter()
+        .zip(depleted_flags.iter())
+        .filter_map(|(month, depleted)| (*depleted && month.is_finite()).then_some(*month))
+        .collect();
+    failed_depletion_months.sort_by(|a, b| a.total_cmp(b));
+    let mut failed_shortfalls: Vec<f64> = shortfall_totals
+        .iter()
+        .zip(depleted_flags.iter())
+        .filter_map(|(shortfall, depleted)| (*depleted).then_some(*shortfall))
+        .collect();
+    failed_shortfalls.sort_by(|a, b| a.total_cmp(b));
+    let failure_median_depletion_age = (!failed_depletion_months.is_empty())
+        .then(|| input.current_age + percentile(&failed_depletion_months, 0.5) / 12.0);
+    let failure_median_shortfall =
+        (!failed_shortfalls.is_empty()).then(|| percentile(&failed_shortfalls, 0.5));
     let sequence_risk = build_sequence_risk_summary(
         &annual_real_returns_by_sim,
         &final_balances,
@@ -745,6 +761,8 @@ pub fn run_monte_carlo_simulation(
         depleted_years_high: depleted_years_percentiles.p90,
         depletion_age_p10: depletion_age(0.1),
         depletion_age_p50: depletion_age(0.5),
+        failure_median_depletion_age,
+        failure_median_shortfall,
         retire_low: retire_percentiles.p10,
         final_median: final_percentiles.p50,
         final_low: final_percentiles.p10,

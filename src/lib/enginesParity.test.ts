@@ -439,7 +439,12 @@ describe('cross-engine simulation parity', () => {
 			// Depletion ages are nullable for the same reason and are derived from a
 			// nearest-rank quantile over a series carrying +Infinity, so both the rank
 			// arithmetic and the never-depleted sentinel have to agree across engines.
-			for (const key of ['depletionAgeP10', 'depletionAgeP50'] as const) {
+			for (const key of [
+				'depletionAgeP10',
+				'depletionAgeP50',
+				'failureMedianDepletionAge',
+				'failureMedianShortfall'
+			] as const) {
 				// serde-wasm-bindgen may hand back `undefined` for `Option::None`.
 				const rustAge = (rust.stats[key] as number | null | undefined) ?? null;
 				const tsAge = ts.stats[key];

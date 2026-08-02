@@ -2161,6 +2161,7 @@
 						{plotReady}
 						{simulation}
 						{stats}
+						retirementAge={input.retirementAge}
 						simulateUntilAge={input.simulateUntilAge}
 						currencySymbol={selectedCurrency.symbol}
 						{fmtCompactValue}

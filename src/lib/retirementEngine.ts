@@ -244,6 +244,9 @@ export type SummaryStats = {
 	 */
 	depletionAgeP10: number | null;
 	depletionAgeP50: number | null;
+	/** Typical severity among failed paths only; null when no simulated path failed. */
+	failureMedianDepletionAge: number | null;
+	failureMedianShortfall: number | null;
 	retireLow: number;
 	finalMedian: number;
 	finalLow: number;
@@ -1794,6 +1797,22 @@ export function runMonteCarloSimulation(
 		const month = sortedFirstDepletion[rank];
 		return Number.isFinite(month) ? input.currentAge + month / 12 : null;
 	};
+	const failedPathIndexes = depletedFlags
+		.map((depleted, index) => (depleted ? index : -1))
+		.filter((index) => index >= 0);
+	const failedDepletionMonths = failedPathIndexes
+		.map((index) => firstDepletionMonths[index])
+		.filter(Number.isFinite)
+		.sort((a, b) => a - b);
+	const failedShortfalls = failedPathIndexes
+		.map((index) => shortfallTotals[index])
+		.sort((a, b) => a - b);
+	const failureMedianDepletionAge =
+		failedDepletionMonths.length > 0
+			? input.currentAge + percentile(failedDepletionMonths, 0.5) / 12
+			: null;
+	const failureMedianShortfall =
+		failedShortfalls.length > 0 ? percentile(failedShortfalls, 0.5) : null;
 	const sequenceRisk = buildSequenceRiskSummary(
 		annualRealReturnsBySim,
 		finalBalances,
@@ -1848,6 +1867,8 @@ export function runMonteCarloSimulation(
 		depletedYearsHigh: depletedYearsPercentiles.p90,
 		depletionAgeP10: depletionAge(0.1),
 		depletionAgeP50: depletionAge(0.5),
+		failureMedianDepletionAge,
+		failureMedianShortfall,
 		retireLow: simulation.retirePercentiles.p10,
 		finalMedian: simulation.finalPercentiles.p50,
 		finalLow: simulation.finalPercentiles.p10,

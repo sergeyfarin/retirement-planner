@@ -138,9 +138,9 @@ describe('RetirementPlanner currency switching', () => {
 	it('stays responsive after completed-result charts mount', async () => {
 		const { container } = await render(RetirementPlanner);
 
-		// The freeze only occurred after the initial simulation had mounted all result plots.
+		// The freeze only occurred after the initial simulation had mounted all default plots.
 		await vi.waitFor(
-			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(5),
+			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(4),
 			{ timeout: 20_000 }
 		);
 
@@ -178,20 +178,20 @@ describe('RetirementPlanner result communication', () => {
 		);
 		expect(squashed(verdict)).toContain('simulated market paths');
 
-		// The downside card must not restate the verdict's probability — it reports
-		// outcomes (how long the money lasted, how much went unfunded) instead.
-		const drawdown = container.querySelector('.downside-card');
-		expect(squashed(drawdown)).toContain('in a difficult 1-in-10 outcome');
-		expect(squashed(drawdown)).not.toMatch(/of 100 simulations/);
+		// Retirement money context is visible without opening advanced details.
+		const snapshot = container.querySelector('.retirement-snapshot');
+		expect(squashed(snapshot)).toContain('Typical portfolio');
+		expect(squashed(snapshot)).toContain('Simulation-based target');
+		expect(squashed(snapshot)).toContain('Chance of reaching target');
 
-		// Both drawdown metrics render unconditionally. Showing only whichever was
-		// non-saturated made the card swap metric — and meaning — as a plan crossed the
-		// 10% failure mark; rendering one of the two again would reintroduce that cliff.
+		// The downside card combines failure frequency with severity among failed paths,
+		// avoiding the all-green P10 result when fewer than 10% of paths fail.
+		const drawdown = container.querySelector('.downside-card');
 		expect(squashed(drawdown?.querySelector('h3.stat-sentence'))).toMatch(
-			/^age \d+ is how long spending stayed fully funded in a difficult 1-in-10 outcome/
+			/^\d+% of simulations ran short; among those, the typical first shortfall began around age \d+/
 		);
 		expect(squashed(drawdown?.querySelector('p.stat-sentence-second'))).toMatch(
-			/of planned spending went unfunded in that outcome$/
+			/of planned spending went unfunded in a typical shortfall scenario$/
 		);
 
 		// Portfolio figures are present but hidden until requested, and the depleted-years
@@ -200,6 +200,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(portfolioDetails?.open).toBe(false);
 		expect(squashed(portfolioDetails)).toContain('Simulation-based target');
 		expect(squashed(portfolioDetails)).toContain('Years at zero · difficult outcome');
+		expect(container.querySelector('.terminal-wealth-chart')).toBeNull();
 
 		const diagnostics = container.querySelector<HTMLDetailsElement>('.diagnostics-card');
 		expect(diagnostics).not.toBeNull();
