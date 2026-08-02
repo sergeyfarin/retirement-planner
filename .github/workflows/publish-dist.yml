@@ -74,7 +74,7 @@ jobs:
 
       - name: Package dist artifact
         run: |
-          ARCHIVE="retirement-dist.tar.gz"
+          ARCHIVE="retirement-dist-${GITHUB_SHA}.tar.gz"
 
           if [ -d "build" ]; then
             tar -czf "$ARCHIVE" -C build .
@@ -94,7 +94,7 @@ jobs:
         with:
           name: retirement-dist
           path: |
-            retirement-dist.tar.gz
+            retirement-dist-${{ github.sha }}.tar.gz
             dist-build-meta.json
           if-no-files-found: error
           retention-days: 14
@@ -110,17 +110,41 @@ jobs:
         with:
           name: retirement-dist
 
-      - name: Set Release Tag
-        run: echo "RELEASE_TAG=$(date -u +'%Y%m%d-%H%M%S')" >> "$GITHUB_ENV"
-
-      - name: Publish stable release asset
+      - name: Publish immutable SHA release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: dist-${{ env.RELEASE_TAG }}
-          name: dist-${{ env.RELEASE_TAG }}
+          tag_name: dist-${{ github.sha }}
+          name: dist-${{ github.sha }}
+          target_commitish: ${{ github.sha }}
           files: |
-            retirement-dist.tar.gz
+            retirement-dist-${{ github.sha }}.tar.gz
             dist-build-meta.json
           generate_release_notes: false
           make_latest: true
           overwrite_files: true
+
+  promote-farin:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    needs: publish-release
+    permissions:
+      contents: read
+    env:
+      REKENRAAM_WEB_TOKEN: ${{ secrets.REKENRAAM_WEB_TOKEN }}
+
+    steps:
+      - name: Require cross-repository promotion credential
+        if: env.REKENRAAM_WEB_TOKEN == ''
+        run: |
+          echo "Repository secret REKENRAAM_WEB_TOKEN is required to promote this release to rekenraam-web." >&2
+          exit 1
+
+      - name: Request exact-SHA production promotion
+        env:
+          GH_TOKEN: ${{ secrets.REKENRAAM_WEB_TOKEN }}
+        run: |
+          gh api --method POST repos/sergeyfarin/rekenraam-web/dispatches \
+            -f event_type=component-published \
+            -F client_payload[component]=retirement-planner \
+            -F client_payload[sha]=${GITHUB_SHA} \
+            -F client_payload[release_tag]=dist-${GITHUB_SHA}
