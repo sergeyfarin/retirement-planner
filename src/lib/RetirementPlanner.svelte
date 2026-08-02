@@ -2124,7 +2124,6 @@
 					{input}
 					{fmtCompactCurrency}
 					{FI_TARGET_SUCCESS_PROBABILITY}
-					{percentFormatter}
 					{fmtNum}
 					{alreadyRetired}
 					{actionableRecommendations}

@@ -179,7 +179,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(squashed(retirement)).toContain('At retirement age');
 		expect(squashed(retirement)).toContain('Typical outcome');
 		expect(squashed(retirement)).toContain('Simulation-based target');
-		expect(squashed(retirement)).toContain('Chance of hitting it');
+		expect(squashed(retirement)).not.toContain('Chance of hitting it');
 		expect(container.querySelector('.downside-card')).toBeNull();
 		expect(container.querySelector('.terminal-wealth-chart')).toBeNull();
 		expect(squashed(container.querySelector('.scope-note'))).toContain(

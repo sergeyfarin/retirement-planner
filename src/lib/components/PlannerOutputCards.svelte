@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { retirementCapitalLabel, retirementCapitalTone } from '../resultPresentation';
+
 	let {
 		stats,
 		input,
 		fmtCompactCurrency,
 		FI_TARGET_SUCCESS_PROBABILITY = 0.95,
-		percentFormatter,
 		fmtNum,
 		alreadyRetired = false,
 		actionableRecommendations = null
@@ -19,7 +20,6 @@
 	 */
 	const lifetimeProbability = $derived(stats?.successProbability ?? 0);
 	const lifetimeScore = $derived(Math.round(lifetimeProbability * 100));
-	const retirementGoalProbability = $derived(stats?.fiProbabilityP95 ?? 0);
 
 	const verdictLabel = $derived(
 		lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY
@@ -46,15 +46,8 @@
 	const capitalMargin = $derived(
 		stats && stats.fiTargetP95 > 0 ? capitalToday / stats.fiTargetP95 - 1 : 0
 	);
-	const retirementTone = $derived(
-		retirementGoalProbability >= FI_TARGET_SUCCESS_PROBABILITY
-			? 'good'
-			: retirementGoalProbability >= 0.75
-				? 'warn'
-				: retirementGoalProbability >= 0.5
-					? 'caution'
-					: 'bad'
-	);
+	const retirementTone = $derived(retirementCapitalTone(capitalMargin));
+	const retirementLabel = $derived(retirementCapitalLabel(capitalMargin));
 
 	const bestScenario = $derived(actionableRecommendations?.bestTestedScenario ?? null);
 	const baselineAgeIndex = $derived.by(() => {
@@ -204,7 +197,8 @@
 			aria-labelledby="portfolio-title"
 		>
 			<p class="eyebrow">
-				{alreadyRetired ? 'Portfolio today' : `At retirement age ${fmtNum(input.retirementAge)}`}
+				{alreadyRetired ? 'Portfolio today' : `At retirement age ${fmtNum(input.retirementAge)}`} ·
+				{retirementLabel}
 			</p>
 			<h3 id="portfolio-title" class="stat-sentence">
 				{alreadyRetired ? 'Your portfolio today is' : `A typical path reaches`}
@@ -231,16 +225,11 @@
 						<th scope="row">Simulation-based target</th>
 						<td class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</td>
 					</tr>
-					{#if !alreadyRetired}<tr>
-							<th scope="row"
-								>{alreadyRetired ? 'Position versus target' : 'Chance of hitting it'}</th
-							>
-							<td class="mono-value">{percentFormatter.format(retirementGoalProbability)}</td>
-						</tr>{/if}
 				</tbody>
 			</table>
 			<p class="card-note">
-				The 4% rule comparison and full percentile statistics are in advanced statistics.
+				Status reflects the typical portfolio's gap to the target. The 4% rule comparison and full
+				percentile statistics are in advanced statistics.
 			</p>
 		</section>
 
