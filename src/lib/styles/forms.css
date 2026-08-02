@@ -421,6 +421,16 @@
 	margin-top: 0.2rem;
 }
 
+.withdrawal-strategy-block .strategy-toggle-group {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	width: 100%;
+}
+
+.withdrawal-strategy-block .strategy-toggle-group .btn-mode {
+	width: 100%;
+}
+
 .strategy-hint {
 	font-size: var(--text-note);
 	color: var(--ink-faint);

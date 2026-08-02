@@ -138,9 +138,9 @@ describe('RetirementPlanner currency switching', () => {
 	it('stays responsive after completed-result charts mount', async () => {
 		const { container } = await render(RetirementPlanner);
 
-		// The freeze only occurred after the initial simulation had mounted all default plots.
+		// The freeze only occurred after the initial simulation had mounted all visible plots.
 		await vi.waitFor(
-			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(4),
+			() => expect(container.querySelectorAll('.js-plotly-plot').length).toBeGreaterThanOrEqual(3),
 			{ timeout: 45_000 }
 		);
 
@@ -182,9 +182,22 @@ describe('RetirementPlanner result communication', () => {
 		expect(squashed(retirement)).not.toContain('Chance of hitting it');
 		expect(container.querySelector('.downside-card')).toBeNull();
 		expect(container.querySelector('.terminal-wealth-chart')).toBeNull();
+		expect(squashed(container)).not.toContain(
+			'How much does the timing of market gains and losses matter?'
+		);
 		expect(squashed(container.querySelector('.scope-note'))).toContain(
 			'not personal financial advice'
 		);
+
+		const strategyGroup = container.querySelector<HTMLElement>('.strategy-toggle-group');
+		const strategyButtons = strategyGroup?.querySelectorAll<HTMLElement>('.btn-mode') ?? [];
+		expect(strategyButtons).toHaveLength(3);
+		expect(getComputedStyle(strategyGroup!).display).toBe('grid');
+		for (const button of strategyButtons) {
+			expect(button.getBoundingClientRect().width).toBeGreaterThan(
+				strategyGroup!.getBoundingClientRect().width * 0.25
+			);
+		}
 
 		const portfolioChart = container.querySelector('.chart-card-main');
 		expect(squashed(portfolioChart?.querySelector('.phase-eyebrow'))).toBe('Portfolio outlook');

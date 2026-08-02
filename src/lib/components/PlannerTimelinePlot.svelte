@@ -504,12 +504,8 @@
 	</div>
 	<div class="chart" bind:this={chartEl}></div>
 	<p class="note">
-		Fan shows the middle 50% and 80% of outcomes. The vertical dotted line marks your target
-		retirement year. The red dashed line is the simulation-based target (95% success) and the orange
-		dotted line is the spending-rule target. Shaded bands indicate spending periods. The engine uses
-		bootstrapped annual returns with regime detection to model sequence risk and clustered
-		drawdowns. Each percentile line is computed independently for that month across all simulations
-		— it is not a single continuous scenario, so reading "recovery time" off the gap between bands
-		will overstate how fast any one path actually recovers.
+		Fan shows the middle 50% and 80% of outcomes. Dotted vertical = retirement; red dashed =
+		simulation target; orange dotted = spending-rule target. Percentile bands are month-by-month
+		summaries, not individual paths.
 	</p>
 </div>

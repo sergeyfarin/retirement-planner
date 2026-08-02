@@ -27,6 +27,8 @@
 
 	let ruinSurfaceEl: HTMLDivElement | null = $state(null);
 	let sequenceRiskEl: HTMLDivElement | null = $state(null);
+	// Retain the diagnostic implementation while keeping it out of the public results for now.
+	const showSequenceRisk = false;
 
 	// Precision of the heatmap. Each cell replays `sampleCount` stored paths, a cap that
 	// is independent of the run's simulation count — so raising "Simulations" past the
@@ -516,25 +518,22 @@
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			The arrows compare practical changes with your current plan. The thin dark-green line marks
-			the 95% planning goal on both the surface and legend. The smooth surface is estimated from 81
-			replayed combinations; values between them are interpolated. The colour scale expands the
-			90–100% range so differences near the goal remain visible.
+			Arrows show tested changes from your plan. The dark-green line marks the 95% goal; the legend
+			expands 90–100% so differences near it remain visible.
 		</p>
 		{#if surfaceSampleCount > 0}
 			<p
 				class="note"
 				title="Each cell replays the same stored set of simulated market paths against that cell's retirement age and spending level. Because every cell reuses the same paths, differences between neighbouring cells are more reliable than each cell's own margin suggests."
 			>
-				Each cell is estimated from {surfaceSampleCount.toLocaleString()} simulated paths, so individual
-				percentages carry up to ±{worstCellMarginPercent.toFixed(1)}% of sampling noise; cells near
-				0% or 100% are more precise. Read it for the shape of the trade-off rather than for any
-				single cell's exact value — the card above carries the precise figures.
+				Each grid point replays {surfaceSampleCount.toLocaleString()} paths (up to ±{worstCellMarginPercent.toFixed(
+					1
+				)}% sampling noise). Read the pattern, not a single percentage.
 			</p>
 		{/if}
 	</div>
 
-	{#if stats.sequenceRisk?.length}
+	{#if showSequenceRisk && stats.sequenceRisk?.length}
 		<details class="card chart-card" ontoggle={handleSequenceRiskToggle}>
 			<summary>How much does the timing of market gains and losses matter?</summary>
 			<p class="chart-explainer">
