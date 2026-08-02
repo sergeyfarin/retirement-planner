@@ -177,14 +177,28 @@
 		}
 		// Keep the goal label away from the active scenario arrows: use the left side while
 		// improving a plan and the right side when showing what a strong plan can afford.
+		// Reserve an inset around the plot so the rotated line-break mask stays inside the chart.
 		const preferredGoalColumn = (retirementAges.length - 1) * (movingToSaferPlan ? 0.2 : 0.8);
-		const goalLabel = goalCrossings.reduce(
+		const spendingMin = Math.min(...spendingChanges);
+		const spendingMax = Math.max(...spendingChanges);
+		const verticalGoalInset = (spendingMax - spendingMin) * 0.15;
+		const interiorGoalCrossings = goalCrossings.filter(
+			(crossing) =>
+				crossing.y >= spendingMin + verticalGoalInset &&
+				crossing.y <= spendingMax - verticalGoalInset &&
+				crossing.column > 0 &&
+				crossing.column < retirementAges.length - 1
+		);
+		const goalLabelCandidates = interiorGoalCrossings.length
+			? interiorGoalCrossings
+			: goalCrossings;
+		const goalLabel = goalLabelCandidates.reduce(
 			(best, crossing) =>
 				Math.abs(crossing.column - preferredGoalColumn) <
 				Math.abs(best.column - preferredGoalColumn)
 					? crossing
 					: best,
-			goalCrossings[0] ?? {
+			goalLabelCandidates[0] ?? {
 				x: retirementAges[baselineAgeIndex],
 				y: spendingChanges[baselineSpendingIndex],
 				column: baselineAgeIndex
