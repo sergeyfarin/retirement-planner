@@ -121,7 +121,10 @@
 			[0.5, '#fed7aa'],
 			[0.75, '#fef3c7'],
 			[0.9, '#d9f99d'],
-			[0.95, '#86efac'],
+			[0.9479, '#86efac'],
+			[0.948, '#166534'],
+			[0.952, '#166534'],
+			[0.9521, '#86efac'],
 			[0.975, '#4ade80'],
 			[1, '#16a34a']
 		];
@@ -152,59 +155,6 @@
 		);
 		const spendingScenarioProbability = zValues[scenarioSpendingIndex][baselineAgeIndex];
 		const ageScenarioProbability = zValues[baselineSpendingIndex][scenarioAgeIndex];
-		const surfaceProbabilities = zValues.flat();
-		const goalIsInSurface =
-			Math.min(...surfaceProbabilities) <= 0.95 && Math.max(...surfaceProbabilities) >= 0.95;
-		const goalCrossings: Array<{ x: number; y: number; column: number }> = [];
-		for (let column = 0; column < retirementAges.length; column++) {
-			for (let row = 0; row < zValues.length - 1; row++) {
-				const lowerProbability = zValues[row][column];
-				const upperProbability = zValues[row + 1][column];
-				if ((lowerProbability - 0.95) * (upperProbability - 0.95) <= 0) {
-					const probabilityRange = upperProbability - lowerProbability;
-					const interpolation =
-						Math.abs(probabilityRange) < 1e-9 ? 0.5 : (0.95 - lowerProbability) / probabilityRange;
-					goalCrossings.push({
-						x: retirementAges[column],
-						y:
-							spendingChanges[row] +
-							interpolation * (spendingChanges[row + 1] - spendingChanges[row]),
-						column
-					});
-					break;
-				}
-			}
-		}
-		// Keep the goal label away from the active scenario arrows: use the left side while
-		// improving a plan and the right side when showing what a strong plan can afford.
-		// Reserve an inset around the plot so the rotated line-break mask stays inside the chart.
-		const preferredGoalColumn = (retirementAges.length - 1) * (movingToSaferPlan ? 0.2 : 0.8);
-		const spendingMin = Math.min(...spendingChanges);
-		const spendingMax = Math.max(...spendingChanges);
-		const verticalGoalInset = (spendingMax - spendingMin) * 0.15;
-		const interiorGoalCrossings = goalCrossings.filter(
-			(crossing) =>
-				crossing.y >= spendingMin + verticalGoalInset &&
-				crossing.y <= spendingMax - verticalGoalInset &&
-				crossing.column > 0 &&
-				crossing.column < retirementAges.length - 1
-		);
-		const goalLabelCandidates = interiorGoalCrossings.length
-			? interiorGoalCrossings
-			: goalCrossings;
-		const goalLabel = goalLabelCandidates.reduce(
-			(best, crossing) =>
-				Math.abs(crossing.column - preferredGoalColumn) <
-				Math.abs(best.column - preferredGoalColumn)
-					? crossing
-					: best,
-			goalLabelCandidates[0] ?? {
-				x: retirementAges[baselineAgeIndex],
-				y: spendingChanges[baselineSpendingIndex],
-				column: baselineAgeIndex
-			}
-		);
-
 		const contourTrace = {
 			type: spendingOnly ? 'heatmap' : 'contour',
 			x: retirementAges,
@@ -234,7 +184,7 @@
 				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#334155' },
 				ticks: 'outside',
 				tickcolor: '#475569',
-				thickness: 12,
+				thickness: 18,
 				len: 0.9,
 				y: 0.5,
 				yanchor: 'middle'
@@ -242,17 +192,6 @@
 			hovertemplate: spendingOnly
 				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
 				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
-		};
-		const goalContour = {
-			type: 'contour',
-			x: retirementAges,
-			y: spendingChanges,
-			z: zValues,
-			contours: { coloring: 'none', start: 0.95, end: 0.95, size: 0.01, showlabels: false },
-			line: { width: 2, color: '#166534', smoothing: 0.75 },
-			showscale: false,
-			hoverinfo: 'skip',
-			showlegend: false
 		};
 		const currentPlan = {
 			type: 'scatter',
@@ -290,18 +229,6 @@
 				font: { size: 10, color: '#0f172a' }
 			}
 		];
-		if (goalIsInSurface && !spendingOnly) {
-			scenarioAnnotations.push({
-				x: goalLabel.x,
-				y: goalLabel.y,
-				text: '<b>95% planning goal</b>',
-				showarrow: false,
-				textangle: -28,
-				bgcolor: '#86efac',
-				borderpad: 3,
-				font: { size: 10, color: '#166534' }
-			});
-		}
 		scenarioAnnotations.push({
 			x: retirementAge,
 			y: spendingChanges[scenarioSpendingIndex],
@@ -357,7 +284,7 @@
 			});
 		}
 		const layout = {
-			margin: { t: 24, l: 72, r: 66, b: 52 },
+			margin: { t: 24, l: 72, r: 74, b: 52 },
 			paper_bgcolor: 'transparent',
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
@@ -400,11 +327,7 @@
 			staticPlot: false
 		};
 
-		const traces =
-			spendingOnly || !goalIsInSurface
-				? [contourTrace, currentPlan]
-				: [contourTrace, goalContour, currentPlan];
-		void Plotly.react(ruinSurfaceEl, traces, layout, config);
+		void Plotly.react(ruinSurfaceEl, [contourTrace, currentPlan], layout, config);
 	}
 
 	function buildYAxisTicksForRange(
@@ -562,10 +485,10 @@
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">
-			The arrows compare practical changes with your current plan. When it falls within the tested
-			range, the labelled green boundary marks the 95% planning goal. The smooth surface is
-			estimated from 81 replayed combinations; values between them are interpolated. The colour
-			scale expands the 90–100% range so differences near the goal remain visible.
+			The arrows compare practical changes with your current plan. The thin dark-green band marks
+			the 95% planning goal on both the surface and legend. The smooth surface is estimated from 81
+			replayed combinations; values between them are interpolated. The colour scale expands the
+			90–100% range so differences near the goal remain visible.
 		</p>
 		{#if surfaceSampleCount > 0}
 			<p
