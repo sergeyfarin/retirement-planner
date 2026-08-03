@@ -466,9 +466,43 @@ pub fn evaluate_path(
     stop_contributions_at: Option<usize>,
     record_series: bool,
 ) -> PathEvaluation {
+    evaluate_path_from_month(
+        tape,
+        cashflows,
+        current_savings,
+        months,
+        strategy,
+        retire_month,
+        annual_fee_percent,
+        tax_on_gains_percent,
+        0,
+        stop_contributions_at,
+        record_series,
+    )
+}
+
+/// Replays a path from an existing point on its original timeline. The skipped prefix is
+/// used only to reconstruct realized inflation, so nominal future cashflows keep their
+/// retirement-date purchasing power while accumulation wealth is replaced by
+/// `current_savings`.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_path_from_month(
+    tape: &PathTape,
+    cashflows: &CashflowArrays,
+    current_savings: f64,
+    months: usize,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
+    annual_fee_percent: f64,
+    tax_on_gains_percent: f64,
+    start_month: usize,
+    stop_contributions_at: Option<usize>,
+    record_series: bool,
+) -> PathEvaluation {
     let month_count = months
         .min(tape.asset_returns.len())
         .min(tape.inflation_rates.len());
+    let replay_start_month = start_month.min(month_count);
     let mut balances = if record_series {
         vec![0.0; months]
     } else {
@@ -480,14 +514,16 @@ pub fn evaluate_path(
     let mut depleted_months = 0;
     let mut first_depletion_month: Option<usize> = None;
     let mut yearly_pnl = 0.0;
-    let mut realized_inflation_index = 1.0;
+    let mut realized_inflation_index = tape.inflation_rates[..replay_start_month]
+        .iter()
+        .fold(1.0, |index, inflation| index * (1.0 + inflation));
     let mut sequence_year_growth = 1.0;
     let mut annual_real_returns = Vec::new();
     let monthly_fee_factor = (1.0 - annual_fee_percent.clamp(0.0, 1.0) / 12.0).max(0.0);
     let tax_rate = tax_on_gains_percent.clamp(0.0, 1.0);
     let mut runner = WithdrawalRunner::new(strategy, retire_month);
 
-    for month in 0..month_count {
+    for month in replay_start_month..month_count {
         let monthly_inflation = tape.inflation_rates[month];
         let inflation_factor = 1.0 + monthly_inflation;
         let mut income = cashflows.monthly_real_income_flow[month]

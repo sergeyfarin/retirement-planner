@@ -652,15 +652,18 @@ P10, P25, P50 (median), P75, P90 balance trajectories over the full time horizon
 
 ### 7.2 FI Targets
 
-| Target          | Definition                                                                                                                                                                                                                                    |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FI Target (SWR) | $\text{spending at retirement age} / \text{SWR}$ (default SWR = 4%)                                                                                                                                                                           |
-| FI Target (P95) | Minimum balance at retirement such that ≥ 95% of paths with balance ≥ that threshold end above zero. Found by sorting simulations by retirement-age balance and scanning for the 95% conditional success cutoff using a suffix-sum algorithm. |
-| Coast FIRE age  | Earliest age at which **contributions** could stop while still clearing 95% success.                                                                                                                                                          |
+| Target          | Definition                                                                                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FI Target (SWR) | $\text{spending at retirement age} / \text{SWR}$ (default SWR = 4%)                                                                                                                                                  |
+| FI Target (P95) | Minimum balance at retirement that fully funds spending in ≥ 95% of fixed post-retirement return/inflation tape replays. Found by varying only retirement-date capital and bisecting to the smallest passing amount. |
+| Coast FIRE age  | Earliest age at which **contributions** could stop while still clearing 95% success.                                                                                                                                 |
 
-All three assume an accumulation phase still lies ahead. When the plan is already in
-drawdown the P95 target is computed differently and Coast FIRE is reported as `null` — see
-§7.6.
+The P95 construction is the same whether retirement is today or in the future: accumulation
+wealth is discarded at the retirement boundary, while each path's realized inflation prefix
+is retained so nominal pensions and expenses keep the correct purchasing power. This avoids
+conditioning the target on the same pre-retirement returns that generated the observed
+retirement balance. Coast FIRE still requires an accumulation phase; it is `null` when the
+plan is already in drawdown — see §7.6.
 
 **Coast FIRE.** From the candidate age onward, the engine removes only positive monthly
 pre-retirement contributions (`max(income − spending, 0)`). Deficit months and lump sums
@@ -770,25 +773,21 @@ Three outputs assume an accumulation phase and are switched rather than left to 
 This is the whole reason the mode is a documented branch rather than just a validation
 relaxation:
 
-| Output                     | Accumulating                                        | Already retired                                |
-| -------------------------- | --------------------------------------------------- | ---------------------------------------------- |
-| Coast FIRE age             | earliest age to stop contributing                   | `null` — no contributions left to stop         |
-| FI Target (P95)            | minimum _balance at retirement_ clearing 95% (§7.2) | minimum _starting capital today_ clearing 95%  |
-| Ruin surface               | 9×9 over retirement age × spending (§7.5)           | 9×1 over spending only                         |
-| "Chance to reach FI" cards | fraction of paths clearing the target               | today's capital vs. the target — a yes/no fact |
+| Output                     | Accumulating                                           | Already retired                                |
+| -------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
+| Coast FIRE age             | earliest age to stop contributing                      | `null` — no contributions left to stop         |
+| FI Target (P95)            | retirement-boundary capital replay clearing 95% (§7.2) | same replay, with the boundary at today        |
+| Ruin surface               | 9×9 over retirement age × spending (§7.5)              | 9×1 over spending only                         |
+| "Chance to reach FI" cards | fraction of paths clearing the target                  | today's capital vs. the target — a yes/no fact |
 
-**Why the P95 target has to change construction.** The accumulating version reads its
-answer off the _spread_ of balances at retirement, and that spread exists only because
-different paths accumulate differently. With `retireMonth == 0` every path starts from the
-same capital, so the spread collapses to a single month of return dispersion and the
-suffix-scan returns something within a couple of percent of current savings no matter
-whether the plan survives. That is a number that looks like an answer and is not one. The
-already-retired branch turns the question around instead — hold the paths fixed, vary the
-capital — and bisects for the smallest starting capital clearing 95%
-(`findRequiredStartingCapital`). Success is monotone non-decreasing in starting capital
-along fixed paths, so the bisection is exact up to its tolerance. It reuses the same exact
-path evaluator as the main simulation, recomputing realized-inflation cash flows,
-withdrawal decisions and balance-dependent gains tax at each candidate capital.
+**P95 target construction.** Both modes hold the simulated tapes fixed, replace wealth at
+the retirement boundary with a candidate amount, and bisect for the smallest capital
+clearing 95%. Success is monotone non-decreasing in starting capital along fixed paths, so
+the bisection is exact up to its tolerance. For future retirees, the evaluator walks the
+pre-retirement inflation prefix without carrying forward the accumulation balance; nominal
+cash flows therefore retain the correct path-specific purchasing power without making the
+target conditional on accumulation success. The replay recomputes withdrawal decisions,
+fees and balance-dependent gains tax at every candidate capital.
 
 **Why the ruin surface loses an axis.** Sweeping retirement age for someone already retired
 would clamp every candidate to `currentAge + 1 … +6` and caption the result "retire later".

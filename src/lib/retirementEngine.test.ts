@@ -1774,10 +1774,10 @@ describe('already-retired mode', () => {
 		expect(stats.coastAge).not.toBeNull();
 		expect(stats.coastAge!).toBeGreaterThan(input.currentAge);
 		expect(stats.coastAge!).toBeLessThan(input.retirementAge);
-		// The P95 target is still read off the spread of balances at retirement, so it sits
-		// inside that distribution rather than being an independent capital figure.
+		// The P95 target is now an independent retirement-boundary capital replay, not a
+		// threshold selected from this plan's accumulation balances.
 		expect(stats.fiTargetP95).toBeGreaterThan(0);
-		expect(stats.fiTargetP95).toBeLessThanOrEqual(stats.retireHigh);
+		expect(Number.isFinite(stats.fiTargetP95)).toBe(true);
 	});
 });
 

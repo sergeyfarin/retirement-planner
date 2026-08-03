@@ -280,6 +280,36 @@ fn the_swr_target_values_delayed_and_temporary_income_on_its_schedule() {
 }
 
 #[test]
+fn the_p95_target_is_independent_of_accumulation_wealth() {
+    let mut lean = plan();
+    lean.input.current_savings = 0.0;
+    let lean_result = run_monte_carlo_simulation(
+        &lean.input,
+        &lean.spending,
+        &[income(40.0, 65.0, 45_000.0, true)],
+        &[],
+        lean.months,
+        lean.retire_month,
+        None,
+    );
+
+    let mut wealthy = plan();
+    wealthy.input.current_savings = 5_000_000.0;
+    let wealthy_result = run_monte_carlo_simulation(
+        &wealthy.input,
+        &wealthy.spending,
+        &[income(40.0, 65.0, 500_000.0, true)],
+        &[],
+        wealthy.months,
+        wealthy.retire_month,
+        None,
+    );
+
+    assert_ne!(lean_result.stats.retire_median, wealthy_result.stats.retire_median);
+    assert_eq!(lean_result.stats.fi_target_p95, wealthy_result.stats.fi_target_p95);
+}
+
+#[test]
 fn a_degenerate_safe_withdrawal_rate_is_floored_rather_than_dividing_by_zero() {
     let mut plan = plan();
     plan.input.safe_withdrawal_rate = 0.0;

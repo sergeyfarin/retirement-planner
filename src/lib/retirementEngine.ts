@@ -795,7 +795,43 @@ export function evaluatePath(
 	stopContributionsAt?: number,
 	recordSeries = true
 ): PathEvaluation {
+	return evaluatePathFromMonth(
+		tape,
+		cashflows,
+		currentSavings,
+		months,
+		strategy,
+		retireMonth,
+		annualFeePercent,
+		taxOnGainsPercent,
+		0,
+		stopContributionsAt,
+		recordSeries
+	);
+}
+
+/**
+ * Replays a path from an existing point on its original timeline. The prefix is used only
+ * to reconstruct the realized inflation index; portfolio accounting begins at `startMonth`
+ * with `currentSavings`. This is what lets the FI target vary retirement-date capital
+ * without retaining the accumulation balance or losing pre-retirement inflation on nominal
+ * pensions and expenses.
+ */
+export function evaluatePathFromMonth(
+	tape: PathTape,
+	cashflows: ExactCashflowArrays,
+	currentSavings: number,
+	months: number,
+	strategy: WithdrawalStrategy,
+	retireMonth: number,
+	annualFeePercent: number,
+	taxOnGainsPercent: number,
+	startMonth: number,
+	stopContributionsAt?: number,
+	recordSeries = true
+): PathEvaluation {
 	const monthCount = Math.min(months, tape.assetReturns.length, tape.inflationRates.length);
+	const replayStartMonth = Math.min(monthCount, Math.max(0, Math.floor(startMonth)));
 	const balances = recordSeries ? new Float64Array(months) : new Float64Array(0);
 	let balance = currentSavings;
 	let depleted = false;
@@ -804,13 +840,16 @@ export function evaluatePath(
 	let firstDepletionMonth: number | null = null;
 	let yearlyPnl = 0;
 	let realizedInflationIndex = 1;
+	for (let month = 0; month < replayStartMonth; month++) {
+		realizedInflationIndex *= 1 + tape.inflationRates[month];
+	}
 	let sequenceYearGrowth = 1;
 	const annualRealReturns: number[] = [];
 	const monthlyFeeFactor = Math.max(0, 1 - Math.min(1, Math.max(0, annualFeePercent)) / 12);
 	const taxRate = Math.min(1, Math.max(0, taxOnGainsPercent));
 	const runner = new WithdrawalRunner(strategy, retireMonth);
 
-	for (let month = 0; month < monthCount; month++) {
+	for (let month = replayStartMonth; month < monthCount; month++) {
 		const monthlyInflation = tape.inflationRates[month];
 		const inflationFactor = 1 + monthlyInflation;
 		let income =
@@ -922,14 +961,9 @@ function replayRuinProbability(
  * Smallest starting capital that still clears `targetSuccessProbability`, found by
  * bisection over exact replays of stored exogenous return/inflation paths.
  *
- * This is the already-retired replacement for the P95 FI target. The usual construction
- * (`findRetirementBalanceTarget`) reads the answer off the spread of balances *at
- * retirement*, which only exists because different paths accumulate differently. With
- * `retireMonth === 0` every path starts from the same capital, that spread collapses to one
- * month of return dispersion, and the empirical target degenerates into roughly "current
- * savings" regardless of whether the plan works — a number that looks like an answer and
- * is not one. Here the question is turned around: hold the paths fixed and vary the
- * capital.
+ * The public wrapper starts at month zero for already-retired plans. Future-retirement
+ * targets use `findRequiredCapitalAtMonth` directly at the retirement boundary, holding
+ * return/inflation tapes fixed while varying capital.
  *
  * Success is monotone non-decreasing in starting capital along fixed paths, so bisection is
  * exact up to the tolerance. Returns 0 when income alone survives every path. Throws if
@@ -950,24 +984,60 @@ export function findRequiredStartingCapital(
 	annualFeePercent: number,
 	taxOnGainsPercent: number
 ): number {
+	return findRequiredCapitalAtMonth(
+		pathTapes,
+		cashflows,
+		sampleCount,
+		months,
+		strategy,
+		retireMonth,
+		0,
+		targetSuccessProbability,
+		initialGuess,
+		annualFeePercent,
+		taxOnGainsPercent
+	);
+}
+
+export function findRequiredCapitalAtMonth(
+	pathTapes: PathTape[],
+	cashflows: ExactCashflowArrays,
+	sampleCount: number,
+	months: number,
+	strategy: WithdrawalStrategy,
+	retireMonth: number,
+	startMonth: number,
+	targetSuccessProbability: number,
+	initialGuess: number,
+	annualFeePercent: number,
+	taxOnGainsPercent: number
+): number {
 	if (sampleCount === 0 || pathTapes.length === 0) return 0;
 	if (!(targetSuccessProbability >= 0 && targetSuccessProbability <= 1)) {
 		throw new RangeError('Target success probability must be between 0 and 1.');
 	}
 
-	const successAt = (capital: number) =>
-		1 -
-		replayRuinProbability(
-			pathTapes,
-			cashflows,
-			capital,
-			sampleCount,
-			months,
-			strategy,
-			retireMonth,
-			annualFeePercent,
-			taxOnGainsPercent
-		);
+	const successAt = (capital: number) => {
+		let ruinCount = 0;
+		const replayCount = Math.min(sampleCount, pathTapes.length);
+		for (let sim = 0; sim < replayCount; sim++) {
+			const result = evaluatePathFromMonth(
+				pathTapes[sim],
+				cashflows,
+				capital,
+				months,
+				strategy,
+				retireMonth,
+				annualFeePercent,
+				taxOnGainsPercent,
+				startMonth,
+				undefined,
+				false
+			);
+			if (result.depleted) ruinCount++;
+		}
+		return 1 - ruinCount / Math.max(1, replayCount);
+	};
 
 	if (successAt(0) >= targetSuccessProbability) return 0;
 
@@ -1716,26 +1786,22 @@ export function runMonteCarloSimulation(
 	);
 	const alreadyRetired = isAlreadyRetired(input);
 
-	// Already retired: every path starts from the same capital, so both the P95 target and
-	// the "chance to reach FI" question change shape. The target becomes the capital the
-	// plan *requires*, and the probability becomes a yes/no comparison against the capital
-	// actually held — computed from `currentSavings` directly rather than from the retirement
-	// balances, whose one month of return dispersion would otherwise turn a settled fact into
-	// a spurious percentage. See `findRequiredStartingCapital` and README §7.6.
-	const targetFIP95 = alreadyRetired
-		? findRequiredStartingCapital(
-				pathTapes,
-				cashflowArrays,
-				replaySampleCount,
-				months,
-				withdrawalStrategy,
-				retireMonthClamped,
-				FI_TARGET_SUCCESS_PROBABILITY,
-				targetFISWR,
-				input.annualFeePercent,
-				input.taxOnGainsPercent ?? input.annualDrag ?? 0
-			)
-		: findRetirementBalanceTarget(retireBalances, successFlags, FI_TARGET_SUCCESS_PROBABILITY);
+	// The target always varies capital at the retirement boundary against fixed tapes. For an
+	// already-retired plan that boundary is today; only the probability comparison changes to
+	// a yes/no fact about capital already held. See README §§7.2 and 7.6.
+	const targetFIP95 = findRequiredCapitalAtMonth(
+		pathTapes,
+		cashflowArrays,
+		replaySampleCount,
+		months,
+		withdrawalStrategy,
+		retireMonthClamped,
+		retireMonthClamped,
+		FI_TARGET_SUCCESS_PROBABILITY,
+		targetFISWR,
+		input.annualFeePercent,
+		input.taxOnGainsPercent ?? input.annualDrag ?? 0
+	);
 	const fiCountP95 = alreadyRetired
 		? input.currentSavings >= targetFIP95
 			? simCount

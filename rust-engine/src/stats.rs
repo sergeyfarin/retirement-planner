@@ -1,6 +1,8 @@
 use crate::calculations::summarize;
 use crate::engine::{RuinSurface, SequenceRiskBucket};
-use crate::engine2::{build_cashflow_arrays, evaluate_path, CashflowArrays, PathTape};
+use crate::engine2::{
+    build_cashflow_arrays, evaluate_path, evaluate_path_from_month, CashflowArrays, PathTape,
+};
 use crate::structs::{
     IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
 };
@@ -154,14 +156,9 @@ pub fn is_already_retired(input: &RetirementInput) -> bool {
 /// Smallest starting capital that still clears `target_success_probability`, found by
 /// bisection over exact replays of stored exogenous return/inflation paths.
 ///
-/// This is the already-retired replacement for the P95 FI target. The usual construction
-/// (`find_retirement_balance_target`) reads the answer off the spread of balances *at
-/// retirement*, which only exists because different paths accumulate differently. With
-/// `retire_month == 0` every path starts from the same capital, that spread collapses to
-/// one month of return dispersion, and the empirical target degenerates into roughly
-/// "current savings" regardless of whether the plan works — a number that looks like an
-/// answer and is not one. Here the question is turned around: hold the paths fixed and vary
-/// the capital.
+/// The public wrapper starts at month zero for already-retired plans. Future-retirement
+/// targets call `find_required_capital_at_month` at the retirement boundary, holding tapes
+/// fixed while varying capital.
 ///
 /// Success is monotone non-decreasing in starting capital along fixed paths, so bisection
 /// is exact up to the tolerance. Returns 0 when income alone survives every path. Panics
@@ -182,6 +179,35 @@ pub fn find_required_starting_capital(
     annual_fee_percent: f64,
     tax_on_gains_percent: f64,
 ) -> f64 {
+    find_required_capital_at_month(
+        path_tapes,
+        cashflows,
+        sample_count,
+        months,
+        strategy,
+        retire_month,
+        0,
+        target_success_probability,
+        initial_guess,
+        annual_fee_percent,
+        tax_on_gains_percent,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn find_required_capital_at_month(
+    path_tapes: &[PathTape],
+    cashflows: &CashflowArrays,
+    sample_count: usize,
+    months: u32,
+    strategy: &WithdrawalStrategy,
+    retire_month: usize,
+    start_month: usize,
+    target_success_probability: f64,
+    initial_guess: f64,
+    annual_fee_percent: f64,
+    tax_on_gains_percent: f64,
+) -> f64 {
     if sample_count == 0 || path_tapes.is_empty() {
         return 0.0;
     }
@@ -191,18 +217,28 @@ pub fn find_required_starting_capital(
     );
 
     let success_at = |capital: f64| {
-        1.0 - replay_ruin_probability(
-            path_tapes,
-            cashflows,
-            capital,
-            sample_count,
-            months,
-            strategy,
-            retire_month,
-            annual_fee_percent,
-            tax_on_gains_percent,
-            None,
-        )
+        let replay_count = sample_count.min(path_tapes.len());
+        let ruin_count = path_tapes
+            .iter()
+            .take(replay_count)
+            .filter(|tape| {
+                evaluate_path_from_month(
+                    tape,
+                    cashflows,
+                    capital,
+                    months as usize,
+                    strategy,
+                    retire_month,
+                    annual_fee_percent,
+                    tax_on_gains_percent,
+                    start_month,
+                    None,
+                    false,
+                )
+                .depleted
+            })
+            .count();
+        1.0 - ruin_count as f64 / replay_count.max(1) as f64
     };
 
     if success_at(0.0) >= target_success_probability {

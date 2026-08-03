@@ -3,7 +3,7 @@
 mod common;
 
 use common::{assert_close, empty_cashflows, fixed_strategy, flat_tape};
-use rust_engine::engine2::{evaluate_path, PathTape, WithdrawalRunner};
+use rust_engine::engine2::{evaluate_path, evaluate_path_from_month, PathTape, WithdrawalRunner};
 use rust_engine::structs::WithdrawalStrategy;
 
 fn strategy(kind: &str) -> WithdrawalStrategy {
@@ -753,6 +753,32 @@ fn a_zero_month_horizon_returns_the_starting_balance_untouched() {
     assert_eq!(evaluation.final_balance, 1_234.0);
     assert!(!evaluation.depleted);
     assert!(evaluation.balances.is_empty());
+}
+
+#[test]
+fn boundary_replay_retains_prefix_inflation_for_nominal_cashflows() {
+    let tape = PathTape {
+        asset_returns: vec![0.0, 0.0],
+        inflation_rates: vec![0.10, 0.0],
+    };
+    let mut cashflows = empty_cashflows(2);
+    cashflows.monthly_nominal_spending_flow[1] = 110.0;
+
+    let result = evaluate_path_from_month(
+        &tape,
+        &cashflows,
+        1_000.0,
+        2,
+        &fixed_strategy(),
+        1,
+        0.0,
+        0.0,
+        1,
+        None,
+        false,
+    );
+
+    assert_close(result.final_balance, 900.0, 1e-9);
 }
 
 #[test]

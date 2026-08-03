@@ -11,8 +11,8 @@ use crate::engine2::{
     estimate_markov_stay_probabilities, monthly_returns_to_annual_series, PathTape,
 };
 use crate::stats::{
-    build_ruin_surface, build_sequence_risk_summary, find_coast_age, find_required_starting_capital,
-    find_retirement_balance_target, is_already_retired,
+    build_ruin_surface, build_sequence_risk_summary, find_coast_age,
+    find_required_capital_at_month, is_already_retired,
 };
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
 use std::f64;
@@ -570,29 +570,22 @@ pub fn run_monte_carlo_simulation(
     );
     let already_retired = is_already_retired(input);
 
-    // Already retired: every path starts from the same capital, so both the P95 target and
-    // the "chance to reach FI" question change shape. The target becomes the capital the
-    // plan *requires*, and the probability becomes a yes/no comparison against the capital
-    // actually held — computed from `current_savings` directly rather than from the
-    // retirement balances, whose one month of return dispersion would otherwise turn a
-    // settled fact into a spurious percentage. See `find_required_starting_capital` and
-    // README §7.6.
-    let target_fi_p95 = if already_retired {
-        find_required_starting_capital(
-            &path_tapes,
-            &arrays,
-            replay_sample_count,
-            months,
-            &withdrawal_strategy,
-            retire_month_usize,
-            0.95,
-            target_fi_swr,
-            input.annual_fee_percent,
-            input.tax_on_gains_percent,
-        )
-    } else {
-        find_retirement_balance_target(&retire_balances, &success_flags, 0.95)
-    };
+    // The target always varies capital at the retirement boundary against fixed tapes. For
+    // an already-retired plan that boundary is today; only the probability comparison
+    // changes to a yes/no fact about capital already held. See README §§7.2 and 7.6.
+    let target_fi_p95 = find_required_capital_at_month(
+        &path_tapes,
+        &arrays,
+        replay_sample_count,
+        months,
+        &withdrawal_strategy,
+        retire_month_usize,
+        retire_month_usize,
+        0.95,
+        target_fi_swr,
+        input.annual_fee_percent,
+        input.tax_on_gains_percent,
+    );
     let fi_count_p95 = if already_retired {
         if input.current_savings >= target_fi_p95 {
             sim_count

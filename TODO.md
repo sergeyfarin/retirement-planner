@@ -1,8 +1,52 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-07-26 (Launch Plan phases 1–4 complete; repo licensed
-AGPL-3.0 and ready to go public). Mortality-weighted ruin remains declined as a product
-decision — see 2.2.
+**Updated:** 2026-08-03 (calculator audit triaged; P95 target corrected). Mortality-weighted
+ruin remains declined as a product decision — see 2.2.
+
+## Active backlog — ordered by priority
+
+This is the implementation order for unfinished work. The detailed numbered entries and
+completed decision history remain below for context.
+
+### Priority 0 — correctness and unsafe inputs
+
+1. **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
+   Reject non-finite values, negative income/spending, reversed or empty age ranges, and
+   periods outside the simulation rather than silently interpreting or ignoring them.
+2. **Keep parametric inflation in a valid positive-price domain.** Extreme user-entered
+   volatility/skewness can currently draw monthly inflation ≤ −100%, making the inflation
+   index zero or negative. Prefer a log-domain model; at minimum validate inputs, floor the
+   gross factor above zero, and report clipping.
+3. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
+   justify its complexity (0.12), calibrate block length for retirement outcomes rather
+   than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
+   targeting limitation (second 0.15 entry).
+
+### Priority 1 — interpretation and decision safety
+
+1. **Make automatic contributions explicit.** The engine invests every `income − spending`
+   surplus. Show the derived first-year contribution or add a separate contribution input
+   so users do not accidentally model their entire unentered household budget as savings.
+2. **Disclose the allocation/rebalancing convention and add glide paths.** The fixed blended
+   series approximates regular rebalancing and holds one allocation through accumulation
+   and drawdown. Document that next to the control, then implement configurable rebalancing
+   and accumulation/retirement allocations (2.5).
+3. **Surface uncertainty near decision thresholds.** Show simulation count and binomial
+   sampling intervals, including the replay sample size used by P95/ruin cells. Avoid a hard
+   “On track” status change at a rounded 95% when the estimate straddles the threshold.
+
+### Priority 2 — modelling breadth
+
+1. Three-bucket/account-aware tax model (2.3).
+2. Pension claiming optimization (2.4).
+3. Household/couple mode (2.6).
+4. Extended Eurozone history and factor tilts (5.2–5.3).
+
+### Priority 3 — product and advanced analysis
+
+1. Scenario A/B comparison (4.1), regime visualization (4.4), reverse-engineered CAGR
+   input (4.5), sources modal (4.6), and localization (4.7).
+2. Advanced dual-mode controls and remaining ruin-surface accuracy work (6.1–6.2).
 
 ---
 
