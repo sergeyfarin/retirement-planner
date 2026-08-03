@@ -1,6 +1,6 @@
 //! RNG, percentile and clamp primitives.
 
-use rust_engine::calculations::{clamp, percentile, summarize, RandomSource};
+use rust_engine::calculations::{RandomSource, clamp, percentile, summarize};
 
 #[test]
 fn seeded_stream_is_deterministic_and_in_unit_range() {
@@ -72,7 +72,11 @@ fn normal_draws_match_requested_moments() {
     let mean = samples.iter().sum::<f64>() / n as f64;
     let variance = samples.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64;
     assert!((mean - 0.5).abs() < 0.02, "mean drifted: {mean}");
-    assert!((variance.sqrt() - 2.0).abs() < 0.03, "std drifted: {}", variance.sqrt());
+    assert!(
+        (variance.sqrt() - 2.0).abs() < 0.03,
+        "std drifted: {}",
+        variance.sqrt()
+    );
 }
 
 #[test]

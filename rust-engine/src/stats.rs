@@ -1,7 +1,7 @@
 use crate::calculations::summarize;
 use crate::engine::{RuinSurface, SequenceRiskBucket};
 use crate::engine2::{
-    build_cashflow_arrays, evaluate_path, evaluate_path_from_month, CashflowArrays, PathTape,
+    CashflowArrays, PathTape, build_cashflow_arrays, evaluate_path, evaluate_path_from_month,
 };
 use crate::structs::{
     IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
@@ -285,8 +285,8 @@ pub fn build_ruin_surface(
             .map(|index| -6.0 + index as f64 * 1.5)
             .map(|offset| {
                 let age = input.retirement_age + offset;
-                let bounded = (input.simulate_until_age - 1.0)
-                    .min((input.current_age + 1.0).max(age));
+                let bounded =
+                    (input.simulate_until_age - 1.0).min((input.current_age + 1.0).max(age));
                 (bounded * 2.0).round() / 2.0
             })
             .collect()
@@ -343,9 +343,7 @@ pub fn build_ruin_surface(
                     let cell_retire_month = if already_retired {
                         0
                     } else {
-                        (((ret_age - input.current_age) * 12.0)
-                            .round()
-                            .max(0.0) as usize)
+                        (((ret_age - input.current_age) * 12.0).round().max(0.0) as usize)
                             .min(months as usize)
                     };
 

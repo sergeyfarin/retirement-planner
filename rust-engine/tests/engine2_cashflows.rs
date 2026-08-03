@@ -6,9 +6,9 @@ use common::{assert_close, base_input, income, lump_sum, spending};
 use rust_engine::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
     build_cashflow_arrays, detect_regimes, detect_regimes_monthly,
-    estimate_markov_stay_probabilities, expected_inflation_index_at_age,
-    income_at_age, monthly_returns_to_annual_series, monthly_targets_for_annual_moments,
-    spending_at_age, split_income_at_age, split_spending_at_age,
+    estimate_markov_stay_probabilities, expected_inflation_index_at_age, income_at_age,
+    monthly_returns_to_annual_series, monthly_targets_for_annual_moments, spending_at_age,
+    split_income_at_age, split_spending_at_age,
 };
 
 // ── monthly_targets_for_annual_moments ────────────────────────────────────
@@ -60,8 +60,12 @@ fn moment_targeting_maps_a_series_onto_the_requested_mean_and_std() {
     let source = [0.1, -0.2, 0.35, 0.0, 0.05];
     let n = source.len() as f64;
     let source_mean = source.iter().sum::<f64>() / n;
-    let source_std =
-        (source.iter().map(|v| (v - source_mean).powi(2)).sum::<f64>() / n).sqrt();
+    let source_std = (source
+        .iter()
+        .map(|v| (v - source_mean).powi(2))
+        .sum::<f64>()
+        / n)
+        .sqrt();
 
     let mapped: Vec<f64> = source
         .iter()
@@ -69,8 +73,12 @@ fn moment_targeting_maps_a_series_onto_the_requested_mean_and_std() {
         .collect();
 
     let mapped_mean = mapped.iter().sum::<f64>() / n;
-    let mapped_std =
-        (mapped.iter().map(|v| (v - mapped_mean).powi(2)).sum::<f64>() / n).sqrt();
+    let mapped_std = (mapped
+        .iter()
+        .map(|v| (v - mapped_mean).powi(2))
+        .sum::<f64>()
+        / n)
+        .sqrt();
     assert_close(mapped_mean, 0.07, 1e-12);
     assert_close(mapped_std, 0.18, 1e-12);
 }
@@ -78,9 +86,15 @@ fn moment_targeting_maps_a_series_onto_the_requested_mean_and_std() {
 #[test]
 fn moment_targeting_collapses_to_the_target_mean_for_degenerate_inputs() {
     assert_eq!(apply_moment_targeting(0.1, 0.05, 0.0, 0.07, 0.18), 0.07);
-    assert_eq!(apply_moment_targeting(f64::NAN, 0.05, 0.1, 0.07, 0.18), 0.07);
+    assert_eq!(
+        apply_moment_targeting(f64::NAN, 0.05, 0.1, 0.07, 0.18),
+        0.07
+    );
     assert_eq!(apply_moment_targeting(0.1, f64::NAN, 0.1, 0.07, 0.18), 0.07);
-    assert_eq!(apply_moment_targeting(0.1, 0.05, f64::NAN, 0.07, 0.18), 0.07);
+    assert_eq!(
+        apply_moment_targeting(0.1, 0.05, f64::NAN, 0.07, 0.18),
+        0.07
+    );
     // A negative target std is treated as zero, never as a sign flip.
     assert_eq!(apply_moment_targeting(0.5, 0.0, 0.1, 0.07, -0.2), 0.07);
 }
@@ -105,7 +119,10 @@ fn annual_regime_detection_fills_single_calm_years_between_crises() {
     let returns = vec![0.08, 0.08, -0.40, 0.09, -0.40, 0.08, 0.08, 0.08];
     let labels = detect_regimes(&returns);
     assert_eq!(labels[2], 1);
-    assert_eq!(labels[3], 1, "isolated calm year should be smoothed into the crisis");
+    assert_eq!(
+        labels[3], 1,
+        "isolated calm year should be smoothed into the crisis"
+    );
     assert_eq!(labels[4], 1);
 }
 
@@ -271,7 +288,10 @@ fn nominal_items_are_deflated_and_real_items_are_not() {
 fn inflation_adjusted_defaults_to_true_when_unset() {
     let mut period = spending(60.0, 80.0, 10_000.0, true);
     period.inflation_adjusted = None;
-    assert_eq!(split_spending_at_age(65.0, &[period.clone()]), (10_000.0, 0.0));
+    assert_eq!(
+        split_spending_at_age(65.0, &[period.clone()]),
+        (10_000.0, 0.0)
+    );
     assert_eq!(spending_at_age(65.0, &[period], 3.0), 10_000.0);
 }
 

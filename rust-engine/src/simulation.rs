@@ -1,14 +1,14 @@
-use crate::calculations::{percentile, summarize, PercentileSeries, RandomSource};
+use crate::calculations::{PercentileSeries, RandomSource, percentile, summarize};
 use crate::engine::{
-    clamp_annual_return, clamp_monthly_inflation, clamp_monthly_return,
-    spread_annual_return_across_months, draw_monthly_return_shaped, draw_student_t,
-    initial_regime_state, student_t_degrees_from_kurtosis, transition_regime_state,
     RequestedReturnMoments, ReturnMoments, SimulationResult, SummaryStats, WealthCdf,
+    clamp_annual_return, clamp_monthly_inflation, clamp_monthly_return, draw_monthly_return_shaped,
+    draw_student_t, initial_regime_state, spread_annual_return_across_months,
+    student_t_degrees_from_kurtosis, transition_regime_state,
 };
 use crate::engine2::{
-    apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
-    build_cashflow_arrays, detect_regimes, detect_regimes_monthly, evaluate_path,
-    estimate_markov_stay_probabilities, monthly_returns_to_annual_series, PathTape,
+    PathTape, apply_moment_targeting, bootstrap_indices_by_regime_monthly,
+    bootstrap_pool_by_regime, build_cashflow_arrays, detect_regimes, detect_regimes_monthly,
+    estimate_markov_stay_probabilities, evaluate_path, monthly_returns_to_annual_series,
 };
 use crate::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_coast_age,
@@ -269,10 +269,13 @@ pub fn run_monte_carlo_simulation(
     // inflation series aligned with the monthly return history. Sampling both from the
     // same historical month preserves their correlation, and contiguous blocks carry
     // inflation's own persistence — neither of which the parametric draw reproduces.
-    let historical_monthly_inflation = input
-        .historical_monthly_inflation
-        .as_ref()
-        .filter(|series| use_monthly_calibration && series.len() == effective_monthly_history.len());
+    let historical_monthly_inflation =
+        input
+            .historical_monthly_inflation
+            .as_ref()
+            .filter(|series| {
+                use_monthly_calibration && series.len() == effective_monthly_history.len()
+            });
 
     let annual_detected_regimes = detect_regimes(&effective_annual_history);
     let annual_regime_bootstrap_pool =
@@ -385,8 +388,7 @@ pub fn run_monte_carlo_simulation(
         // sampled annual return (see spread_annual_return_across_months).
         let mut annual_mode_months = [0.0_f64; 12];
         if !use_monthly_calibration {
-            annual_regime_state =
-                initial_regime_state(annual_markov.0, annual_markov.1, &mut rng);
+            annual_regime_state = initial_regime_state(annual_markov.0, annual_markov.1, &mut rng);
             let pool = if annual_regime_state == 0 {
                 &annual_regime_bootstrap_pool.growth
             } else {

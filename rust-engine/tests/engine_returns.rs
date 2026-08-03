@@ -98,8 +98,16 @@ fn cornish_fisher_moves_skew_and_kurtosis_in_the_requested_direction() {
         let mean = values.iter().sum::<f64>() / n as f64;
         let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64;
         let sd = var.sqrt();
-        let skewness = values.iter().map(|v| ((v - mean) / sd).powi(3)).sum::<f64>() / n as f64;
-        let kurtosis = values.iter().map(|v| ((v - mean) / sd).powi(4)).sum::<f64>() / n as f64;
+        let skewness = values
+            .iter()
+            .map(|v| ((v - mean) / sd).powi(3))
+            .sum::<f64>()
+            / n as f64;
+        let kurtosis = values
+            .iter()
+            .map(|v| ((v - mean) / sd).powi(4))
+            .sum::<f64>()
+            / n as f64;
         (skewness, kurtosis)
     };
 
@@ -108,10 +116,16 @@ fn cornish_fisher_moves_skew_and_kurtosis_in_the_requested_direction() {
     assert_close(baseline_kurt, 3.0, 0.1);
 
     let (negative_skew, _) = sample(-0.8, 3.0);
-    assert!(negative_skew < -0.3, "expected left tail, got {negative_skew}");
+    assert!(
+        negative_skew < -0.3,
+        "expected left tail, got {negative_skew}"
+    );
 
     let (positive_skew, _) = sample(0.8, 3.0);
-    assert!(positive_skew > 0.3, "expected right tail, got {positive_skew}");
+    assert!(
+        positive_skew > 0.3,
+        "expected right tail, got {positive_skew}"
+    );
 
     let (_, fat_kurt) = sample(0.0, 7.0);
     assert!(fat_kurt > 3.5, "expected fatter tails, got {fat_kurt}");

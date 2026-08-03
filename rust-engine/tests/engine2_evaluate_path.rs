@@ -3,7 +3,7 @@
 mod common;
 
 use common::{assert_close, empty_cashflows, fixed_strategy, flat_tape};
-use rust_engine::engine2::{evaluate_path, evaluate_path_from_month, PathTape, WithdrawalRunner};
+use rust_engine::engine2::{PathTape, WithdrawalRunner, evaluate_path, evaluate_path_from_month};
 use rust_engine::structs::WithdrawalStrategy;
 
 fn strategy(kind: &str) -> WithdrawalStrategy {
@@ -29,7 +29,10 @@ fn dynamic_strategies_are_inert_before_retirement() {
     for kind in ["guardrails", "percentOfPortfolio"] {
         let mut runner = WithdrawalRunner::new(&strategy(kind), 24);
         for month in 0..24 {
-            assert_eq!(runner.monthly_spending(month, 1_000_000.0, 3_000.0), 3_000.0);
+            assert_eq!(
+                runner.monthly_spending(month, 1_000_000.0, 3_000.0),
+                3_000.0
+            );
         }
     }
 }
@@ -116,7 +119,11 @@ fn guardrails_are_dormant_when_the_portfolio_is_already_empty_at_retirement() {
 fn percent_of_portfolio_spends_a_share_of_the_balance_and_holds_it_for_the_year() {
     let mut runner = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
     // 4% of 1,000,000 = 40,000/yr, inside [0.6, 1.4] × the 36,000 anchor.
-    assert_close(runner.monthly_spending(0, 1_000_000.0, 3_000.0), 40_000.0 / 12.0, 1e-9);
+    assert_close(
+        runner.monthly_spending(0, 1_000_000.0, 3_000.0),
+        40_000.0 / 12.0,
+        1e-9,
+    );
     // Held flat for the rest of the year regardless of balance moves.
     for month in 1..12 {
         assert_close(
@@ -158,11 +165,23 @@ fn percent_of_portfolio_is_clamped_by_the_floor_and_ceiling() {
     runner.monthly_spending(0, 1_000_000.0, 3_000.0);
     // Anchor = 36,000/yr. A tiny portfolio would imply near-zero spending; the floor is
     // 0.6 × 36,000.
-    assert_close(runner.monthly_spending(12, 1_000.0, 3_000.0), 21_600.0 / 12.0, 1e-9);
+    assert_close(
+        runner.monthly_spending(12, 1_000.0, 3_000.0),
+        21_600.0 / 12.0,
+        1e-9,
+    );
     // A huge portfolio is capped at 1.4 × 36,000.
-    assert_close(runner.monthly_spending(24, 1e12, 3_000.0), 50_400.0 / 12.0, 1e-9);
+    assert_close(
+        runner.monthly_spending(24, 1e12, 3_000.0),
+        50_400.0 / 12.0,
+        1e-9,
+    );
     // Negative balances are floored at zero before the percentage is taken.
-    assert_close(runner.monthly_spending(36, -5_000.0, 3_000.0), 21_600.0 / 12.0, 1e-9);
+    assert_close(
+        runner.monthly_spending(36, -5_000.0, 3_000.0),
+        21_600.0 / 12.0,
+        1e-9,
+    );
 }
 
 #[test]
@@ -218,11 +237,7 @@ fn reversed_spending_bounds_collapse_to_the_floor() {
             3_600.0,
             1e-9,
         );
-        assert_close(
-            runner.monthly_spending(12, 1_000.0, 3_000.0),
-            3_600.0,
-            1e-9,
-        );
+        assert_close(runner.monthly_spending(12, 1_000.0, 3_000.0), 3_600.0, 1e-9);
     }
 }
 
@@ -238,7 +253,11 @@ fn missing_optional_strategy_fields_use_the_documented_defaults() {
     };
     let mut runner = WithdrawalRunner::new(&bare, 0);
     // Default withdrawal_percent = 4%.
-    assert_close(runner.monthly_spending(0, 1_000_000.0, 3_000.0), 40_000.0 / 12.0, 1e-9);
+    assert_close(
+        runner.monthly_spending(0, 1_000_000.0, 3_000.0),
+        40_000.0 / 12.0,
+        1e-9,
+    );
 }
 
 // ── evaluate_path ─────────────────────────────────────────────────────────
@@ -362,7 +381,11 @@ fn gains_tax_is_settled_once_a_year_on_realized_pnl() {
         assert_close(taxed.balances[month], untaxed.balances[month], 1e-9);
     }
     let gain = untaxed.final_balance - 1_000.0;
-    assert_close(taxed.final_balance, untaxed.final_balance - gain * 0.25, 1e-9);
+    assert_close(
+        taxed.final_balance,
+        untaxed.final_balance - gain * 0.25,
+        1e-9,
+    );
 }
 
 #[test]
@@ -413,8 +436,8 @@ fn a_partial_final_year_is_still_settled() {
     );
     // Two settlements, so the shortfall against the untaxed path exceeds one year's worth.
     assert!(with_tax.final_balance < without_tax.final_balance);
-    let one_settlement_only = without_tax.final_balance
-        - (without_tax.final_balance - 1_000.0 * 1.01_f64.powi(12)) * 0.0;
+    let one_settlement_only =
+        without_tax.final_balance - (without_tax.final_balance - 1_000.0 * 1.01_f64.powi(12)) * 0.0;
     assert!(with_tax.final_balance < one_settlement_only);
 }
 
@@ -541,7 +564,16 @@ fn real_flows_are_immune_to_inflation() {
     let tape = flat_tape(months, 0.0, 0.02);
     let args = |c: &_| {
         evaluate_path(
-            &tape, c, 0.0, months, &fixed_strategy(), 0, 0.0, 0.0, None, false,
+            &tape,
+            c,
+            0.0,
+            months,
+            &fixed_strategy(),
+            0,
+            0.0,
+            0.0,
+            None,
+            false,
         )
         .final_balance
     };
@@ -622,13 +654,35 @@ fn stopping_contributions_leaves_deficits_and_lump_sums_on_schedule() {
 
     let tape = flat_tape(months, 0.0, 0.0);
     let with_stop = evaluate_path(
-        &tape, &cashflows, 5_000.0, months, &fixed_strategy(), 12, 0.0, 0.0, Some(0), false,
+        &tape,
+        &cashflows,
+        5_000.0,
+        months,
+        &fixed_strategy(),
+        12,
+        0.0,
+        0.0,
+        Some(0),
+        false,
     );
     let without_stop = evaluate_path(
-        &tape, &cashflows, 5_000.0, months, &fixed_strategy(), 12, 0.0, 0.0, None, false,
+        &tape,
+        &cashflows,
+        5_000.0,
+        months,
+        &fixed_strategy(),
+        12,
+        0.0,
+        0.0,
+        None,
+        false,
     );
     assert_close(with_stop.final_balance, without_stop.final_balance, 1e-9);
-    assert_close(with_stop.final_balance, 5_000.0 - 200.0 * 12.0 + 1_000.0, 1e-9);
+    assert_close(
+        with_stop.final_balance,
+        5_000.0 - 200.0 * 12.0 + 1_000.0,
+        1e-9,
+    );
 }
 
 #[test]
@@ -829,6 +883,11 @@ fn dynamic_strategies_survive_a_ruinous_path_without_producing_nonsense() {
         assert!(evaluation.depleted, "{kind} should deplete here");
         assert_eq!(evaluation.final_balance, 0.0);
         assert!(evaluation.cumulative_shortfall > 0.0);
-        assert!(evaluation.balances.iter().all(|b| b.is_finite() && *b >= 0.0));
+        assert!(
+            evaluation
+                .balances
+                .iter()
+                .all(|b| b.is_finite() && *b >= 0.0)
+        );
     }
 }

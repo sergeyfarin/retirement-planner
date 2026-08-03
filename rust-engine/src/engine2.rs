@@ -1,4 +1,6 @@
-use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy};
+use crate::structs::{
+    IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod, WithdrawalStrategy,
+};
 
 /// Stateful evaluator for dynamic withdrawal strategies. Shared by the main simulation
 /// loop and the ruin-surface replay so the two never diverge. Returns the effective
@@ -112,7 +114,9 @@ impl WithdrawalRunner {
                 self.multiplier = self.multiplier.clamp(min_mult, max_mult);
             }
             let total_spending = income + portfolio_base * self.multiplier;
-            total_spending.clamp(monthly_floor, monthly_ceiling).max(income)
+            total_spending
+                .clamp(monthly_floor, monthly_ceiling)
+                .max(income)
         } else {
             // Percent-of-portfolio (recomputed annually, held for the year).
             if is_year_start {
@@ -531,9 +535,9 @@ pub fn evaluate_path_from_month(
         let base_spending = cashflows.monthly_real_spending_flow[month]
             + cashflows.monthly_nominal_spending_flow[month] / realized_inflation_index;
 
-        if stop_contributions_at.is_some_and(|stop| {
-            month >= stop && month < retire_month && income > base_spending
-        }) {
+        if stop_contributions_at
+            .is_some_and(|stop| month >= stop && month < retire_month && income > base_spending)
+        {
             income = base_spending;
         }
 
@@ -549,8 +553,7 @@ pub fn evaluate_path_from_month(
             balance = 0.0;
         }
 
-        let portfolio_growth_factor =
-            (1.0 + tape.asset_returns[month]) * monthly_fee_factor;
+        let portfolio_growth_factor = (1.0 + tape.asset_returns[month]) * monthly_fee_factor;
         let pnl_month = balance * (portfolio_growth_factor - 1.0);
         balance *= portfolio_growth_factor;
         balance /= inflation_factor;

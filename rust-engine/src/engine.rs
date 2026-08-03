@@ -1,4 +1,4 @@
-use crate::calculations::{clamp, PercentileSeries, RandomSource};
+use crate::calculations::{PercentileSeries, RandomSource, clamp};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -146,17 +146,9 @@ pub fn transition_regime_state(
     rng: &mut RandomSource,
 ) -> u8 {
     if current_state == 0 {
-        if rng.random() < stay_growth {
-            0
-        } else {
-            1
-        }
+        if rng.random() < stay_growth { 0 } else { 1 }
     } else {
-        if rng.random() < stay_crisis {
-            1
-        } else {
-            0
-        }
+        if rng.random() < stay_crisis { 1 } else { 0 }
     }
 }
 
