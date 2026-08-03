@@ -142,58 +142,35 @@ pub fn replay_ruin_probability(
 /// both engines derive it from the same two numbers. `retire_month` then comes out as 0 and
 /// the whole accumulation phase collapses to nothing.
 ///
-/// Three outputs are only meaningful with an accumulation phase ahead, and each is handled
+/// Two outputs are only meaningful with an accumulation phase ahead, and each is handled
 /// explicitly rather than left to degenerate: Coast FIRE returns `None` (already the case
-/// for `retire_month == 0`), the ruin surface drops its retirement-age axis
-/// (`build_ruin_surface`), and the P95 FI target switches to a required-starting-capital
-/// search (`find_required_starting_capital`). See README §7.6.
+/// for `retire_month == 0`), and the ruin surface drops its retirement-age axis
+/// (`build_ruin_surface`). The P95 FI target needs no branch —
+/// `find_required_capital_at_month` varies capital at the retirement boundary either way,
+/// and that boundary is simply month zero here. Only the probability *comparison* changes,
+/// to a yes/no fact about capital already held. See README §7.6.
 ///
 /// Mirrored in TypeScript as `isAlreadyRetired`.
 pub fn is_already_retired(input: &RetirementInput) -> bool {
     input.retirement_age <= input.current_age
 }
 
-/// Smallest starting capital that still clears `target_success_probability`, found by
-/// bisection over exact replays of stored exogenous return/inflation paths.
+/// Smallest capital held at `start_month` that still clears `target_success_probability`,
+/// found by bisection over exact replays of stored exogenous return/inflation paths.
 ///
-/// The public wrapper starts at month zero for already-retired plans. Future-retirement
-/// targets call `find_required_capital_at_month` at the retirement boundary, holding tapes
-/// fixed while varying capital.
+/// This is the sole construction behind the P95 FI target. Rather than reading the answer
+/// off the spread of simulated balances at retirement — which makes the target conditional
+/// on the very accumulation returns that produced the balance it is compared against — it
+/// holds the tapes fixed and varies only the capital standing at the retirement boundary.
+/// `start_month` is that boundary: the retirement month for a plan still accumulating,
+/// month zero for one already in drawdown.
 ///
 /// Success is monotone non-decreasing in starting capital along fixed paths, so bisection
 /// is exact up to the tolerance. Returns 0 when income alone survives every path. Panics
 /// if invalid inputs or floating-point limits prevent a valid upper bracket; it never
 /// returns an unverified capital amount as though it met the target.
 ///
-/// Mirrored in TypeScript as `findRequiredStartingCapital`.
-#[allow(clippy::too_many_arguments)]
-pub fn find_required_starting_capital(
-    path_tapes: &[PathTape],
-    cashflows: &CashflowArrays,
-    sample_count: usize,
-    months: u32,
-    strategy: &WithdrawalStrategy,
-    retire_month: usize,
-    target_success_probability: f64,
-    initial_guess: f64,
-    annual_fee_percent: f64,
-    tax_on_gains_percent: f64,
-) -> f64 {
-    find_required_capital_at_month(
-        path_tapes,
-        cashflows,
-        sample_count,
-        months,
-        strategy,
-        retire_month,
-        0,
-        target_success_probability,
-        initial_guess,
-        annual_fee_percent,
-        tax_on_gains_percent,
-    )
-}
-
+/// Mirrored in TypeScript as `findRequiredCapitalAtMonth`.
 #[allow(clippy::too_many_arguments)]
 pub fn find_required_capital_at_month(
     path_tapes: &[PathTape],
@@ -492,58 +469,4 @@ pub fn find_coast_age(
     }
 
     Some(input.current_age + (low as f64) / 12.0)
-}
-
-// `success_flags` must use the same definition as the headline success probability
-// (spending was always fully funded), so the P95 FI target and the success rate
-// agree on what counts as a surviving path.
-pub fn find_retirement_balance_target(
-    retirement_balances: &[f64],
-    success_flags: &[bool],
-    target_success_probability: f64,
-) -> f64 {
-    let outcome_count = retirement_balances.len().min(success_flags.len());
-    if outcome_count == 0 {
-        return 0.0;
-    }
-
-    struct Outcome {
-        retirement_balance: f64,
-        ending_positive: bool,
-    }
-
-    let mut outcomes: Vec<Outcome> = (0..outcome_count)
-        .map(|index| Outcome {
-            retirement_balance: retirement_balances[index],
-            ending_positive: success_flags[index],
-        })
-        .collect();
-
-    outcomes.sort_by(|a, b| {
-        a.retirement_balance
-            .partial_cmp(&b.retirement_balance)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let mut suffix_success = vec![0; outcome_count + 1];
-    for index in (0..outcome_count).rev() {
-        suffix_success[index] = suffix_success[index + 1]
-            + if outcomes[index].ending_positive {
-                1
-            } else {
-                0
-            };
-    }
-
-    let mut required_target = outcomes[outcome_count - 1].retirement_balance;
-    for index in 0..outcome_count {
-        let sample_size = (outcome_count - index) as f64;
-        let success_probability = (suffix_success[index] as f64) / sample_size;
-        if success_probability >= target_success_probability {
-            required_target = outcomes[index].retirement_balance;
-            break;
-        }
-    }
-
-    required_target.max(0.0)
 }

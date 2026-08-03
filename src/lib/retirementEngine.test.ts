@@ -13,8 +13,7 @@ import {
 	detectRegimes,
 	drawCornishFisherScore,
 	evaluatePath,
-	findRequiredStartingCapital,
-	findRetirementBalanceTarget,
+	findRequiredCapitalAtMonth,
 	incomeAtAge,
 	isAlreadyRetired,
 	runMonteCarloSimulation,
@@ -210,13 +209,6 @@ describe('retirementEngine stochastic helpers', () => {
 			// Kurtosis should be distinctly fat-tailed (> 3)
 			expect(moments.kurtosis).toBeGreaterThan(4);
 		});
-	});
-
-	it('finds P95 retirement balance target from handcrafted outcomes', () => {
-		const retirementBalances = [100, 120, 140, 160, 180, 200];
-		const successFlags = [false, false, true, true, true, true];
-		const target = findRetirementBalanceTarget(retirementBalances, successFlags, 0.95);
-		expect(target).toBe(140);
 	});
 });
 
@@ -1564,6 +1556,110 @@ describe('runMonteCarloSimulation smoke', () => {
 	});
 });
 
+describe('parametric inflation stays in a positive-price domain', () => {
+	// Cornish-Fisher scores are cubic in the normal draw and therefore unbounded, so a large
+	// entered volatility used to reach `1 + i <= 0`. The evaluator divides balances by that
+	// factor and deflates nominal cashflows by its running product, so crossing zero produced
+	// infinities and sign-flipped pensions rather than a merely pessimistic scenario.
+	function volatileInflationInput(): RetirementInput {
+		return {
+			simulationMode: 'parametric',
+			currentAge: 40,
+			retirementAge: 55,
+			simulateUntilAge: 85,
+			currentSavings: 400_000,
+			meanReturn: 0.06,
+			returnVariability: 0.15,
+			returnSkewness: 0,
+			returnKurtosis: 3,
+			equityBondCorrelation: 0,
+			inflationMean: 0.02,
+			inflationVariability: 3, // 300pp annual std — far past anything the UI now accepts
+			inflationSkewness: -1.5,
+			inflationKurtosis: 11,
+			annualFeePercent: 0.004,
+			taxOnGainsPercent: 0.15,
+			safeWithdrawalRate: 0.04,
+			simulations: 200,
+			seed: 20260803,
+			regimeModel: {
+				stayGrowth: 0.92,
+				stayCrisis: 0.68,
+				growthMean: 0.09,
+				growthStd: 0.14,
+				crisisMean: -0.12,
+				crisisStd: 0.24
+			},
+			historicalAnnualReturns: [],
+			historicalMonthlyReturns: undefined
+		};
+	}
+
+	const spendingPeriods: SpendingPeriod[] = [
+		{
+			id: 'sp',
+			label: 'Living expenses',
+			fromAge: 40,
+			toAge: 85,
+			yearlyAmount: 30_000,
+			inflationAdjusted: true
+		}
+	];
+	// Nominal, so it is deflated by the realized inflation index — the term that inverts if
+	// the index is allowed to go negative.
+	const incomeSources: IncomeSource[] = [
+		{
+			id: 'is-pension',
+			label: 'Pension',
+			fromAge: 67,
+			toAge: 85,
+			yearlyAmount: 18_000,
+			inflationAdjusted: false
+		}
+	];
+
+	it('keeps the TypeScript engine finite under extreme entered volatility', () => {
+		const input = volatileInflationInput();
+		const months = (input.simulateUntilAge - input.currentAge) * 12;
+		const result = runMonteCarloSimulation(
+			input,
+			spendingPeriods,
+			incomeSources,
+			[],
+			months,
+			(input.retirementAge - input.currentAge) * 12
+		);
+
+		expect(Number.isFinite(result.stats.finalMedian)).toBe(true);
+		expect(Number.isFinite(result.stats.fiTargetP95)).toBe(true);
+		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
+		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
+		expect(result.simulation.percentiles.p50.every(Number.isFinite)).toBe(true);
+		expect(result.simulation.percentiles.p10.every((b: number) => b >= 0)).toBe(true);
+	});
+
+	it('keeps the Rust engine finite under extreme entered volatility', async () => {
+		const input = volatileInflationInput();
+		const months = (input.simulateUntilAge - input.currentAge) * 12;
+
+		await ensureWasm();
+		const result = run_monte_carlo(
+			input,
+			spendingPeriods,
+			incomeSources,
+			[],
+			months,
+			(input.retirementAge - input.currentAge) * 12
+		);
+
+		expect(Number.isFinite(result.stats.finalMedian)).toBe(true);
+		expect(Number.isFinite(result.stats.fiTargetP95)).toBe(true);
+		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
+		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
+		expect(result.simulation.percentiles.p50.every(Number.isFinite)).toBe(true);
+	});
+});
+
 describe('sequence-risk summary consumes retirement-relative years', () => {
 	const postReturns = [0.04, 0.02, 0.0, -0.02, -0.04];
 	const series = postReturns.map((post) => Array(10).fill(post));
@@ -1681,6 +1777,29 @@ describe('already-retired mode', () => {
 		expect(validated.months).toBe(0);
 	});
 
+	it('rejects a plan that ends at or before the retirement date', () => {
+		// Left to run, these produce a P95 target of 0: the replay starts past the end of the
+		// tape, finds every path solvent at zero capital, and the cards report a target already
+		// cleared with full confidence. The same one-year rule as the horizon check applies.
+		for (const retirementAge of [90, 91, 89.5]) {
+			const validated = validateSimulationInputs(
+				retiredInput({ currentAge: 66, retirementAge, simulateUntilAge: 90 }),
+				retiredSpending
+			);
+
+			expect(validated.error).toBeTruthy();
+			expect(validated.months).toBe(0);
+		}
+
+		// Exactly one year of drawdown is still a plan, and still passes.
+		const boundary = validateSimulationInputs(
+			retiredInput({ currentAge: 66, retirementAge: 89, simulateUntilAge: 90 }),
+			retiredSpending
+		);
+		expect(boundary.error).toBeUndefined();
+		expect(boundary.retireMonth).toBe(23 * 12);
+	});
+
 	it('collapses the ruin surface to a single retirement-age column', () => {
 		const input = retiredInput();
 		const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);
@@ -1781,7 +1900,7 @@ describe('already-retired mode', () => {
 	});
 });
 
-describe('findRequiredStartingCapital', () => {
+describe('findRequiredCapitalAtMonth', () => {
 	// Two paths: one that grows, one that shrinks. Deterministic, so the answer is a fact
 	// about the flows rather than a sampling artefact.
 	const months = 24;
@@ -1795,7 +1914,7 @@ describe('findRequiredStartingCapital', () => {
 
 	function required(spendPerMonth: number, target: number, income = noIncome): number {
 		const spending = new Float64Array(months).fill(spendPerMonth);
-		return findRequiredStartingCapital(
+		return findRequiredCapitalAtMonth(
 			pathTapes,
 			{
 				monthlyRealIncomeFlow: income,
@@ -1807,6 +1926,7 @@ describe('findRequiredStartingCapital', () => {
 			pathTapes.length,
 			months,
 			strategy,
+			0,
 			0,
 			target,
 			10000,
@@ -1840,7 +1960,7 @@ describe('findRequiredStartingCapital', () => {
 		const capital = required(1000, 1);
 		const spending = new Float64Array(months).fill(1000);
 		const ruinAt = (start: number) =>
-			findRequiredStartingCapital(
+			findRequiredCapitalAtMonth(
 				pathTapes,
 				{
 					monthlyRealIncomeFlow: noIncome,
@@ -1852,6 +1972,7 @@ describe('findRequiredStartingCapital', () => {
 				pathTapes.length,
 				months,
 				strategy,
+				0,
 				0,
 				1,
 				start,

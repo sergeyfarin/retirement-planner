@@ -1,9 +1,9 @@
 use crate::calculations::{percentile, summarize, PercentileSeries, RandomSource};
 use crate::engine::{
-    clamp_annual_return, clamp_monthly_return, spread_annual_return_across_months,
-    draw_monthly_return_shaped, draw_student_t, initial_regime_state,
-    student_t_degrees_from_kurtosis, transition_regime_state, RequestedReturnMoments,
-    ReturnMoments, SimulationResult, SummaryStats, WealthCdf,
+    clamp_annual_return, clamp_monthly_inflation, clamp_monthly_return,
+    spread_annual_return_across_months, draw_monthly_return_shaped, draw_student_t,
+    initial_regime_state, student_t_degrees_from_kurtosis, transition_regime_state,
+    RequestedReturnMoments, ReturnMoments, SimulationResult, SummaryStats, WealthCdf,
 };
 use crate::engine2::{
     apply_moment_targeting, bootstrap_indices_by_regime_monthly, bootstrap_pool_by_regime,
@@ -493,7 +493,7 @@ pub fn run_monte_carlo_simulation(
             };
 
             tape.asset_returns[m] = monthly_asset_return;
-            tape.inflation_rates[m] = monthly_inflation;
+            tape.inflation_rates[m] = clamp_monthly_inflation(monthly_inflation);
         }
 
         let evaluation = evaluate_path(

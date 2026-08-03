@@ -253,6 +253,22 @@ pub fn clamp_monthly_return(value: f64) -> f64 {
     clamp(value, -0.6, 0.6)
 }
 
+/// Keeps monthly inflation in a domain where the price level stays strictly positive.
+///
+/// The evaluator divides balances by `1 + i` every month and deflates nominal cashflows by
+/// the running product of those factors, so a factor at or below zero does not produce a
+/// merely pessimistic scenario — it produces infinities, and a negative inflation index
+/// silently flips the sign of every nominal pension and expense. Cornish-Fisher scores are
+/// cubic in the underlying normal draw and therefore unbounded, so user-entered volatility
+/// and kurtosis reach that domain well short of absurd inputs. Bounds mirror
+/// `clamp_monthly_return`; historical inflation is real observed data and never approaches
+/// them, so this only ever binds on parametric draws.
+///
+/// Mirrored in TypeScript as `clampMonthlyInflation`.
+pub fn clamp_monthly_inflation(value: f64) -> f64 {
+    clamp(value, -0.6, 0.6)
+}
+
 pub fn annual_to_monthly_return(annual_return: f64) -> f64 {
     let capped = clamp_annual_return(annual_return);
     (1.0 + capped).powf(1.0 / 12.0) - 1.0
