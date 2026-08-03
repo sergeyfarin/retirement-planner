@@ -17,7 +17,7 @@ export default defineConfig({
 	},
 	server: {
 		fs: {
-			allow: ['.', resolve(__dirname, 'rust-engine/pkg')]
+			allow: ['.', resolve(import.meta.dirname, 'rust-engine/pkg')]
 		}
 	},
 	optimizeDeps: {
