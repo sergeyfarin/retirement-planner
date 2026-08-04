@@ -1341,10 +1341,62 @@ export function isAlreadyRetired(
 	return input.retirementAge <= input.currentAge;
 }
 
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Spending periods and income sources share a shape and the same three failure modes, so
+ * one pass covers both. `noun` only picks the wording; rows carry a user-chosen label, and
+ * naming the offending row is the difference between an actionable error and a shrug.
+ *
+ * A zero-length range (`fromAge === toAge`) is deliberately allowed: the salary row spans
+ * current age → retirement age, which collapses to a point in already-retired mode.
+ */
+function validateCashflowRows(
+	rows: { label?: string; fromAge: number; toAge: number; yearlyAmount: number }[],
+	noun: string
+): string | undefined {
+	for (const row of rows) {
+		const name = row.label?.trim() ? `“${row.label.trim()}”` : `an unnamed ${noun}`;
+
+		if (!isFiniteNumber(row.fromAge) || !isFiniteNumber(row.toAge)) {
+			return `The From and To ages for ${name} must both be numbers.`;
+		}
+		if (row.toAge < row.fromAge) {
+			return `${name} ends before it starts — check its From and To ages.`;
+		}
+		if (!isFiniteNumber(row.yearlyAmount)) {
+			return `The yearly amount for ${name} must be a number.`;
+		}
+		if (row.yearlyAmount < 0) {
+			return `${name} has a negative yearly amount. Enter it as a positive number — a negative ${noun} is treated as its opposite and quietly flatters the plan.`;
+		}
+	}
+	return undefined;
+}
+
 export function validateSimulationInputs(
 	input: RetirementInput,
-	spendingPeriods: SpendingPeriod[]
+	spendingPeriods: SpendingPeriod[],
+	incomeSources: IncomeSource[] = []
 ): { months: number; retireMonth: number; error?: string } {
+	// Before any arithmetic. A cleared numeric input binds `null`, which coerces to 0 and
+	// sails through every comparison below — a blank current age would silently plan from
+	// birth. Direct callers can also supply NaN, which makes every guard false (`NaN <= 12`,
+	// `NaN < NaN`) and returns a NaN month count as if it were valid.
+	if (
+		!isFiniteNumber(input.currentAge) ||
+		!isFiniteNumber(input.retirementAge) ||
+		!isFiniteNumber(input.simulateUntilAge)
+	) {
+		return {
+			months: 0,
+			retireMonth: 0,
+			error: 'Current age, retirement age and plan-until age must all be numbers.'
+		};
+	}
+
 	const months = Math.max(0, Math.round((input.simulateUntilAge - input.currentAge) * 12));
 	if (months <= 12) {
 		return {
@@ -1362,6 +1414,13 @@ export function validateSimulationInputs(
 	}
 	if (spendingPeriods.length === 0) {
 		return { months: 0, retireMonth: 0, error: 'Add at least one spending period.' };
+	}
+
+	const rowError =
+		validateCashflowRows(spendingPeriods, 'expense') ??
+		validateCashflowRows(incomeSources, 'income source');
+	if (rowError) {
+		return { months: 0, retireMonth: 0, error: rowError };
 	}
 
 	const retireMonth = Math.min(

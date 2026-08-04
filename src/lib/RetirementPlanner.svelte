@@ -1729,7 +1729,7 @@
 
 	async function runSimulation(simCountOverride: number | undefined = undefined) {
 		errorMessage = '';
-		const validated = validateSimulationInputs(input, spendingPeriods);
+		const validated = validateSimulationInputs(input, spendingPeriods, effectiveIncomeSources);
 		if (validated.error) {
 			errorMessage = validated.error;
 			return;

@@ -11,13 +11,29 @@ completed decision history remain below for context.
 ### Priority 0 — correctness and unsafe inputs
 
 1. **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
-   Reject negative income/spending, reversed or empty age ranges, and periods outside the
-   simulation rather than silently interpreting or ignoring them. Narrower than first
-   written: non-finite values are not reachable through the UI (`parseNum` coerces
-   unparseable text to 0) or through share links (`parseShareState` finiteness- and
-   bounds-checks every scalar it restores), and the retirement-date/horizon ordering gap is
-   now closed — see 0.19. What remains is magnitude and sign on directly typed fields, and
-   the parametric moment inputs, which `SHARE_INPUT_SCALAR_BOUNDS` does not cover at all.
+   Mostly done — sign, reversed ranges, and non-finite ages are now rejected at the single
+   `validateSimulationInputs` chokepoint (see 0.21), and the retirement-date/horizon
+   ordering gap is closed (see 0.19). Four gaps remain:
+
+   - The parametric moment inputs are still unvalidated, and `SHARE_INPUT_SCALAR_BOUNDS`
+     does not cover them at all.
+   - Periods lying wholly outside the simulation horizon are still silently ignored rather
+     than flagged — harmless arithmetically, but a plan whose expenses do nothing deserves
+     to say so.
+   - The guard sits _ahead of_ the worker/Wasm boundary, not _at_ it, and has no Rust
+     mirror. `runSimulation` is the only engine entry point in the app, so nothing reaches
+     the engines unvalidated today — but a direct caller of the Wasm engine bypasses all of
+     it, and this item's title promises validation at that boundary.
+   - Validation only fires on run. The amount fields are `type="text" inputmode="numeric"`
+     with no `min`, so a negative expense is accepted by the field, held in state, and only
+     rejected when the user presses run. Field-level feedback at edit time would catch it
+     where the mistake is made.
+
+   Corrected: an earlier version of this entry claimed non-finite values were unreachable
+   through the UI because `parseNum` coerces unparseable text to 0. `parseNum` does not
+   guard the age fields — those use `bind:value` on `type="number"` — and the reachable
+   defect there was `null`, not `NaN`. See 0.21.
+
 2. **Move parametric inflation to a log-domain model and report clipping.** The
    release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
    A log-domain draw would keep the price level positive by construction instead of by
@@ -117,6 +133,45 @@ strangers at the tool, and none of them were tracked as TODO items.
 ## Priority 0 — Correctness & Data Quality (found 2026-07-07)
 
 These bias current results **materially pessimistic** and should land before new features.
+
+### 0.21 Negative expenses funded retirement; blank ages planned from birth — ✅ FIXED 2026-08-04
+
+Two ways to pass `validateSimulationInputs` with a payload the engine then interpreted
+rather than rejected. Both produced finite, plausible-looking results, which is what made
+them release blockers rather than crashes.
+
+**Sign.** The amount fields are `type="text" inputmode="numeric"`, and `parseNum` keeps `-`
+in its character filter, so `-50000` was stored verbatim. The validator only checked that at
+least one spending period existed, and `buildCashflowArrays` feeds the sign straight into
+`monthlyNetFlow[m] = income - spending` and thence to `balance += income - effectiveSpending`.
+A negative expense therefore paid €50k a year _into_ the portfolio.
+
+**Finiteness.** The validator did its arithmetic before checking anything:
+`Math.max(0, Math.round((simulateUntilAge - currentAge) * 12))`. With `NaN` every subsequent
+guard is false (`NaN <= 12`, `NaN < NaN`, `NaN > NaN - 12`), so it returned
+`{ months: NaN, retireMonth: NaN }` with no error and that reached the worker/Wasm boundary.
+Not reachable from the UI, as it turns out — but the `null` neighbour was. Svelte's
+`to_number` binds `null`, not `undefined`, for a cleared numeric input (and browsers report
+`''` for otherwise-invalid numeric text, so that lands on `null` too). `null` coerces to 0,
+which sails through every ordering check: clearing **Current age** left a valid-looking
+1080-month plan running from age 0, salary accruing from birth. Clearing **Plan until age**
+happened to be caught already, by the horizon check.
+
+`validateSimulationInputs` now type-and-finiteness-checks the three ages _before_ any
+arithmetic (`typeof value === 'number' && Number.isFinite(value)`, so `null` and `undefined`
+are rejected too — a bare `Number.isFinite` guard would not have caught the reachable case),
+and validates every spending period and income source for finite ages, a non-reversed range,
+and a non-negative amount. Errors name the offending row by its user-chosen label. A
+zero-length range stays legal: the salary row spans current age → retirement age, which
+collapses to a point in already-retired mode. Income sources are a new third argument,
+defaulted to `[]` so existing two-argument callers keep working; the app passes
+`effectiveIncomeSources`, matching what the engines are actually given.
+
+Lump-sum `amount` is deliberately left signed — a one-time cost is legitimately negative
+there.
+
+Not closed: the parametric moment inputs remain unvalidated, and `SHARE_INPUT_SCALAR_BOUNDS`
+does not cover them either — see Priority 0 item 1 in the active backlog.
 
 ### 0.20 Parametric inflation could leave the positive-price domain — ✅ FIXED 2026-08-03
 

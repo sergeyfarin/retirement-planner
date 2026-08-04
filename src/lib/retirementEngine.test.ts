@@ -2050,3 +2050,143 @@ describe('moment targeting hits the requested annual moments', () => {
 		expect(nan.std).toBe(0);
 	});
 });
+
+describe('payload validation', () => {
+	function baseInput(overrides: Partial<RetirementInput> = {}): RetirementInput {
+		return {
+			simulationMode: 'historical',
+			currentAge: 35,
+			retirementAge: 60,
+			simulateUntilAge: 90,
+			currentSavings: 100000,
+			meanReturn: 0.06,
+			returnVariability: 0.14,
+			returnSkewness: 0,
+			returnKurtosis: 3,
+			equityBondCorrelation: -0.1,
+			inflationMean: 0.02,
+			inflationVariability: 0.015,
+			inflationSkewness: 0,
+			inflationKurtosis: 3,
+			annualFeePercent: 0.004,
+			taxOnGainsPercent: 0.15,
+			safeWithdrawalRate: 0.04,
+			simulations: 400,
+			seed: 5150,
+			regimeModel: {
+				stayGrowth: 0.92,
+				stayCrisis: 0.68,
+				growthMean: 0.09,
+				growthStd: 0.14,
+				crisisMean: -0.12,
+				crisisStd: 0.24
+			},
+			...overrides
+		};
+	}
+
+	const spending = (overrides: Partial<SpendingPeriod> = {}): SpendingPeriod[] => [
+		{
+			id: 'sp-default',
+			label: 'Living expenses',
+			fromAge: 35,
+			toAge: 90,
+			yearlyAmount: 32000,
+			inflationAdjusted: true,
+			...overrides
+		}
+	];
+
+	it('accepts a well-formed payload', () => {
+		const validated = validateSimulationInputs(baseInput(), spending(), []);
+		expect(validated.error).toBeUndefined();
+		expect(validated.months).toBe(55 * 12);
+		expect(validated.retireMonth).toBe(25 * 12);
+	});
+
+	it('rejects a negative expense instead of treating it as income', () => {
+		// `balance += income - spending`, so a negative expense pays into the portfolio and the
+		// run stays finite and plausible — the whole reason this has to fail at the boundary.
+		const validated = validateSimulationInputs(baseInput(), spending({ yearlyAmount: -50000 }), []);
+
+		expect(validated.error).toMatch(/negative yearly amount/i);
+		expect(validated.error).toContain('Living expenses');
+		expect(validated.months).toBe(0);
+		expect(validated.retireMonth).toBe(0);
+	});
+
+	it('rejects a negative income source', () => {
+		const income: IncomeSource[] = [
+			{ id: 'is-default', label: 'Salary', fromAge: 35, toAge: 60, yearlyAmount: -1000 }
+		];
+		const validated = validateSimulationInputs(baseInput(), spending(), income);
+
+		expect(validated.error).toMatch(/negative yearly amount/i);
+		expect(validated.months).toBe(0);
+	});
+
+	it('rejects a reversed age range', () => {
+		const validated = validateSimulationInputs(
+			baseInput(),
+			spending({ fromAge: 70, toAge: 50 }),
+			[]
+		);
+
+		expect(validated.error).toMatch(/ends before it starts/i);
+		expect(validated.months).toBe(0);
+	});
+
+	it('allows a zero-length range, which is how already-retired encodes the salary row', () => {
+		const income: IncomeSource[] = [
+			{ id: 'is-default', label: 'Salary', fromAge: 60, toAge: 60, yearlyAmount: 65000 }
+		];
+		expect(validateSimulationInputs(baseInput(), spending(), income).error).toBeUndefined();
+	});
+
+	it.each([
+		['currentAge', 'NaN', { currentAge: Number.NaN }],
+		['simulateUntilAge', 'NaN', { simulateUntilAge: Number.NaN }],
+		['retirementAge', 'NaN', { retirementAge: Number.NaN }],
+		['currentAge', 'null', { currentAge: null as unknown as number }],
+		['simulateUntilAge', 'null', { simulateUntilAge: null as unknown as number }],
+		['currentAge', 'undefined', { currentAge: undefined as unknown as number }]
+	])('rejects a %s of %s', (_field, _kind, overrides) => {
+		// NaN makes every ordering guard false; null coerces to 0 and would silently plan from
+		// birth. Both used to return a payload the worker accepted.
+		const validated = validateSimulationInputs(baseInput(overrides), spending(), []);
+
+		expect(validated.error).toBeTruthy();
+		expect(validated.months).toBe(0);
+		expect(validated.retireMonth).toBe(0);
+	});
+
+	it('never returns a non-finite month count', () => {
+		for (const overrides of [
+			{ currentAge: Number.NaN },
+			{ simulateUntilAge: Number.POSITIVE_INFINITY },
+			{ retirementAge: Number.NaN }
+		]) {
+			const { months, retireMonth } = validateSimulationInputs(
+				baseInput(overrides),
+				spending(),
+				[]
+			);
+			expect(Number.isFinite(months)).toBe(true);
+			expect(Number.isFinite(retireMonth)).toBe(true);
+		}
+	});
+
+	it('rejects a non-finite amount or age on a row', () => {
+		expect(
+			validateSimulationInputs(baseInput(), spending({ yearlyAmount: Number.NaN }), []).error
+		).toMatch(/must be a number/i);
+		expect(
+			validateSimulationInputs(baseInput(), spending({ toAge: null as unknown as number }), [])
+				.error
+		).toMatch(/must both be numbers/i);
+	});
+
+	it('stays backwards compatible when no income sources are passed', () => {
+		expect(validateSimulationInputs(baseInput(), spending()).error).toBeUndefined();
+	});
+});
