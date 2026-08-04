@@ -6,11 +6,10 @@ use common::{
     assert_close, base_input, empty_cashflows, fixed_strategy, flat_tape, income, lump_sum,
     spending,
 };
-use rust_engine::engine2::{build_cashflow_arrays, PathTape};
+use rust_engine::engine2::{PathTape, build_cashflow_arrays};
 use rust_engine::stats::{
     build_ruin_surface, build_sequence_risk_summary, find_coast_age,
-    find_required_starting_capital, find_retirement_balance_target, is_already_retired,
-    replay_ruin_probability,
+    find_required_capital_at_month, is_already_retired, replay_ruin_probability,
 };
 use rust_engine::structs::WithdrawalStrategy;
 
@@ -79,7 +78,9 @@ fn sequence_risk_uses_at_most_the_first_ten_years_and_the_shortest_series() {
 fn sequence_risk_is_empty_when_there_is_nothing_to_rank() {
     assert!(build_sequence_risk_summary(&[], &[], &[]).is_empty());
     // A simulation with no completed retirement year makes the ranking meaningless.
-    assert!(build_sequence_risk_summary(&[vec![0.1], vec![]], &[1.0, 2.0], &[false, false]).is_empty());
+    assert!(
+        build_sequence_risk_summary(&[vec![0.1], vec![]], &[1.0, 2.0], &[false, false]).is_empty()
+    );
 }
 
 #[test]
@@ -89,60 +90,6 @@ fn sequence_risk_skips_empty_quintiles_for_tiny_runs() {
     // Three sims cannot fill five quintiles; only the non-empty ones are reported.
     assert_eq!(buckets.len(), 3);
     assert!(buckets.iter().all(|b| b.ruin_probability == 0.0));
-}
-
-// ── P95 retirement-balance target ─────────────────────────────────────────
-
-#[test]
-fn the_target_is_the_lowest_balance_from_which_success_holds() {
-    // Sorted by balance, everything from 300 upward succeeds.
-    let balances = vec![100.0, 200.0, 300.0, 400.0, 500.0];
-    let flags = vec![false, false, true, true, true];
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 1.0), 300.0);
-    // A 60% bar is already met by the whole sample (3 of 5 succeed), so the target drops
-    // to the cheapest path.
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 0.6), 100.0);
-    // Raising the bar walks the target up the sorted balances: 3 of the top 4 succeed
-    // (75%), so a 70% bar stops at 200 and an 80% bar has to reach 300.
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 0.7), 200.0);
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 0.8), 300.0);
-}
-
-#[test]
-fn the_target_ignores_input_ordering() {
-    let balances = vec![500.0, 100.0, 400.0, 200.0, 300.0];
-    let flags = vec![true, false, true, false, true];
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 1.0), 300.0);
-}
-
-#[test]
-fn an_unreachable_target_falls_back_to_the_largest_observed_balance() {
-    let balances = vec![100.0, 200.0, 300.0];
-    let flags = vec![false, false, false];
-    assert_eq!(find_retirement_balance_target(&balances, &flags, 0.95), 300.0);
-}
-
-#[test]
-fn the_target_is_never_negative_and_handles_empty_input() {
-    assert_eq!(find_retirement_balance_target(&[], &[], 0.95), 0.0);
-    assert_eq!(
-        find_retirement_balance_target(&[-500.0, -100.0], &[false, false], 0.95),
-        0.0
-    );
-    // Mismatched lengths use the shorter one rather than panicking.
-    assert_eq!(
-        find_retirement_balance_target(&[100.0, 200.0, 300.0], &[true], 1.0),
-        100.0
-    );
-}
-
-#[test]
-fn universal_success_puts_the_target_at_the_cheapest_path() {
-    let balances = vec![50.0, 900.0, 1_000.0];
-    assert_eq!(
-        find_retirement_balance_target(&balances, &[true, true, true], 0.95),
-        50.0
-    );
 }
 
 // ── already-retired detection ─────────────────────────────────────────────
@@ -253,12 +200,13 @@ fn required_capital_is_zero_when_the_plan_survives_with_nothing() {
     let months = 24;
     let cashflows = empty_cashflows(months);
     let tapes = vec![flat_tape(months, 0.0, 0.0)];
-    let capital = find_required_starting_capital(
+    let capital = find_required_capital_at_month(
         &tapes,
         &cashflows,
         1,
         months as u32,
         &fixed_strategy(),
+        0,
         0,
         0.95,
         100_000.0,
@@ -267,7 +215,10 @@ fn required_capital_is_zero_when_the_plan_survives_with_nothing() {
     );
     // No spending at all: the plan needs no capital. A zero ending balance is successful
     // because no scheduled spending went unfunded.
-    assert!(capital >= 0.0 && capital < 10.0, "unexpected capital: {capital}");
+    assert!(
+        capital >= 0.0 && capital < 10.0,
+        "unexpected capital: {capital}"
+    );
 }
 
 #[test]
@@ -278,12 +229,13 @@ fn required_capital_brackets_upward_from_a_hopeless_initial_guess() {
         cashflows.monthly_real_spending_flow[month] = 1_000.0;
     }
     let tapes = vec![flat_tape(months, 0.0, 0.0)];
-    let capital = find_required_starting_capital(
+    let capital = find_required_capital_at_month(
         &tapes,
         &cashflows,
         1,
         months as u32,
         &fixed_strategy(),
+        0,
         0,
         0.95,
         1.0, // deliberately far too small a starting bracket
@@ -305,12 +257,13 @@ fn the_capital_the_search_returns_actually_clears_the_target() {
         .map(|i| flat_tape(months, -0.01 + i as f64 * 0.002, 0.001))
         .collect();
 
-    let capital = find_required_starting_capital(
+    let capital = find_required_capital_at_month(
         &tapes,
         &cashflows,
         tapes.len(),
         months as u32,
         &fixed_strategy(),
+        0,
         0,
         0.95,
         50_000.0,
@@ -338,12 +291,13 @@ fn required_capital_is_zero_without_paths_to_replay() {
     let months = 12;
     let cashflows = empty_cashflows(months);
     assert_eq!(
-        find_required_starting_capital(
+        find_required_capital_at_month(
             &[],
             &cashflows,
             10,
             months as u32,
             &fixed_strategy(),
+            0,
             0,
             0.95,
             1_000.0,
@@ -353,12 +307,13 @@ fn required_capital_is_zero_without_paths_to_replay() {
         0.0
     );
     assert_eq!(
-        find_required_starting_capital(
+        find_required_capital_at_month(
             &[flat_tape(months, 0.0, 0.0)],
             &cashflows,
             0,
             months as u32,
             &fixed_strategy(),
+            0,
             0,
             0.95,
             1_000.0,
@@ -373,12 +328,13 @@ fn required_capital_is_zero_without_paths_to_replay() {
 #[should_panic(expected = "target success probability")]
 fn required_capital_rejects_an_out_of_range_target() {
     let months = 12;
-    find_required_starting_capital(
+    find_required_capital_at_month(
         &[flat_tape(months, 0.0, 0.0)],
         &empty_cashflows(months),
         1,
         months as u32,
         &fixed_strategy(),
+        0,
         0,
         1.5,
         1_000.0,
@@ -429,15 +385,19 @@ fn the_ruin_surface_sweeps_both_axes() {
         vec![59.0, 60.5, 62.0, 63.5, 65.0, 66.5, 68.0, 69.5, 71.0]
     );
     assert_eq!(surface.ruin_probabilities.len(), 9);
-    assert!(surface
-        .ruin_probabilities
-        .iter()
-        .all(|row| row.len() == surface.retirement_ages.len()));
-    assert!(surface
-        .ruin_probabilities
-        .iter()
-        .flatten()
-        .all(|p| (0.0..=1.0).contains(p)));
+    assert!(
+        surface
+            .ruin_probabilities
+            .iter()
+            .all(|row| row.len() == surface.retirement_ages.len())
+    );
+    assert!(
+        surface
+            .ruin_probabilities
+            .iter()
+            .flatten()
+            .all(|p| (0.0..=1.0).contains(p))
+    );
     assert_eq!(surface.sample_count, tapes.len());
 }
 
@@ -489,10 +449,12 @@ fn the_retirement_age_axis_is_bounded_by_the_plan_horizon() {
         1,
         &fixed_strategy(),
     );
-    assert!(surface
-        .retirement_ages
-        .iter()
-        .all(|&age| age >= 61.0 && age <= 65.0));
+    assert!(
+        surface
+            .retirement_ages
+            .iter()
+            .all(|&age| age >= 61.0 && age <= 65.0)
+    );
     // Sorted and deduplicated after clamping.
     let mut sorted = surface.retirement_ages.clone();
     sorted.sort_by(|a, b| a.total_cmp(b));
@@ -525,7 +487,9 @@ fn an_already_retired_plan_collapses_the_retirement_age_axis() {
 
 // ── coast FIRE ────────────────────────────────────────────────────────────
 
-fn coast_fixture(savings: f64) -> (
+fn coast_fixture(
+    savings: f64,
+) -> (
     rust_engine::structs::RetirementInput,
     Vec<rust_engine::structs::SpendingPeriod>,
     Vec<rust_engine::structs::IncomeSource>,
@@ -549,20 +513,38 @@ fn coast_fixture(savings: f64) -> (
 fn coast_age_is_between_today_and_retirement_and_is_actually_sufficient() {
     let (input, spend, earn, tapes, months, retire_month) = coast_fixture(600_000.0);
     let coast = find_coast_age(
-        &input, &spend, &earn, &[], &tapes, months, tapes.len(), &fixed_strategy(),
-        retire_month, 0.95,
+        &input,
+        &spend,
+        &earn,
+        &[],
+        &tapes,
+        months,
+        tapes.len(),
+        &fixed_strategy(),
+        retire_month,
+        0.95,
     )
     .expect("a well-funded plan should have a coast age");
 
-    assert!(coast >= input.current_age && coast <= input.retirement_age, "coast age {coast}");
+    assert!(
+        coast >= input.current_age && coast <= input.retirement_age,
+        "coast age {coast}"
+    );
 
     // Verify the reported month really clears the bar, and that one month earlier does not.
     let arrays = build_cashflow_arrays(&input, &spend, &earn, &[], months);
     let success_at = |stop: usize| {
         1.0 - replay_ruin_probability(
-            &tapes, &arrays, input.current_savings, tapes.len(), months,
-            &fixed_strategy(), retire_month, input.annual_fee_percent,
-            input.tax_on_gains_percent, Some(stop),
+            &tapes,
+            &arrays,
+            input.current_savings,
+            tapes.len(),
+            months,
+            &fixed_strategy(),
+            retire_month,
+            input.annual_fee_percent,
+            input.tax_on_gains_percent,
+            Some(stop),
         )
     };
     let coast_month = ((coast - input.current_age) * 12.0).round() as usize;
@@ -576,22 +558,42 @@ fn coast_age_is_between_today_and_retirement_and_is_actually_sufficient() {
 fn coast_age_is_none_when_even_full_contributions_miss_the_target() {
     let (input, _spend, earn, tapes, months, retire_month) = coast_fixture(0.0);
     let starved = vec![spending(40.0, 95.0, 500_000.0, true)];
-    assert!(find_coast_age(
-        &input, &starved, &earn, &[], &tapes, months, tapes.len(), &fixed_strategy(),
-        retire_month, 0.95,
-    )
-    .is_none());
+    assert!(
+        find_coast_age(
+            &input,
+            &starved,
+            &earn,
+            &[],
+            &tapes,
+            months,
+            tapes.len(),
+            &fixed_strategy(),
+            retire_month,
+            0.95,
+        )
+        .is_none()
+    );
 }
 
 #[test]
 fn coast_age_is_none_without_contributions_to_stop() {
     let (input, spend, _, tapes, months, retire_month) = coast_fixture(3_000_000.0);
     // No income at all ⇒ there is no contribution to give up.
-    assert!(find_coast_age(
-        &input, &spend, &[], &[], &tapes, months, tapes.len(), &fixed_strategy(),
-        retire_month, 0.95,
-    )
-    .is_none());
+    assert!(
+        find_coast_age(
+            &input,
+            &spend,
+            &[],
+            &[],
+            &tapes,
+            months,
+            tapes.len(),
+            &fixed_strategy(),
+            retire_month,
+            0.95,
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -599,8 +601,16 @@ fn coast_age_is_none_for_degenerate_inputs() {
     let (input, spend, earn, tapes, months, _) = coast_fixture(600_000.0);
     let call = |tapes: &[PathTape], samples, retire_month| {
         find_coast_age(
-            &input, &spend, &earn, &[], tapes, months, samples, &fixed_strategy(),
-            retire_month, 0.95,
+            &input,
+            &spend,
+            &earn,
+            &[],
+            tapes,
+            months,
+            samples,
+            &fixed_strategy(),
+            retire_month,
+            0.95,
         )
     };
     // Already retired.
@@ -619,7 +629,16 @@ fn coast_age_scans_every_month_for_adaptive_strategies() {
         ..WithdrawalStrategy::default()
     };
     let coast = find_coast_age(
-        &input, &spend, &earn, &[], &tapes, months, tapes.len(), &strategy, retire_month, 0.95,
+        &input,
+        &spend,
+        &earn,
+        &[],
+        &tapes,
+        months,
+        tapes.len(),
+        &strategy,
+        retire_month,
+        0.95,
     );
 
     if let Some(age) = coast {
@@ -627,8 +646,16 @@ fn coast_age_scans_every_month_for_adaptive_strategies() {
         let stop = ((age - input.current_age) * 12.0).round() as usize;
         let success = 1.0
             - replay_ruin_probability(
-                &tapes, &arrays, input.current_savings, tapes.len(), months, &strategy,
-                retire_month, input.annual_fee_percent, input.tax_on_gains_percent, Some(stop),
+                &tapes,
+                &arrays,
+                input.current_savings,
+                tapes.len(),
+                months,
+                &strategy,
+                retire_month,
+                input.annual_fee_percent,
+                input.tax_on_gains_percent,
+                Some(stop),
             );
         assert!(success >= 0.95, "reported coast age only reaches {success}");
     }
@@ -640,16 +667,35 @@ fn lump_sums_survive_the_coast_calculation() {
     // move the coast age earlier.
     let (input, spend, earn, tapes, months, retire_month) = coast_fixture(300_000.0);
     let without = find_coast_age(
-        &input, &spend, &earn, &[], &tapes, months, tapes.len(), &fixed_strategy(),
-        retire_month, 0.95,
+        &input,
+        &spend,
+        &earn,
+        &[],
+        &tapes,
+        months,
+        tapes.len(),
+        &fixed_strategy(),
+        retire_month,
+        0.95,
     );
     let with = find_coast_age(
-        &input, &spend, &earn, &[lump_sum(50.0, 500_000.0)], &tapes, months, tapes.len(),
-        &fixed_strategy(), retire_month, 0.95,
+        &input,
+        &spend,
+        &earn,
+        &[lump_sum(50.0, 500_000.0)],
+        &tapes,
+        months,
+        tapes.len(),
+        &fixed_strategy(),
+        retire_month,
+        0.95,
     );
     if let (Some(without), Some(with)) = (without, with) {
         assert!(with <= without, "a windfall should not delay coasting");
     } else {
-        assert!(with.is_some(), "the windfall plan should be at least as feasible");
+        assert!(
+            with.is_some(),
+            "the windfall plan should be at least as feasible"
+        );
     }
 }

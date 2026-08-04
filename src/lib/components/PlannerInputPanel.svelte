@@ -352,6 +352,7 @@
 					{/each}
 				</div>
 				<button class="btn-add" onclick={addSpendingPeriod}>+ Add period</button>
+				<p class="note">Income left after expenses is assumed to be invested.</p>
 			</div>
 
 			<div class="section-split">

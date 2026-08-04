@@ -1,7 +1,7 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-08-03 (calculator audit triaged; P95 target corrected). Mortality-weighted
-ruin remains declined as a product decision — see 2.2.
+**Updated:** 2026-08-03 (calculator audit triaged; P95 target corrected, then its release
+blockers cleared). Mortality-weighted ruin remains declined as a product decision — see 2.2.
 
 ## Active backlog — ordered by priority
 
@@ -10,13 +10,20 @@ completed decision history remain below for context.
 
 ### Priority 0 — correctness and unsafe inputs
 
-1. **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
-   Reject non-finite values, negative income/spending, reversed or empty age ranges, and
-   periods outside the simulation rather than silently interpreting or ignoring them.
-2. **Keep parametric inflation in a valid positive-price domain.** Extreme user-entered
-   volatility/skewness can currently draw monthly inflation ≤ −100%, making the inflation
-   index zero or negative. Prefer a log-domain model; at minimum validate inputs, floor the
-   gross factor above zero, and report clipping.
+1. ✅ **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
+   Closed by 0.19, 0.21 and 0.22. The shared TypeScript validator now covers all core
+   assumptions, recurring cashflows, signed one-time events, operative age ranges and
+   timeline derivation; the worker repeats it and rejects forged month counts; the Wasm
+   export independently mirrors the safety invariants for direct callers. Share-link
+   parametric moments are allowlisted and bounded before entering application state.
+
+   Edit-time field feedback remains a UX improvement rather than a correctness gap: invalid
+   text can temporarily sit in local state, but no simulation can execute it.
+
+2. **Move parametric inflation to a log-domain model and report clipping.** The
+   release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
+   A log-domain draw would keep the price level positive by construction instead of by
+   truncation, and the UI still says nothing when a draw is clipped.
 3. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
    justify its complexity (0.12), calibrate block length for retirement outcomes rather
    than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
@@ -112,6 +119,102 @@ strangers at the tool, and none of them were tracked as TODO items.
 ## Priority 0 — Correctness & Data Quality (found 2026-07-07)
 
 These bias current results **materially pessimistic** and should land before new features.
+
+### 0.22 Payload validation now reaches the worker and Wasm boundaries — ✅ FIXED 2026-08-04
+
+The validation pass introduced in 0.21 covered the UI controller but still omitted lump
+sums, parametric assumptions, empty/out-of-horizon periods and direct engine callers. The
+worker trusted caller-supplied `months`/`retireMonth`, and the exported Wasm function
+deserialized and executed any structurally valid payload.
+
+Validation now lives in a small dependency-light module shared by the controller and
+worker. It checks the complete assumption set, requires operative recurring periods,
+validates event ages while deliberately preserving signed event amounts, and derives the
+only accepted timeline. The worker rejects a payload whose supplied month counts differ
+from that derivation. The Wasm export carries an independent Rust mirror, so library users
+cannot bypass the boundary by calling `run_monte_carlo` directly. Share-link parametric
+asset and inflation moments are allowlisted and clamped to the same supported domains.
+
+Regression coverage includes blank/late events, signed one-time costs, empty and
+out-of-horizon periods, unsafe parametric assumptions, negative capital, and direct Wasm
+calls with invalid cashflows or forged timelines.
+
+### 0.21 Negative expenses funded retirement; blank ages planned from birth — ✅ FIXED 2026-08-04
+
+Two ways to pass `validateSimulationInputs` with a payload the engine then interpreted
+rather than rejected. Both produced finite, plausible-looking results, which is what made
+them release blockers rather than crashes.
+
+**Sign.** The amount fields are `type="text" inputmode="numeric"`, and `parseNum` keeps `-`
+in its character filter, so `-50000` was stored verbatim. The validator only checked that at
+least one spending period existed, and `buildCashflowArrays` feeds the sign straight into
+`monthlyNetFlow[m] = income - spending` and thence to `balance += income - effectiveSpending`.
+A negative expense therefore paid €50k a year _into_ the portfolio.
+
+**Finiteness.** The validator did its arithmetic before checking anything:
+`Math.max(0, Math.round((simulateUntilAge - currentAge) * 12))`. With `NaN` every subsequent
+guard is false (`NaN <= 12`, `NaN < NaN`, `NaN > NaN - 12`), so it returned
+`{ months: NaN, retireMonth: NaN }` with no error and that reached the worker/Wasm boundary.
+Not reachable from the UI, as it turns out — but the `null` neighbour was. Svelte's
+`to_number` binds `null`, not `undefined`, for a cleared numeric input (and browsers report
+`''` for otherwise-invalid numeric text, so that lands on `null` too). `null` coerces to 0,
+which sails through every ordering check: clearing **Current age** left a valid-looking
+1080-month plan running from age 0, salary accruing from birth. Clearing **Plan until age**
+happened to be caught already, by the horizon check.
+
+`validateSimulationInputs` now type-and-finiteness-checks the three ages _before_ any
+arithmetic (`typeof value === 'number' && Number.isFinite(value)`, so `null` and `undefined`
+are rejected too — a bare `Number.isFinite` guard would not have caught the reachable case),
+and validates every spending period and income source for finite ages, a non-reversed range,
+and a non-negative amount. Errors name the offending row by its user-chosen label. A
+zero-length range stays legal: the salary row spans current age → retirement age, which
+collapses to a point in already-retired mode. Income sources are a new third argument,
+defaulted to `[]` so existing two-argument callers keep working; the app passes
+`effectiveIncomeSources`, matching what the engines are actually given.
+
+Lump-sum `amount` is deliberately left signed — a one-time cost is legitimately negative
+there.
+
+Not closed: the parametric moment inputs remain unvalidated, and `SHARE_INPUT_SCALAR_BOUNDS`
+does not cover them either — see Priority 0 item 1 in the active backlog.
+
+### 0.20 Parametric inflation could leave the positive-price domain — ✅ FIXED 2026-08-03
+
+`drawMonthlyReturnShaped` had no floor, unlike returns, which pass through
+`clampAnnualReturn`. Cornish-Fisher scores are cubic in the underlying normal draw and so
+unbounded, and `inflationVariability` was a free-text field with no upper bound, so a
+sufficiently volatile or fat-tailed setting drew monthly inflation ≤ −100%. That is not a
+pessimistic scenario, it is a broken one: `evaluatePath` divides balances by `1 + i` and
+deflates nominal cashflows by the running product, so a factor at or below zero produced
+infinities and sign-flipped pensions. Reproduced end to end — the TypeScript engine threw
+out of the FI-target bisection ("could not bracket…") and the Wasm engine panicked
+`unreachable`.
+
+Both engines now clamp at the single point where a tape's inflation rate is written
+(`clampMonthlyInflation` / `clamp_monthly_inflation`, bounds mirroring
+`clampMonthlyReturn`), so every downstream consumer — main loop, ruin surface, coast age,
+FI target — is covered by one guard and the two engines stay bit-identical. Clamping happens
+after the RNG draw, so path streams remain aligned. The UI additionally caps entered
+inflation volatility at 50pp. Regression tests assert finite output from both engines at
+300pp entered volatility; both fail loudly without the clamp.
+
+Not closed: the clamp truncates rather than modelling. A log-domain draw would keep the
+price level positive by construction, and nothing yet reports that a draw was clipped — see
+Priority 0 item 2 in the active backlog.
+
+### 0.19 A plan ending at its own retirement date reported a met target — ✅ FIXED 2026-08-03
+
+`validateSimulationInputs` checked that the horizon was at least a year and that retirement
+was not before today, but never that retirement fell _inside_ the horizon. With
+`retirementAge >= simulateUntilAge` the P95 target replay started at or past the end of the
+tape, iterated zero months, found every path solvent on zero capital, and returned a target
+of 0 — which the output cards presented as a target already cleared, with a 100% chance of
+reaching FI. The old suffix-scan construction returned a real number here, so this surfaced
+only once the target became a replay (see §7.2).
+
+Validation now requires at least a year of drawdown, on the same footing as the existing
+horizon rule. Zero-length and negative-length retirements are rejected with a message rather
+than silently answered.
 
 ### 0.18 Annual regime pools sampled with mismatched template weights — ✅ FIXED 2026-07-26
 
@@ -1007,6 +1110,20 @@ that neither eslint nor `vite build` reports, since the build transpiles without
 ahead of the engine tests.
 **Files:** `eslint.config.js`, `.github/workflows/publish-dist.yml`,
 `src/types/plotly.js-cartesian-dist-min.d.ts`, `src/lib/plannerTypes.ts`, all four components
+
+### 1.10 Cost of the replay-based P95 target — MEASURED 2026-08-03, accepted
+
+Making the FI target a bisected replay (§7.2) moved it from an O(n log n) scan over
+retirement balances onto ~20 bisection steps × up to 2,000 tape replays, and unlike the
+previous already-retired-only branch it now runs on _every_ simulation. Measured on a
+40→65→95 plan (660 months, `retireMonth` 300, 2,000 simulations): the search costs ~630 ms
+of a 6.5 s TypeScript run, about 10%. The shipped path is Wasm, which completes the same
+whole run in ~3.4 s, and it runs in a worker rather than on the UI thread.
+
+Accepted as-is. If it needs to come down later, the search reuses the full path evaluator
+per candidate and could bisect against a cheaper sufficient statistic, or replay fewer than
+`replaySampleCount` tapes — but that trades away the exactness the construction was chosen
+for, so it is not worth doing speculatively.
 
 ---
 

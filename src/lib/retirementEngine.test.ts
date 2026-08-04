@@ -13,8 +13,7 @@ import {
 	detectRegimes,
 	drawCornishFisherScore,
 	evaluatePath,
-	findRequiredStartingCapital,
-	findRetirementBalanceTarget,
+	findRequiredCapitalAtMonth,
 	incomeAtAge,
 	isAlreadyRetired,
 	runMonteCarloSimulation,
@@ -210,13 +209,6 @@ describe('retirementEngine stochastic helpers', () => {
 			// Kurtosis should be distinctly fat-tailed (> 3)
 			expect(moments.kurtosis).toBeGreaterThan(4);
 		});
-	});
-
-	it('finds P95 retirement balance target from handcrafted outcomes', () => {
-		const retirementBalances = [100, 120, 140, 160, 180, 200];
-		const successFlags = [false, false, true, true, true, true];
-		const target = findRetirementBalanceTarget(retirementBalances, successFlags, 0.95);
-		expect(target).toBe(140);
 	});
 });
 
@@ -1564,6 +1556,110 @@ describe('runMonteCarloSimulation smoke', () => {
 	});
 });
 
+describe('parametric inflation stays in a positive-price domain', () => {
+	// Cornish-Fisher scores are cubic in the normal draw and therefore unbounded, so a large
+	// entered volatility used to reach `1 + i <= 0`. The evaluator divides balances by that
+	// factor and deflates nominal cashflows by its running product, so crossing zero produced
+	// infinities and sign-flipped pensions rather than a merely pessimistic scenario.
+	function volatileInflationInput(): RetirementInput {
+		return {
+			simulationMode: 'parametric',
+			currentAge: 40,
+			retirementAge: 55,
+			simulateUntilAge: 85,
+			currentSavings: 400_000,
+			meanReturn: 0.06,
+			returnVariability: 0.15,
+			returnSkewness: 0,
+			returnKurtosis: 3,
+			equityBondCorrelation: 0,
+			inflationMean: 0.02,
+			inflationVariability: 3, // 300pp annual std — far past anything the UI now accepts
+			inflationSkewness: -1.5,
+			inflationKurtosis: 11,
+			annualFeePercent: 0.004,
+			taxOnGainsPercent: 0.15,
+			safeWithdrawalRate: 0.04,
+			simulations: 200,
+			seed: 20260803,
+			regimeModel: {
+				stayGrowth: 0.92,
+				stayCrisis: 0.68,
+				growthMean: 0.09,
+				growthStd: 0.14,
+				crisisMean: -0.12,
+				crisisStd: 0.24
+			},
+			historicalAnnualReturns: [],
+			historicalMonthlyReturns: undefined
+		};
+	}
+
+	const spendingPeriods: SpendingPeriod[] = [
+		{
+			id: 'sp',
+			label: 'Living expenses',
+			fromAge: 40,
+			toAge: 85,
+			yearlyAmount: 30_000,
+			inflationAdjusted: true
+		}
+	];
+	// Nominal, so it is deflated by the realized inflation index — the term that inverts if
+	// the index is allowed to go negative.
+	const incomeSources: IncomeSource[] = [
+		{
+			id: 'is-pension',
+			label: 'Pension',
+			fromAge: 67,
+			toAge: 85,
+			yearlyAmount: 18_000,
+			inflationAdjusted: false
+		}
+	];
+
+	it('keeps the TypeScript engine finite under extreme entered volatility', () => {
+		const input = volatileInflationInput();
+		const months = (input.simulateUntilAge - input.currentAge) * 12;
+		const result = runMonteCarloSimulation(
+			input,
+			spendingPeriods,
+			incomeSources,
+			[],
+			months,
+			(input.retirementAge - input.currentAge) * 12
+		);
+
+		expect(Number.isFinite(result.stats.finalMedian)).toBe(true);
+		expect(Number.isFinite(result.stats.fiTargetP95)).toBe(true);
+		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
+		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
+		expect(result.simulation.percentiles.p50.every(Number.isFinite)).toBe(true);
+		expect(result.simulation.percentiles.p10.every((b: number) => b >= 0)).toBe(true);
+	});
+
+	it('keeps the Rust engine finite under extreme entered volatility', async () => {
+		const input = volatileInflationInput();
+		const months = (input.simulateUntilAge - input.currentAge) * 12;
+
+		await ensureWasm();
+		const result = run_monte_carlo(
+			input,
+			spendingPeriods,
+			incomeSources,
+			[],
+			months,
+			(input.retirementAge - input.currentAge) * 12
+		);
+
+		expect(Number.isFinite(result.stats.finalMedian)).toBe(true);
+		expect(Number.isFinite(result.stats.fiTargetP95)).toBe(true);
+		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
+		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
+		expect(result.simulation.percentiles.p50.every(Number.isFinite)).toBe(true);
+	});
+});
+
 describe('sequence-risk summary consumes retirement-relative years', () => {
 	const postReturns = [0.04, 0.02, 0.0, -0.02, -0.04];
 	const series = postReturns.map((post) => Array(10).fill(post));
@@ -1681,6 +1777,29 @@ describe('already-retired mode', () => {
 		expect(validated.months).toBe(0);
 	});
 
+	it('rejects a plan that ends at or before the retirement date', () => {
+		// Left to run, these produce a P95 target of 0: the replay starts past the end of the
+		// tape, finds every path solvent at zero capital, and the cards report a target already
+		// cleared with full confidence. The same one-year rule as the horizon check applies.
+		for (const retirementAge of [90, 91, 89.5]) {
+			const validated = validateSimulationInputs(
+				retiredInput({ currentAge: 66, retirementAge, simulateUntilAge: 90 }),
+				retiredSpending
+			);
+
+			expect(validated.error).toBeTruthy();
+			expect(validated.months).toBe(0);
+		}
+
+		// Exactly one year of drawdown is still a plan, and still passes.
+		const boundary = validateSimulationInputs(
+			retiredInput({ currentAge: 66, retirementAge: 89, simulateUntilAge: 90 }),
+			retiredSpending
+		);
+		expect(boundary.error).toBeUndefined();
+		expect(boundary.retireMonth).toBe(23 * 12);
+	});
+
 	it('collapses the ruin surface to a single retirement-age column', () => {
 		const input = retiredInput();
 		const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);
@@ -1781,7 +1900,7 @@ describe('already-retired mode', () => {
 	});
 });
 
-describe('findRequiredStartingCapital', () => {
+describe('findRequiredCapitalAtMonth', () => {
 	// Two paths: one that grows, one that shrinks. Deterministic, so the answer is a fact
 	// about the flows rather than a sampling artefact.
 	const months = 24;
@@ -1795,7 +1914,7 @@ describe('findRequiredStartingCapital', () => {
 
 	function required(spendPerMonth: number, target: number, income = noIncome): number {
 		const spending = new Float64Array(months).fill(spendPerMonth);
-		return findRequiredStartingCapital(
+		return findRequiredCapitalAtMonth(
 			pathTapes,
 			{
 				monthlyRealIncomeFlow: income,
@@ -1807,6 +1926,7 @@ describe('findRequiredStartingCapital', () => {
 			pathTapes.length,
 			months,
 			strategy,
+			0,
 			0,
 			target,
 			10000,
@@ -1840,7 +1960,7 @@ describe('findRequiredStartingCapital', () => {
 		const capital = required(1000, 1);
 		const spending = new Float64Array(months).fill(1000);
 		const ruinAt = (start: number) =>
-			findRequiredStartingCapital(
+			findRequiredCapitalAtMonth(
 				pathTapes,
 				{
 					monthlyRealIncomeFlow: noIncome,
@@ -1852,6 +1972,7 @@ describe('findRequiredStartingCapital', () => {
 				pathTapes.length,
 				months,
 				strategy,
+				0,
 				0,
 				1,
 				start,
@@ -1927,5 +2048,206 @@ describe('moment targeting hits the requested annual moments', () => {
 		const nan = monthlyTargetsForAnnualMoments(0.05, Number.NaN);
 		expect(Number.isFinite(nan.mean)).toBe(true);
 		expect(nan.std).toBe(0);
+	});
+});
+
+describe('payload validation', () => {
+	function baseInput(overrides: Partial<RetirementInput> = {}): RetirementInput {
+		return {
+			simulationMode: 'historical',
+			currentAge: 35,
+			retirementAge: 60,
+			simulateUntilAge: 90,
+			currentSavings: 100000,
+			meanReturn: 0.06,
+			returnVariability: 0.14,
+			returnSkewness: 0,
+			returnKurtosis: 3,
+			equityBondCorrelation: -0.1,
+			inflationMean: 0.02,
+			inflationVariability: 0.015,
+			inflationSkewness: 0,
+			inflationKurtosis: 3,
+			annualFeePercent: 0.004,
+			taxOnGainsPercent: 0.15,
+			safeWithdrawalRate: 0.04,
+			simulations: 400,
+			seed: 5150,
+			regimeModel: {
+				stayGrowth: 0.92,
+				stayCrisis: 0.68,
+				growthMean: 0.09,
+				growthStd: 0.14,
+				crisisMean: -0.12,
+				crisisStd: 0.24
+			},
+			...overrides
+		};
+	}
+
+	const spending = (overrides: Partial<SpendingPeriod> = {}): SpendingPeriod[] => [
+		{
+			id: 'sp-default',
+			label: 'Living expenses',
+			fromAge: 35,
+			toAge: 90,
+			yearlyAmount: 32000,
+			inflationAdjusted: true,
+			...overrides
+		}
+	];
+
+	it('accepts a well-formed payload', () => {
+		const validated = validateSimulationInputs(baseInput(), spending(), []);
+		expect(validated.error).toBeUndefined();
+		expect(validated.months).toBe(55 * 12);
+		expect(validated.retireMonth).toBe(25 * 12);
+	});
+
+	it('rejects a negative expense instead of treating it as income', () => {
+		// `balance += income - spending`, so a negative expense pays into the portfolio and the
+		// run stays finite and plausible — the whole reason this has to fail at the boundary.
+		const validated = validateSimulationInputs(baseInput(), spending({ yearlyAmount: -50000 }), []);
+
+		expect(validated.error).toMatch(/negative yearly amount/i);
+		expect(validated.error).toContain('Living expenses');
+		expect(validated.months).toBe(0);
+		expect(validated.retireMonth).toBe(0);
+	});
+
+	it('rejects a negative income source', () => {
+		const income: IncomeSource[] = [
+			{ id: 'is-default', label: 'Salary', fromAge: 35, toAge: 60, yearlyAmount: -1000 }
+		];
+		const validated = validateSimulationInputs(baseInput(), spending(), income);
+
+		expect(validated.error).toMatch(/negative yearly amount/i);
+		expect(validated.months).toBe(0);
+	});
+
+	it('rejects a reversed age range', () => {
+		const validated = validateSimulationInputs(
+			baseInput(),
+			spending({ fromAge: 70, toAge: 50 }),
+			[]
+		);
+
+		expect(validated.error).toMatch(/ends before it starts/i);
+		expect(validated.months).toBe(0);
+	});
+
+	it('rejects an empty or out-of-horizon expense period', () => {
+		expect(
+			validateSimulationInputs(baseInput(), spending({ fromAge: 70, toAge: 70 }), []).error
+		).toMatch(/empty period/i);
+		expect(
+			validateSimulationInputs(baseInput(), spending({ fromAge: 91, toAge: 92 }), []).error
+		).toMatch(/outside the planning horizon/i);
+	});
+
+	it('rejects invalid one-time events while preserving signed amounts', () => {
+		const validNegativeEvent = [{ id: 'cost', label: 'Renovation', age: 55, amount: -50_000 }];
+		expect(
+			validateSimulationInputs(baseInput(), spending(), [], validNegativeEvent).error
+		).toBeUndefined();
+		expect(
+			validateSimulationInputs(
+				baseInput(),
+				spending(),
+				[],
+				[{ id: 'bad', label: 'Mystery', age: null as unknown as number, amount: 1000 }]
+			).error
+		).toMatch(/age.*must be a number/i);
+		expect(
+			validateSimulationInputs(
+				baseInput(),
+				spending(),
+				[],
+				[{ id: 'late', label: 'Late gift', age: 90, amount: 1000 }]
+			).error
+		).toMatch(/outside the planning horizon/i);
+	});
+
+	it('rejects unsupported portfolio and parametric assumptions', () => {
+		for (const overrides of [
+			{ currentSavings: -1 },
+			{ returnVariability: -0.1 },
+			{ returnKurtosis: 0.5 },
+			{ inflationVariability: 0.6 },
+			{ equityBondCorrelation: 2 },
+			{ annualFeePercent: Number.NaN },
+			{ safeWithdrawalRate: 0 },
+			{ simulations: 1_000_001 },
+			{ regimeModel: { ...baseInput().regimeModel, stayGrowth: 2 } },
+			{ historicalAnnualReturns: [0.1, Number.NaN] },
+			{ historicalMonthlyReturns: [0.01], historicalMonthlyInflation: [0.002, 0.003] }
+		]) {
+			const validated = validateSimulationInputs(baseInput(overrides), spending(), []);
+			expect(validated.error).toBeTruthy();
+			expect(validated.months).toBe(0);
+		}
+	});
+
+	it('rejects an unsafe payload at the Wasm boundary too', async () => {
+		await ensureWasm();
+		const input = baseInput();
+		expect(() =>
+			run_monte_carlo(input, spending({ yearlyAmount: -1 }), [], [], 55 * 12, 25 * 12)
+		).toThrow();
+		expect(() => run_monte_carlo(input, spending(), [], [], 1, 0)).toThrow();
+	});
+
+	it('allows a zero-length range, which is how already-retired encodes the salary row', () => {
+		const income: IncomeSource[] = [
+			{ id: 'is-default', label: 'Salary', fromAge: 60, toAge: 60, yearlyAmount: 65000 }
+		];
+		expect(validateSimulationInputs(baseInput(), spending(), income).error).toBeUndefined();
+	});
+
+	it.each([
+		['currentAge', 'NaN', { currentAge: Number.NaN }],
+		['simulateUntilAge', 'NaN', { simulateUntilAge: Number.NaN }],
+		['retirementAge', 'NaN', { retirementAge: Number.NaN }],
+		['currentAge', 'null', { currentAge: null as unknown as number }],
+		['simulateUntilAge', 'null', { simulateUntilAge: null as unknown as number }],
+		['currentAge', 'undefined', { currentAge: undefined as unknown as number }]
+	])('rejects a %s of %s', (_field, _kind, overrides) => {
+		// NaN makes every ordering guard false; null coerces to 0 and would silently plan from
+		// birth. Both used to return a payload the worker accepted.
+		const validated = validateSimulationInputs(baseInput(overrides), spending(), []);
+
+		expect(validated.error).toBeTruthy();
+		expect(validated.months).toBe(0);
+		expect(validated.retireMonth).toBe(0);
+	});
+
+	it('never returns a non-finite month count', () => {
+		for (const overrides of [
+			{ currentAge: Number.NaN },
+			{ simulateUntilAge: Number.POSITIVE_INFINITY },
+			{ retirementAge: Number.NaN }
+		]) {
+			const { months, retireMonth } = validateSimulationInputs(
+				baseInput(overrides),
+				spending(),
+				[]
+			);
+			expect(Number.isFinite(months)).toBe(true);
+			expect(Number.isFinite(retireMonth)).toBe(true);
+		}
+	});
+
+	it('rejects a non-finite amount or age on a row', () => {
+		expect(
+			validateSimulationInputs(baseInput(), spending({ yearlyAmount: Number.NaN }), []).error
+		).toMatch(/must be a number/i);
+		expect(
+			validateSimulationInputs(baseInput(), spending({ toAge: null as unknown as number }), [])
+				.error
+		).toMatch(/must both be numbers/i);
+	});
+
+	it('stays backwards compatible when no income sources are passed', () => {
+		expect(validateSimulationInputs(baseInput(), spending()).error).toBeUndefined();
 	});
 });

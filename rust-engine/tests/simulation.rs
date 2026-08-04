@@ -60,7 +60,10 @@ fn a_seeded_run_is_reproducible() {
     let first = run(&plan);
     let second = run(&plan);
 
-    assert_eq!(first.stats.success_probability, second.stats.success_probability);
+    assert_eq!(
+        first.stats.success_probability,
+        second.stats.success_probability
+    );
     assert_eq!(first.stats.final_median, second.stats.final_median);
     assert_eq!(first.stats.coast_age, second.stats.coast_age);
     assert_eq!(
@@ -207,7 +210,10 @@ fn probabilities_and_summary_statistics_stay_in_range() {
         stats.fi_probability_swr,
         stats.fi_probability_p95,
     ] {
-        assert!((0.0..=1.0).contains(&probability), "out of range: {probability}");
+        assert!(
+            (0.0..=1.0).contains(&probability),
+            "out of range: {probability}"
+        );
     }
     assert!(stats.shortfall_low <= stats.shortfall_median);
     assert!(stats.shortfall_median <= stats.shortfall_high);
@@ -267,10 +273,22 @@ fn the_swr_target_values_delayed_and_temporary_income_on_its_schedule() {
     )];
 
     let delayed_result = run_monte_carlo_simulation(
-        &plan.input, &plan.spending, &delayed, &[], plan.months, plan.retire_month, None,
+        &plan.input,
+        &plan.spending,
+        &delayed,
+        &[],
+        plan.months,
+        plan.retire_month,
+        None,
     );
     let temporary_result = run_monte_carlo_simulation(
-        &plan.input, &plan.spending, &temporary, &[], plan.months, plan.retire_month, None,
+        &plan.input,
+        &plan.spending,
+        &temporary,
+        &[],
+        plan.months,
+        plan.retire_month,
+        None,
     );
 
     assert!(delayed_result.stats.fi_target_swr > 250_000.0);
@@ -305,8 +323,14 @@ fn the_p95_target_is_independent_of_accumulation_wealth() {
         None,
     );
 
-    assert_ne!(lean_result.stats.retire_median, wealthy_result.stats.retire_median);
-    assert_eq!(lean_result.stats.fi_target_p95, wealthy_result.stats.fi_target_p95);
+    assert_ne!(
+        lean_result.stats.retire_median,
+        wealthy_result.stats.retire_median
+    );
+    assert_eq!(
+        lean_result.stats.fi_target_p95,
+        wealthy_result.stats.fi_target_p95
+    );
 }
 
 #[test]
@@ -352,11 +376,13 @@ fn the_ruin_surface_is_reported_with_its_own_sample_count() {
     assert_eq!(surface.ruin_probabilities.len(), 9);
     assert!(surface.sample_count <= result.sim_count as usize);
     assert!(surface.sample_count <= 2000);
-    assert!(surface
-        .ruin_probabilities
-        .iter()
-        .flatten()
-        .all(|p| (0.0..=1.0).contains(p)));
+    assert!(
+        surface
+            .ruin_probabilities
+            .iter()
+            .flatten()
+            .all(|p| (0.0..=1.0).contains(p))
+    );
 }
 
 #[test]
@@ -534,13 +560,15 @@ fn a_hopeless_plan_fails_every_path_without_producing_nonsense() {
     assert!(result.stats.shortfall_median > 0.0);
     assert!(result.stats.depleted_years_median > 0.0);
     assert!(result.stats.coast_age.is_none());
-    assert!(result
-        .stats
-        .ruin_surface
-        .ruin_probabilities
-        .iter()
-        .flatten()
-        .all(|&p| p == 1.0));
+    assert!(
+        result
+            .stats
+            .ruin_surface
+            .ruin_probabilities
+            .iter()
+            .flatten()
+            .all(|&p| p == 1.0)
+    );
 }
 
 #[test]
@@ -575,7 +603,10 @@ fn progress_is_reported_monotonically_from_zero() {
     let seen = seen.into_inner();
     assert_eq!(seen.first(), Some(&0.0));
     assert_eq!(seen.last(), Some(&0.90));
-    assert!(seen.windows(2).all(|w| w[0] <= w[1]), "progress went backwards");
+    assert!(
+        seen.windows(2).all(|w| w[0] <= w[1]),
+        "progress went backwards"
+    );
     assert!(seen.iter().all(|p| (0.0..=1.0).contains(p)));
 }
 
@@ -644,5 +675,8 @@ fn a_zero_block_length_does_not_panic() {
     one.input.historical_monthly_returns = Some(history);
     let one_result = run(&one);
 
-    assert_eq!(zero_result.stats.final_median, one_result.stats.final_median);
+    assert_eq!(
+        zero_result.stats.final_median,
+        one_result.stats.final_median
+    );
 }

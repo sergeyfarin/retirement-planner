@@ -881,7 +881,12 @@
 	}
 
 	async function onInflationMetricChange() {
-		parametricInflationVariability = Math.max(0, parametricInflationVariability);
+		// The upper bound is generous — the highest annual CPI standard deviation in the
+		// reference series is under 5pp — but it stops the field holding a number that makes
+		// the engine's inflation clamp the only thing standing between the user and a
+		// meaningless run. The clamp is still the load-bearing guard; this keeps the input
+		// itself honest and the displayed variance drag finite.
+		parametricInflationVariability = Math.min(0.5, Math.max(0, parametricInflationVariability));
 		parametricInflationKurtosis = Math.max(1, parametricInflationKurtosis);
 		await tick();
 		applyInvestmentAllocationMetrics();
@@ -1724,7 +1729,12 @@
 
 	async function runSimulation(simCountOverride: number | undefined = undefined) {
 		errorMessage = '';
-		const validated = validateSimulationInputs(input, spendingPeriods);
+		const validated = validateSimulationInputs(
+			input,
+			spendingPeriods,
+			effectiveIncomeSources,
+			lumpSumEvents
+		);
 		if (validated.error) {
 			errorMessage = validated.error;
 			return;

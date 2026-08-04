@@ -1,4 +1,4 @@
-use crate::calculations::{clamp, PercentileSeries, RandomSource};
+use crate::calculations::{PercentileSeries, RandomSource, clamp};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -146,17 +146,9 @@ pub fn transition_regime_state(
     rng: &mut RandomSource,
 ) -> u8 {
     if current_state == 0 {
-        if rng.random() < stay_growth {
-            0
-        } else {
-            1
-        }
+        if rng.random() < stay_growth { 0 } else { 1 }
     } else {
-        if rng.random() < stay_crisis {
-            1
-        } else {
-            0
-        }
+        if rng.random() < stay_crisis { 1 } else { 0 }
     }
 }
 
@@ -250,6 +242,22 @@ pub fn clamp_annual_return(value: f64) -> f64 {
 }
 
 pub fn clamp_monthly_return(value: f64) -> f64 {
+    clamp(value, -0.6, 0.6)
+}
+
+/// Keeps monthly inflation in a domain where the price level stays strictly positive.
+///
+/// The evaluator divides balances by `1 + i` every month and deflates nominal cashflows by
+/// the running product of those factors, so a factor at or below zero does not produce a
+/// merely pessimistic scenario — it produces infinities, and a negative inflation index
+/// silently flips the sign of every nominal pension and expense. Cornish-Fisher scores are
+/// cubic in the underlying normal draw and therefore unbounded, so user-entered volatility
+/// and kurtosis reach that domain well short of absurd inputs. Bounds mirror
+/// `clamp_monthly_return`; historical inflation is real observed data and never approaches
+/// them, so this only ever binds on parametric draws.
+///
+/// Mirrored in TypeScript as `clampMonthlyInflation`.
+pub fn clamp_monthly_inflation(value: f64) -> f64 {
     clamp(value, -0.6, 0.6)
 }
 

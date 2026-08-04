@@ -5,6 +5,7 @@ import type {
 	LumpSumEvent
 } from './retirementEngine';
 import init, { run_monte_carlo } from 'rust-engine';
+import { validateSimulationPayload } from './simulationValidation';
 
 export interface WorkerInputMessage {
 	type: 'RUN_SIMULATION';
@@ -47,6 +48,17 @@ self.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
 
 	if (type === 'RUN_SIMULATION') {
 		try {
+			const validated = validateSimulationPayload(
+				payload.input,
+				payload.spendingPeriods,
+				payload.incomeSources,
+				payload.lumpSumEvents
+			);
+			if (validated.error) throw new Error(validated.error);
+			if (payload.months !== validated.months || payload.retireMonth !== validated.retireMonth) {
+				throw new Error('Simulation timeline does not match the validated calculator inputs.');
+			}
+
 			// Initialize WASM module on first use
 			if (!wasmReady) {
 				await init();

@@ -5,6 +5,9 @@ import {
 	percentile,
 	summarize
 } from './calculations';
+import { validateSimulationPayload } from './simulationValidation';
+
+export { validateSimulationPayload } from './simulationValidation';
 
 export type { RandomSource, PercentileSeries };
 
@@ -342,6 +345,24 @@ function clampAnnualReturn(value: number): number {
 }
 
 function clampMonthlyReturn(value: number): number {
+	return Math.min(0.6, Math.max(-0.6, value));
+}
+
+/**
+ * Keeps monthly inflation in a domain where the price level stays strictly positive.
+ *
+ * The evaluator divides balances by `1 + i` every month and deflates nominal cashflows by
+ * the running product of those factors, so a factor at or below zero does not produce a
+ * merely pessimistic scenario — it produces infinities, and a negative inflation index
+ * silently flips the sign of every nominal pension and expense. Cornish-Fisher scores are
+ * cubic in the underlying normal draw and therefore unbounded, so user-entered volatility
+ * and kurtosis reach that domain well short of absurd inputs. Bounds mirror
+ * `clampMonthlyReturn`; historical inflation is real observed data and never approaches
+ * them, so this only ever binds on parametric draws.
+ *
+ * Mirrored in Rust as `clamp_monthly_inflation`.
+ */
+function clampMonthlyInflation(value: number): number {
 	return Math.min(0.6, Math.max(-0.6, value));
 }
 
@@ -958,47 +979,23 @@ function replayRuinProbability(
 }
 
 /**
- * Smallest starting capital that still clears `targetSuccessProbability`, found by
- * bisection over exact replays of stored exogenous return/inflation paths.
+ * Smallest capital held at `startMonth` that still clears `targetSuccessProbability`, found
+ * by bisection over exact replays of stored exogenous return/inflation paths.
  *
- * The public wrapper starts at month zero for already-retired plans. Future-retirement
- * targets use `findRequiredCapitalAtMonth` directly at the retirement boundary, holding
- * return/inflation tapes fixed while varying capital.
+ * This is the sole construction behind the P95 FI target. Rather than reading the answer off
+ * the spread of simulated balances at retirement — which makes the target conditional on the
+ * very accumulation returns that produced the balance it is compared against — it holds the
+ * tapes fixed and varies only the capital standing at the retirement boundary. `startMonth`
+ * is that boundary: the retirement month for a plan still accumulating, month zero for one
+ * already in drawdown.
  *
  * Success is monotone non-decreasing in starting capital along fixed paths, so bisection is
  * exact up to the tolerance. Returns 0 when income alone survives every path. Throws if
  * invalid inputs or floating-point limits prevent a valid upper bracket; it never returns
  * an unverified capital amount as though it met the target.
  *
- * Mirrored in Rust as `find_required_starting_capital`.
+ * Mirrored in Rust as `find_required_capital_at_month`.
  */
-export function findRequiredStartingCapital(
-	pathTapes: PathTape[],
-	cashflows: ExactCashflowArrays,
-	sampleCount: number,
-	months: number,
-	strategy: WithdrawalStrategy,
-	retireMonth: number,
-	targetSuccessProbability: number,
-	initialGuess: number,
-	annualFeePercent: number,
-	taxOnGainsPercent: number
-): number {
-	return findRequiredCapitalAtMonth(
-		pathTapes,
-		cashflows,
-		sampleCount,
-		months,
-		strategy,
-		retireMonth,
-		0,
-		targetSuccessProbability,
-		initialGuess,
-		annualFeePercent,
-		taxOnGainsPercent
-	);
-}
-
 export function findRequiredCapitalAtMonth(
 	pathTapes: PathTape[],
 	cashflows: ExactCashflowArrays,
@@ -1331,11 +1328,13 @@ export function scheduleAwareSWRTarget(
  * engines derive it from the same two numbers. `retireMonth` then comes out as 0 and the
  * whole accumulation phase collapses to nothing.
  *
- * Three outputs are only meaningful with an accumulation phase ahead, and each is handled
+ * Two outputs are only meaningful with an accumulation phase ahead, and each is handled
  * explicitly rather than left to degenerate: Coast FIRE returns `null` (already the case
- * for `retireMonth === 0`), the ruin surface drops its retirement-age axis
- * (`buildRuinSurface`), and the P95 FI target switches to a required-starting-capital
- * search (`findRequiredStartingCapital`). See README §7.6.
+ * for `retireMonth === 0`), and the ruin surface drops its retirement-age axis
+ * (`buildRuinSurface`). The P95 FI target needs no branch — `findRequiredCapitalAtMonth`
+ * varies capital at the retirement boundary either way, and that boundary is simply month
+ * zero here. Only the probability *comparison* changes, to a yes/no fact about capital
+ * already held. See README §7.6.
  *
  * Mirrored in Rust as `is_already_retired`.
  */
@@ -1347,32 +1346,11 @@ export function isAlreadyRetired(
 
 export function validateSimulationInputs(
 	input: RetirementInput,
-	spendingPeriods: SpendingPeriod[]
+	spendingPeriods: SpendingPeriod[],
+	incomeSources: IncomeSource[] = [],
+	lumpSumEvents: LumpSumEvent[] = []
 ): { months: number; retireMonth: number; error?: string } {
-	const months = Math.max(0, Math.round((input.simulateUntilAge - input.currentAge) * 12));
-	if (months <= 12) {
-		return {
-			months: 0,
-			retireMonth: 0,
-			error: 'Simulation horizon must be at least 1 year beyond current age.'
-		};
-	}
-	if (input.retirementAge < input.currentAge) {
-		return {
-			months: 0,
-			retireMonth: 0,
-			error: 'Target year to achieve FI cannot be before your current age.'
-		};
-	}
-	if (spendingPeriods.length === 0) {
-		return { months: 0, retireMonth: 0, error: 'Add at least one spending period.' };
-	}
-
-	const retireMonth = Math.min(
-		months,
-		Math.max(0, Math.round((input.retirementAge - input.currentAge) * 12))
-	);
-	return { months, retireMonth };
+	return validateSimulationPayload(input, spendingPeriods, incomeSources, lumpSumEvents);
 }
 
 export function buildCashflowArrays(
@@ -1437,40 +1415,6 @@ export function buildCashflowArrays(
 		monthlyNominalSpendingFlow,
 		lumpSumByMonth
 	};
-}
-
-// `successFlags` must use the same definition as the headline success probability
-// (spending was always fully funded), so the P95 FI target and the success rate
-// agree on what counts as a surviving path.
-export function findRetirementBalanceTarget(
-	retirementBalances: number[],
-	successFlags: boolean[],
-	targetSuccessProbability: number
-): number {
-	const outcomeCount = Math.min(retirementBalances.length, successFlags.length);
-	if (outcomeCount === 0) return 0;
-
-	const outcomes = Array.from({ length: outcomeCount }, (_, index) => ({
-		retirementBalance: retirementBalances[index],
-		endingPositive: successFlags[index]
-	})).sort((a, b) => a.retirementBalance - b.retirementBalance);
-
-	const suffixSuccess = new Array(outcomeCount + 1).fill(0);
-	for (let index = outcomeCount - 1; index >= 0; index--) {
-		suffixSuccess[index] = suffixSuccess[index + 1] + (outcomes[index].endingPositive ? 1 : 0);
-	}
-
-	let requiredTarget = outcomes[outcomeCount - 1].retirementBalance;
-	for (let index = 0; index < outcomeCount; index++) {
-		const sampleSize = outcomeCount - index;
-		const successProbability = suffixSuccess[index] / sampleSize;
-		if (successProbability >= targetSuccessProbability) {
-			requiredTarget = outcomes[index].retirementBalance;
-			break;
-		}
-	}
-
-	return Math.max(0, requiredTarget);
 }
 
 export function runMonteCarloSimulation(
@@ -1748,7 +1692,7 @@ export function runMonteCarloSimulation(
 						rng
 					);
 			tape.assetReturns[m] = monthlyAssetReturn;
-			tape.inflationRates[m] = monthlyInflation;
+			tape.inflationRates[m] = clampMonthlyInflation(monthlyInflation);
 		}
 
 		const evaluation = evaluatePath(

@@ -26,9 +26,9 @@ import { randomId } from './randomId';
  *     in a state the UI itself would never produce: the field renders the out-of-range
  *     number back to the user while the engine silently simulates the clamped one.
  *
- * This module closes (3). The rule is deliberately narrow: **clamp to the bound the UI
- * already enforces at edit time, and leave everything else alone.** Fields with no
- * edit-time bound (the ages, `currentSavings`) are not clamped here, because the HTML
+ * This module closes (3). The rule is deliberately narrow: **clamp to a bound enforced by
+ * the UI or public simulation boundary, and leave everything else alone.** Fields with no
+ * edit-time bound (the ages) are not clamped here, because the HTML
  * `min`/`max` attributes are not enforced for typed input either — treating them as
  * invariants would let restoration quietly rewrite a plan that the app would have
  * accepted if it had been typed in by hand. Those stay the validator's business.
@@ -63,9 +63,7 @@ export const SHARE_INPUT_SCALAR_BOUNDS = {
 	simulateUntilAge: {
 		because: 'no edit-time clamp; validateSimulationInputs rejects short horizons'
 	},
-	currentSavings: {
-		because: 'no edit-time clamp; a negative balance simply starts the plan ruined'
-	},
+	currentSavings: { min: 0, because: 'the simulation boundary rejects negative portfolio value' },
 	equityBondCorrelation: { min: -1, max: 1, because: 'a correlation outside [-1, 1] is not one' },
 	annualFeePercent: { min: 0, max: 1, because: 'matches the edit-time clamp and both engines' },
 	taxOnGainsPercent: { min: 0, max: 1, because: 'matches the edit-time clamp and both engines' },
@@ -244,20 +242,45 @@ export function parseShareState(
 		}
 	}
 
+	const metricBounds: Record<string, { min: number; max: number }> = {
+		stockMean: { min: -0.95, max: 1.2 },
+		stockStd: { min: 0, max: 2 },
+		stockSkew: { min: -2, max: 2 },
+		stockKurt: { min: 1, max: 20 },
+		bondMean: { min: -0.95, max: 1.2 },
+		bondStd: { min: 0, max: 2 },
+		bondSkew: { min: -2, max: 2 },
+		bondKurt: { min: 1, max: 20 },
+		bankMean: { min: -0.95, max: 1.2 },
+		bankStd: { min: 0, max: 2 },
+		bankSkew: { min: -2, max: 2 },
+		bankKurt: { min: 1, max: 20 }
+	};
 	const parametricMetrics: Record<string, number> = {};
 	if (payload.pm && typeof payload.pm === 'object') {
 		for (const [key, value] of Object.entries(payload.pm as Record<string, unknown>)) {
 			const numeric = finiteNumber(value);
-			if (numeric !== null) parametricMetrics[key] = numeric;
+			const bound = metricBounds[key];
+			if (numeric !== null && bound) {
+				parametricMetrics[key] = Math.min(bound.max, Math.max(bound.min, numeric));
+			}
 		}
 	}
 
 	const parametricInflation: RestoredShareState['parametricInflation'] = {};
 	if (payload.pi && typeof payload.pi === 'object') {
 		const pi = payload.pi as Record<string, unknown>;
+		const bounds = {
+			mean: { min: -0.95, max: 1.2 },
+			std: { min: 0, max: 0.5 },
+			skew: { min: -2, max: 2 },
+			kurt: { min: 1, max: 20 }
+		};
 		for (const key of ['mean', 'std', 'skew', 'kurt'] as const) {
 			const value = finiteNumber(pi[key]);
-			if (value !== null) parametricInflation[key] = value;
+			if (value !== null) {
+				parametricInflation[key] = Math.min(bounds[key].max, Math.max(bounds[key].min, value));
+			}
 		}
 	}
 

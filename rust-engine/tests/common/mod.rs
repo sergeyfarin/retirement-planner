@@ -56,7 +56,12 @@ pub fn base_input() -> RetirementInput {
     }
 }
 
-pub fn spending(from_age: f64, to_age: f64, yearly: f64, inflation_adjusted: bool) -> SpendingPeriod {
+pub fn spending(
+    from_age: f64,
+    to_age: f64,
+    yearly: f64,
+    inflation_adjusted: bool,
+) -> SpendingPeriod {
     SpendingPeriod {
         id: format!("sp-{from_age}-{to_age}"),
         label: "spend".to_string(),

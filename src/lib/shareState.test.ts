@@ -86,7 +86,10 @@ describe('share-link scalar normalization', () => {
 		expect(normalizeSharedScalar('currentAge', 4)).toBe(4);
 		expect(normalizeSharedScalar('simulateUntilAge', 240)).toBe(240);
 		expect(normalizeSharedScalar('retirementAge', 62.5)).toBe(62.5);
-		expect(normalizeSharedScalar('currentSavings', -50_000)).toBe(-50_000);
+	});
+
+	it('clamps a shared negative portfolio to the simulation boundary', () => {
+		expect(normalizeSharedScalar('currentSavings', -50_000)).toBe(0);
 	});
 
 	it('ignores keys that are not shared scalars', () => {
@@ -222,5 +225,17 @@ describe('share payload validation', () => {
 		expect(parseShareState(payload({ t: 1 }), isKnownCurrency)?.momentTargeting).toBe(true);
 		expect(parseShareState(payload({ t: 0 }), isKnownCurrency)?.momentTargeting).toBe(false);
 		expect(parseShareState(payload({ t: 'yes' }), isKnownCurrency)?.momentTargeting).toBe(false);
+	});
+
+	it('allowlists and bounds parametric moment payloads', () => {
+		const restored = parseShareState(
+			payload({
+				pm: { stockMean: 9, stockStd: -1, stockKurt: 0, surprise: 42 },
+				pi: { mean: -9, std: 8, skew: 12, kurt: 0 }
+			}),
+			isKnownCurrency
+		);
+		expect(restored?.parametricMetrics).toEqual({ stockMean: 1.2, stockStd: 0, stockKurt: 1 });
+		expect(restored?.parametricInflation).toEqual({ mean: -0.95, std: 0.5, skew: 2, kurt: 1 });
 	});
 });
