@@ -10,29 +10,15 @@ completed decision history remain below for context.
 
 ### Priority 0 — correctness and unsafe inputs
 
-1. **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
-   Mostly done — sign, reversed ranges, and non-finite ages are now rejected at the single
-   `validateSimulationInputs` chokepoint (see 0.21), and the retirement-date/horizon
-   ordering gap is closed (see 0.19). Four gaps remain:
+1. ✅ **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
+   Closed by 0.19, 0.21 and 0.22. The shared TypeScript validator now covers all core
+   assumptions, recurring cashflows, signed one-time events, operative age ranges and
+   timeline derivation; the worker repeats it and rejects forged month counts; the Wasm
+   export independently mirrors the safety invariants for direct callers. Share-link
+   parametric moments are allowlisted and bounded before entering application state.
 
-   - The parametric moment inputs are still unvalidated, and `SHARE_INPUT_SCALAR_BOUNDS`
-     does not cover them at all.
-   - Periods lying wholly outside the simulation horizon are still silently ignored rather
-     than flagged — harmless arithmetically, but a plan whose expenses do nothing deserves
-     to say so.
-   - The guard sits _ahead of_ the worker/Wasm boundary, not _at_ it, and has no Rust
-     mirror. `runSimulation` is the only engine entry point in the app, so nothing reaches
-     the engines unvalidated today — but a direct caller of the Wasm engine bypasses all of
-     it, and this item's title promises validation at that boundary.
-   - Validation only fires on run. The amount fields are `type="text" inputmode="numeric"`
-     with no `min`, so a negative expense is accepted by the field, held in state, and only
-     rejected when the user presses run. Field-level feedback at edit time would catch it
-     where the mistake is made.
-
-   Corrected: an earlier version of this entry claimed non-finite values were unreachable
-   through the UI because `parseNum` coerces unparseable text to 0. `parseNum` does not
-   guard the age fields — those use `bind:value` on `type="number"` — and the reachable
-   defect there was `null`, not `NaN`. See 0.21.
+   Edit-time field feedback remains a UX improvement rather than a correctness gap: invalid
+   text can temporarily sit in local state, but no simulation can execute it.
 
 2. **Move parametric inflation to a log-domain model and report clipping.** The
    release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
@@ -133,6 +119,25 @@ strangers at the tool, and none of them were tracked as TODO items.
 ## Priority 0 — Correctness & Data Quality (found 2026-07-07)
 
 These bias current results **materially pessimistic** and should land before new features.
+
+### 0.22 Payload validation now reaches the worker and Wasm boundaries — ✅ FIXED 2026-08-04
+
+The validation pass introduced in 0.21 covered the UI controller but still omitted lump
+sums, parametric assumptions, empty/out-of-horizon periods and direct engine callers. The
+worker trusted caller-supplied `months`/`retireMonth`, and the exported Wasm function
+deserialized and executed any structurally valid payload.
+
+Validation now lives in a small dependency-light module shared by the controller and
+worker. It checks the complete assumption set, requires operative recurring periods,
+validates event ages while deliberately preserving signed event amounts, and derives the
+only accepted timeline. The worker rejects a payload whose supplied month counts differ
+from that derivation. The Wasm export carries an independent Rust mirror, so library users
+cannot bypass the boundary by calling `run_monte_carlo` directly. Share-link parametric
+asset and inflation moments are allowlisted and clamped to the same supported domains.
+
+Regression coverage includes blank/late events, signed one-time costs, empty and
+out-of-horizon periods, unsafe parametric assumptions, negative capital, and direct Wasm
+calls with invalid cashflows or forged timelines.
 
 ### 0.21 Negative expenses funded retirement; blank ages planned from birth — ✅ FIXED 2026-08-04
 

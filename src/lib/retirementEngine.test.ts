@@ -2136,6 +2136,67 @@ describe('payload validation', () => {
 		expect(validated.months).toBe(0);
 	});
 
+	it('rejects an empty or out-of-horizon expense period', () => {
+		expect(
+			validateSimulationInputs(baseInput(), spending({ fromAge: 70, toAge: 70 }), []).error
+		).toMatch(/empty period/i);
+		expect(
+			validateSimulationInputs(baseInput(), spending({ fromAge: 91, toAge: 92 }), []).error
+		).toMatch(/outside the planning horizon/i);
+	});
+
+	it('rejects invalid one-time events while preserving signed amounts', () => {
+		const validNegativeEvent = [{ id: 'cost', label: 'Renovation', age: 55, amount: -50_000 }];
+		expect(
+			validateSimulationInputs(baseInput(), spending(), [], validNegativeEvent).error
+		).toBeUndefined();
+		expect(
+			validateSimulationInputs(
+				baseInput(),
+				spending(),
+				[],
+				[{ id: 'bad', label: 'Mystery', age: null as unknown as number, amount: 1000 }]
+			).error
+		).toMatch(/age.*must be a number/i);
+		expect(
+			validateSimulationInputs(
+				baseInput(),
+				spending(),
+				[],
+				[{ id: 'late', label: 'Late gift', age: 90, amount: 1000 }]
+			).error
+		).toMatch(/outside the planning horizon/i);
+	});
+
+	it('rejects unsupported portfolio and parametric assumptions', () => {
+		for (const overrides of [
+			{ currentSavings: -1 },
+			{ returnVariability: -0.1 },
+			{ returnKurtosis: 0.5 },
+			{ inflationVariability: 0.6 },
+			{ equityBondCorrelation: 2 },
+			{ annualFeePercent: Number.NaN },
+			{ safeWithdrawalRate: 0 },
+			{ simulations: 1_000_001 },
+			{ regimeModel: { ...baseInput().regimeModel, stayGrowth: 2 } },
+			{ historicalAnnualReturns: [0.1, Number.NaN] },
+			{ historicalMonthlyReturns: [0.01], historicalMonthlyInflation: [0.002, 0.003] }
+		]) {
+			const validated = validateSimulationInputs(baseInput(overrides), spending(), []);
+			expect(validated.error).toBeTruthy();
+			expect(validated.months).toBe(0);
+		}
+	});
+
+	it('rejects an unsafe payload at the Wasm boundary too', async () => {
+		await ensureWasm();
+		const input = baseInput();
+		expect(() =>
+			run_monte_carlo(input, spending({ yearlyAmount: -1 }), [], [], 55 * 12, 25 * 12)
+		).toThrow();
+		expect(() => run_monte_carlo(input, spending(), [], [], 1, 0)).toThrow();
+	});
+
 	it('allows a zero-length range, which is how already-retired encodes the salary row', () => {
 		const income: IncomeSource[] = [
 			{ id: 'is-default', label: 'Salary', fromAge: 60, toAge: 60, yearlyAmount: 65000 }
