@@ -116,6 +116,8 @@
 		years: number[];
 		sampleSize: number;
 		coverage: string;
+		annualCoverage?: string;
+		monthlyCoverage?: string;
 		assetMoments: {
 			equity: HistoricalMoments;
 			bond: HistoricalMoments;
@@ -1007,7 +1009,7 @@
 	);
 
 	/**
-	 * Switches the return assumptions to today's yields (see
+	 * Switches the return assumptions to the latest yields embedded in the dataset (see
 	 * `buildCurrentConditionsMetrics`). Runs in Historical-with-Adjustments mode so the
 	 * bootstrap keeps real historical sequencing and volatility while its means are
 	 * shifted to the forward-looking targets. Inflation is left at the regional
@@ -2012,6 +2014,10 @@
 			<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">My home page</a>
 		</nav>
 	</div>
+	<p class="disclaimer-top">
+		For education and planning exploration only—not financial, tax, or retirement advice.
+		Projections are not guarantees, and historical market data does not predict future returns.
+	</p>
 
 	<div class="workspace">
 		<PlannerInputPanel
@@ -2190,21 +2196,6 @@
 			{/if}
 		</section>
 	</div>
-
-	<p class="disclaimer-footer">
-		This tool is for education and planning exploration only — it is not financial, tax, or
-		retirement advice, and its projections are not guarantees of future performance. Historical
-		market data does not predict future returns. Consult a qualified financial advisor before making
-		retirement decisions.
-		<br />
-		<!-- AGPL-3.0 §13: network-served software must offer its users the corresponding source. -->
-		Open source (AGPL-3.0) —
-		<a
-			href="https://github.com/sergeyfarin/retirement-planner"
-			target="_blank"
-			rel="noopener noreferrer">view or download the source</a
-		>.
-	</p>
 </div>
 
 <style>
@@ -2220,17 +2211,11 @@
 		border-left: 4px solid var(--warning);
 		background-color: rgba(245, 158, 11, 0.05);
 	}
-	.disclaimer-footer {
+	.disclaimer-top {
 		max-width: 60rem;
-		margin: 1.5rem auto 0;
-		padding: 0 0.5rem;
+		margin: 0 0 0.75rem;
 		font-size: var(--text-note);
 		line-height: 1.4;
 		color: var(--ink-soft);
-		text-align: center;
-	}
-	.disclaimer-footer a {
-		color: inherit;
-		text-decoration: underline;
 	}
 </style>

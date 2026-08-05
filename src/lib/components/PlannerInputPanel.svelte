@@ -218,7 +218,7 @@
 					}}
 				/>
 			</label>
-			<label title="Planning to age 90–95 is a conservative, commonly recommended choice.">
+			<label title="A longer planning horizon provides a more conservative longevity stress test.">
 				Plan until age
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
@@ -355,6 +355,7 @@
 
 			<div class="section-split">
 				<p class="eyebrow">One-Time Events</p>
+				<p class="note">Enter one-time amounts in today's purchasing power.</p>
 				{#if lumpSumEvents.length > 0}
 					<div class="data-table data-table-events">
 						<div class="table-header">
@@ -410,7 +411,7 @@
 					class:active={input.withdrawalStrategy?.kind === 'guardrails'}
 					onclick={() => setWithdrawalKind('guardrails')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'guardrails'}
-					title="Guyton-Klinger guardrails: trim spending after bad years, raise it after good years. Realistic and reduces the chance of running out."
+					title="Simplified withdrawal-rate guardrails inspired by Guyton-Klinger: trim spending when the withdrawal rate rises beyond its band, and raise it when the rate falls below the band."
 				>
 					Guardrails<br />(adaptive)
 				</button>
@@ -420,7 +421,7 @@
 					class:active={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
 					onclick={() => setWithdrawalKind('percentOfPortfolio')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
-					title="Spend a fixed percentage of the current balance each year. Never fully runs out, but income varies more."
+					title="Recalculate portfolio-funded spending annually from the current balance. Spending adapts, but the floor, market losses, taxes, and other outflows mean the portfolio can still run out."
 				>
 					% of portfolio
 				</button>
@@ -476,8 +477,8 @@
 				</p>
 			{:else}
 				<p class="note strategy-note">
-					Spends your planned amounts every year regardless of market performance — the most
-					conservative and the usual default for the “4% rule”.
+					Keeps planned real spending unchanged regardless of portfolio performance — the
+					conventional assumption behind fixed-withdrawal analyses such as the “4% rule”.
 				</p>
 			{/if}
 		</div>
@@ -601,9 +602,9 @@
 							type="button"
 							class="btn-preset current-yields-btn"
 							onclick={applyCurrentConditions}
-							title="Use today's cash and bond yields plus the historical equity risk premium as editable return assumptions."
+							title="Use the latest yields embedded in this dataset plus the historical equity risk premium as editable return assumptions. These are dated observations, not live market data."
 						>
-							Use today's yields
+							Use 2025–2026 yields
 						</button>
 						<span class="current-yields-note mono-value">
 							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
@@ -660,8 +661,9 @@
 					{/if}
 					<p class="assumption-context-line">
 						<strong>Historical dataset:</strong>
-						{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage}
-						of monthly data)
+						{selectedHistoricalRegion.label}: {selectedHistoricalRegion.sampleSize} complete annual observations
+						({selectedHistoricalRegion.annualCoverage ?? selectedHistoricalRegion.coverage});
+						monthly data {selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}
 						<button
 							type="button"
 							class="inline-link"
@@ -676,10 +678,12 @@
 					{#if showHistoricalMethodologyInfo}
 						<div class="note mono-value methodology-info">
 							Active calibration dataset (used now):<br />
-							• Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual
-							observations), built from monthly market data.<br />
-							• Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with
-							synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK
+							• Coverage: {selectedHistoricalRegion.annualCoverage ??
+								selectedHistoricalRegion.coverage}
+							({selectedHistoricalRegion.sampleSize} complete annual observations); CPI-aligned monthly
+							series {selectedHistoricalRegion.monthlyCoverage ?? 'unavailable'}.<br />
+							• Equity (stocks): estimated monthly total-return proxies from Stooq price-index series
+							(with synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK
 							+ Japan (Nikkei) and Asia/EM (Hang Seng, backfilled 1960-69 with Nikkei to preserve deep
 							history). All foreign indices in the World blend are converted to USD.<br />
 							• Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based),
@@ -691,12 +695,20 @@
 							• Monte Carlo path is monthly; when monthly history is available, calibration now uses empirical
 							monthly portfolio returns with monthly regime detection/bootstrap. Annual moments are retained
 							for summary/inputs.<br />
-							• Inflation currently remains a curated long-run reference input (separate from this market-file
-							pipeline), with user-editable mean/volatility and neutral default shape (skew 0, kurt 3).<br
-							/>
-							• Legacy reference assumptions (MSCI/STOXX/FTSE/FRED/ECB/ONS-style long-run sources) remain
-							broadly in line; this pipeline is preferred because it is one reproducible method across
-							regions.
+							• Inflation: in unadjusted Historical mode, regional CPI changes are replayed from the same
+							months as returns. Adjusted Historical and Parametric modes instead use the editable modelled
+							inflation assumptions.<br />
+							• Sources: equity index prices from
+							<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>;
+							bond yields, cash rates, CPI, and currency conversion from
+							<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer"
+								>FRED</a
+							>. Exact series IDs and transformations are listed in the
+							<a
+								href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
+								target="_blank"
+								rel="noopener noreferrer">source methodology</a
+							>.
 						</div>
 					{/if}
 				{:else if historicalDataLoadError}
@@ -1083,7 +1095,7 @@
 					<tr>
 						<td
 							title="Applied once a year to the year's net investment gains (losses untaxed). At 15% this costs roughly 1.5–2% of returns per year."
-							>Tax on gains</td
+							>Tax drag on real gains</td
 						>
 						<td
 							><input

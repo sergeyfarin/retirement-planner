@@ -32,6 +32,9 @@ async function fetchStooqMonthlyCloses(symbol) {
 	}
 
 	const text = await response.text();
+	if (/<!doctype html|<html/i.test(text.slice(0, 200))) {
+		throw new Error(`Stooq returned an HTML verification page for ${symbol}`);
+	}
 	const lines = text.trim().split(/\r?\n/);
 	if (lines.length <= 1 || /^no data/i.test(lines[0])) {
 		throw new Error(`No Stooq data for symbol ${symbol}`);
@@ -105,6 +108,25 @@ function monthlyReturnsFromCloseMap(closeMap) {
 		out.set(months[index], current / previous - 1);
 	}
 	return out;
+}
+
+function convertLocalReturnsToUsd(localReturns, usdPerLocalCurrency, fallbackUsdPerLocal) {
+	const converted = new Map();
+	for (const [month, localReturn] of localReturns.entries()) {
+		const previousMonth = getPrevMonth(month);
+		const previousFx = usdPerLocalCurrency.get(previousMonth) ?? fallbackUsdPerLocal(previousMonth);
+		const currentFx = usdPerLocalCurrency.get(month) ?? fallbackUsdPerLocal(month);
+		if (
+			!Number.isFinite(previousFx) ||
+			!Number.isFinite(currentFx) ||
+			previousFx <= 0 ||
+			currentFx <= 0
+		) {
+			throw new Error(`Missing USD conversion rate around ${month}`);
+		}
+		converted.set(month, (1 + localReturn) * (currentFx / previousFx) - 1);
+	}
+	return converted;
 }
 
 function getPrevMonth(monthStr) {
@@ -477,7 +499,10 @@ async function buildWorldRegion() {
 		deCashRate,
 		ezCashRate,
 		usdJpy,
-		usdHkd
+		usdHkd,
+		usdPerGbp,
+		demPerUsd,
+		usdPerEur
 	] = await Promise.all([
 		fetchStooqMonthlyCloses('^spx'),
 		fetchStooqMonthlyCloses('^ukx'),
@@ -493,7 +518,10 @@ async function buildWorldRegion() {
 		fetchFredSeries('IR3TIB01DEM156N'),
 		fetchFredSeries('IR3TIB01EZM156N'),
 		fetchFredSeries('EXJPUS'), // JPY per USD
-		fetchFredSeries('EXHKUS') // HKD per USD
+		fetchFredSeries('EXHKUS'), // HKD per USD
+		fetchFredSeries('EXUSUK'), // USD per GBP
+		fetchFredSeries('EXGEUS'), // Deutsche marks per USD
+		fetchFredSeries('EXUSEU') // USD per euro
 	]);
 
 	// Process EUR proxy (DAX + CAC TR)
@@ -508,6 +536,14 @@ async function buildWorldRegion() {
 		{ returns: daxReturns, weight: 0.6 },
 		{ returns: adjustedCacReturns, weight: 0.4 }
 	]);
+	const usdPerDem = new Map([...demPerUsd.entries()].map(([month, value]) => [month, 1 / value]));
+	for (const [month, value] of usdPerEur.entries()) usdPerDem.set(month, value / 1.95583);
+	const eurEquityUsdReturns = convertLocalReturnsToUsd(eurEquityReturns, usdPerDem, () => 0.25);
+	const ukEquityUsdReturns = convertLocalReturnsToUsd(
+		monthlyReturnsFromCloseMap(ukxClose),
+		usdPerGbp,
+		(month) => (month < '1967-11' ? 2.8 : 2.4)
+	);
 
 	// Process Japan (Nikkei) to USD
 	const nkxLocalReturns = monthlyReturnsFromCloseMap(nkxClose);
@@ -539,8 +575,8 @@ async function buildWorldRegion() {
 	// Option D World Blend
 	const worldEquityReturns = blendReturnSeries([
 		{ returns: monthlyReturnsFromCloseMap(spxClose), weight: 0.55 },
-		{ returns: eurEquityReturns, weight: 0.15 },
-		{ returns: monthlyReturnsFromCloseMap(ukxClose), weight: 0.05 },
+		{ returns: eurEquityUsdReturns, weight: 0.15 },
+		{ returns: ukEquityUsdReturns, weight: 0.05 },
 		{ returns: nkxUsdReturns, weight: 0.15 },
 		{ returns: emAsiaReturns, weight: 0.1 }
 	]);
@@ -563,7 +599,7 @@ async function buildWorldRegion() {
 			filterFromYear(worldCashRate, MIN_START_YEAR)
 		),
 		sourceLines: [
-			'equity_source=synthetic Option D World Blend: US(55%) + EUR(15%) + UK(5%) + Japan(15%) + AsiaEM(10%, HSI backfilled w/ NKX), Stooq monthly, USD adjusted',
+			'equity_source=synthetic World blend: US(55%) + EUR(15%) + UK(5%) + Japan(15%) + Asia/EM(10%, HSI backfilled with Nikkei); all foreign legs converted to USD with FRED FX series',
 			'bond_source=synthetic World bond from US/UK/DE 10Y yields with duration 7y, FRED',
 			'cash_source=average of US TB3MS + UK 3m + EUR 3m (stitched pre/post euro), FRED'
 		]
@@ -592,7 +628,6 @@ async function main() {
 		await mergeRatesIntoExistingCsvs(regionToFile);
 		return;
 	}
-
 	for (const regionCode of Object.keys(regionToFile)) {
 		const regionData = await importRegion(regionCode);
 		const rows = regionData.rows;

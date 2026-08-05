@@ -187,8 +187,8 @@
 					</table>
 					<p>
 						Ruin probability spans {(sequenceSpread * 100).toFixed(1)} percentage points between the worst
-						and best early-return groups. A wide spread means the plan's outcome is decided mainly by
-						the first years after retirement, where a flexible spending rule or a cash buffer helps most.
+						and best early-return groups. A wide spread means early retirement returns materially affect
+						the result. Compare adaptive spending or a higher bank allocation in separate runs.
 					</p>
 				{:else}
 					<p>Sequence-risk buckets are unavailable for this run.</p>

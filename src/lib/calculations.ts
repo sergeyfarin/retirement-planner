@@ -100,6 +100,8 @@ export type HistoricalRegionDataset = {
 	years: number[];
 	sampleSize: number;
 	coverage: string;
+	annualCoverage?: string;
+	monthlyCoverage?: string;
 	assetMoments: {
 		equity: {
 			arithmeticMean: number;
@@ -334,7 +336,7 @@ export function getHistoricalInvestmentMetrics(
 }
 
 /**
- * Forward-looking return assumptions anchored to today's yields, in the style of
+ * Forward-looking return assumptions anchored to the latest yields embedded in the dataset, in the style of
  * institutional capital-market assumptions:
  *
  * - **Cash** → the current short rate.

@@ -44,7 +44,7 @@ pub struct LumpSumEvent {
 pub struct WithdrawalStrategy {
     /// "fixed" | "guardrails" | "percentOfPortfolio"
     pub kind: String,
-    /// Guyton-Klinger guardrail band as a fraction of the initial withdrawal rate
+    /// Simplified guardrail band as a fraction of the initial withdrawal rate
     /// (e.g. 0.2 → adjust when the rate drifts ±20% from its starting value).
     #[serde(rename = "guardrailBand")]
     pub guardrail_band: Option<f64>,

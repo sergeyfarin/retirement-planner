@@ -203,7 +203,7 @@
 				{retirementLabel}
 			</h3>
 			<p class="stat-sentence">
-				{alreadyRetired ? 'Your portfolio today is' : `A typical path reaches`}
+				{alreadyRetired ? 'Your portfolio today is' : `The median simulated balance is`}
 				<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>
 				{alreadyRetired ? '' : `at retirement`},
 				<span

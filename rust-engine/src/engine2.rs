@@ -7,7 +7,7 @@ use crate::structs::{
 /// monthly spending (a positive outflow) given the running balance.
 ///
 /// - `fixed`: spending follows the planned real-terms schedule unchanged.
-/// - `guardrails`: Guyton-Klinger — during retirement, if the portfolio-funded spending
+/// - `guardrails`: simplified withdrawal-rate guardrails inspired by Guyton-Klinger — during retirement, if the portfolio-funded spending
 ///   rate drifts above/below the initial rate by `guardrail_band`, that portion is cut or
 ///   raised by `adjustment`. Decisions are made once per retirement year.
 /// - `percentOfPortfolio`: during retirement, withdraw `withdrawal_percent` of the current
@@ -100,7 +100,7 @@ impl WithdrawalRunner {
         let monthly_ceiling = ceiling_annual / 12.0;
 
         if self.kind == 1 {
-            // Guyton-Klinger guardrails.
+            // Simplified withdrawal-rate guardrails inspired by Guyton-Klinger.
             if is_year_start && balance > 0.0 && self.initial_rate > 0.0 {
                 let current_annual = portfolio_base * 12.0 * self.multiplier;
                 let current_rate = current_annual / balance;
