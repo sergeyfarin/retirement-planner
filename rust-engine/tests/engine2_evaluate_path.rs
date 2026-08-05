@@ -349,7 +349,7 @@ fn absurd_fee_rates_are_clamped_rather_than_making_the_balance_negative() {
 }
 
 #[test]
-fn gains_tax_is_settled_once_a_year_on_realized_pnl() {
+fn gains_tax_is_settled_once_a_year_on_real_mark_to_market_pnl() {
     let months = 12;
     let untaxed = evaluate_path(
         &flat_tape(months, 0.01, 0.0),

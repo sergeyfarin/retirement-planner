@@ -1094,7 +1094,7 @@
 
 					<tr>
 						<td
-							title="Applied once a year to the year's net investment gains (losses untaxed). At 15% this costs roughly 1.5–2% of returns per year."
+							title="Applied once a year to positive real mark-to-market investment gains (losses untaxed), whether or not assets are sold."
 							>Tax drag on real gains</td
 						>
 						<td
@@ -1120,7 +1120,7 @@
 							<p class="assumption-context-line tax-caveat">
 								<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
 								every year on that year's gains, whether or not you sold anything — closer to an
-								annual wealth-style levy than to capital gains tax. It is charged on the
+								annual mark-to-market return tax than to capital gains tax. It is charged on the
 								<em>real</em>
 								(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
 								paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth, SIPP

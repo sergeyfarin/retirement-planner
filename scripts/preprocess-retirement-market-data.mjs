@@ -359,7 +359,7 @@ function main() {
 			dividends:
 				'price-only equity series (USD, GBP, WORLD non-EUR components) adjusted with decade-level synthetic dividend yields; EUR proxy already total-return at import',
 			currencyConversion:
-				'WORLD foreign equity legs converted to USD before blending; GBP via EXUSUK, EUR via EXGEUS/EXUSEU, Japan via EXJPUS, Hong Kong via EXHKUS; fixed pre-1971 GBP/DEM parities fill early history',
+				'WORLD foreign equity legs converted to USD before blending; GBP via EXUSUK, EUR via EXGEUS/EXUSEU, Japan via EXJPUS, Hong Kong via EXHKUS; constant approximations to pre-1971 GBP/DEM parities fill early history',
 			inflation:
 				'realized monthly regional CPI change stored per month alongside returns, enabling joint (return, inflation) block bootstrapping; monthly series trimmed to CPI coverage'
 		},

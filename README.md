@@ -23,9 +23,9 @@ geo, mapbox and gl modules, which is where the full build's map-tile hosts (mapb
 OpenStreetMap, carto, openmaptiles) live. That removes them from the shipped output rather
 than relying on them never being reached, and takes the bundle from 4.7 MB to 1.4 MB. What
 remains in it is one inert schema default (`topojsonURL`, consumable only by geo traces that
-are not in the bundle) plus licence and XML-namespace strings. Everything else external in
-the build is an `<a href>` to a data source in the methodology panel, followed only if you
-click it.
+are not in the bundle) plus licence and XML-namespace strings. The other external URLs in
+the build are ordinary `<a href>` links to the project repository, the author's home page,
+and data sources in the methodology panel; they are contacted only if you click them.
 
 "Copy share link" encodes your inputs into a URL **fragment** (`#s=…`). Fragments are not
 transmitted to servers, so a shared link stays between you and whoever you send it to — but
@@ -141,8 +141,9 @@ before 1997. World equity FX conversion uses monthly FRED series
 [`EXGEUS`](https://fred.stlouisfed.org/series/EXGEUS),
 [`EXUSEU`](https://fred.stlouisfed.org/series/EXUSEU),
 [`EXJPUS`](https://fred.stlouisfed.org/series/EXJPUS), and
-[`EXHKUS`](https://fred.stlouisfed.org/series/EXHKUS). Fixed Bretton Woods parities fill
-the pre-1971 GBP and German-mark FX history.
+[`EXHKUS`](https://fred.stlouisfed.org/series/EXHKUS). Constant approximations to the
+prevailing Bretton Woods parities fill the pre-1971 GBP and German-mark FX history; they
+should not be read as a reconstruction of every historical parity adjustment.
 
 ### 3.1.1 Synthetic Dividend Adjustment
 

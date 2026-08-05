@@ -1140,7 +1140,7 @@ describe('current-conditions expected returns', () => {
 
 		// ERP = historical equity mean − historical bond mean = 12% − 6.3% = 5.7%
 		expect(result!.equityRiskPremium).toBeCloseTo(0.057, 6);
-		// Bonds and cash take today's yields directly; equity is yield + ERP.
+		// Bonds and cash take the configured dated yields directly; equity is yield + ERP.
 		expect(result!.metrics.bondMean).toBeCloseTo(0.0421, 6);
 		expect(result!.metrics.bankMean).toBeCloseTo(0.0357, 6);
 		expect(result!.metrics.stockMean).toBeCloseTo(0.0421 + 0.057, 6);
