@@ -71,6 +71,10 @@
 	margin-bottom: 0.35rem;
 }
 
+.card[open] > summary .assumptions-summary-line {
+	display: none;
+}
+
 /* ─── Results overview ────────────────────────────────────────────── */
 .results-summary {
 	display: grid;

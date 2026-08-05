@@ -22,17 +22,16 @@
 
 /* Compact drawdown toggle between current and retirement age. */
 .already-retired {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 0.35rem;
-	align-self: end;
-	min-height: 1.85rem;
+	align-items: flex-start;
 	margin: 0;
-	font-size: var(--text-small);
-	color: var(--ink-muted);
 	cursor: pointer;
 	white-space: nowrap;
+}
+
+.already-retired .checkbox-control {
+	display: flex;
+	align-items: center;
+	min-height: 1.85rem;
 }
 
 .already-retired input[type='checkbox'] {
@@ -299,22 +298,8 @@
 	font-size: var(--text-small);
 }
 
-.historical-dataset-strip {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 0.4rem;
-	margin-bottom: 0.55rem;
-	padding: 0.35rem 0.45rem;
-	border-radius: var(--radius-sm);
-	background: var(--surface-muted);
-	font-size: var(--text-note);
-	line-height: 1.4;
-	color: var(--ink-soft);
-}
-
-.historical-dataset-strip .inline-link {
-	flex: 0 0 auto;
+.historical-dataset-line {
+	margin: 0 0 0.55rem;
 }
 
 .assumptions-table .portfolio-row td {
@@ -498,23 +483,6 @@
 
 .tax-caveat {
 	text-align: left;
-}
-
-.tax-details {
-	padding: 0.08rem 0;
-	text-align: left;
-}
-
-.tax-details summary {
-	display: inline-block;
-	font-size: var(--text-note);
-	font-weight: 600;
-	color: var(--accent-deep);
-	cursor: pointer;
-}
-
-.tax-details[open] summary {
-	margin-bottom: 0.15rem;
 }
 
 @media (max-width: 370px) {

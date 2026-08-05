@@ -144,6 +144,7 @@
 		spendingFloor: 0.6,
 		spendingCeiling: 1.4
 	};
+	let showTaxInfo = $state(false);
 
 	function setWithdrawalKind(kind: 'fixed' | 'guardrails' | 'percentOfPortfolio') {
 		input.withdrawalStrategy = {
@@ -196,12 +197,14 @@
 				class="already-retired"
 				title="Drawdown only: retirement starts today, so there is no saving phase."
 			>
-				<input
-					type="checkbox"
-					checked={alreadyRetired}
-					onchange={(e) => onAlreadyRetiredChange(e.currentTarget.checked)}
-				/>
 				<span>Already retired</span>
+				<span class="checkbox-control">
+					<input
+						type="checkbox"
+						checked={alreadyRetired}
+						onchange={(e) => onAlreadyRetiredChange(e.currentTarget.checked)}
+					/>
+				</span>
 			</label>
 			<label class:input-disabled={alreadyRetired}>
 				Retire at age
@@ -566,14 +569,29 @@
 
 		<div class="simulation-mode-section">
 			{#if selectedHistoricalRegion}
-				<div class="historical-dataset-strip">
-					<span>
-						<strong>Historical modes use:</strong>
-						{selectedHistoricalRegion.label},
-						{selectedHistoricalRegion.sampleSize} complete years ({selectedHistoricalRegion.annualCoverage ??
-							selectedHistoricalRegion.coverage}); monthly
-						{selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}.
-					</span>
+				<p class="assumption-context-line historical-dataset-line">
+					<strong>Historical modes use:</strong>
+					{selectedHistoricalRegion.label},
+					{selectedHistoricalRegion.sampleSize} complete years ({selectedHistoricalRegion.annualCoverage ??
+						selectedHistoricalRegion.coverage}); monthly
+					{selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}.
+					{#if showHistoricalMethodologyInfo}
+						<br />This dataset supplies return sequences to both Historical modes; Parametric mode
+						does not use them. Equity returns are estimated monthly total-return proxies from Stooq
+						price indices, with synthetic dividends where needed and foreign World indices converted
+						to USD. Bonds use synthetic 10Y total returns from yield change plus carry; bank/cash
+						uses short-rate proxies. Unadjusted Historical mode jointly replays CPI and returns from
+						the same months. Adjusted Historical and Parametric modes use modelled inflation.
+						Sources:
+						<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>,
+						<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED</a
+						>, and the
+						<a
+							href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
+							target="_blank"
+							rel="noopener noreferrer">full methodology</a
+						>.
+					{/if}
 					<button
 						type="button"
 						class="inline-link"
@@ -584,30 +602,7 @@
 					>
 						{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
 					</button>
-				</div>
-				{#if showHistoricalMethodologyInfo}
-					<div class="note mono-value methodology-info">
-						This dataset supplies the return sequences used by both Historical modes. Parametric
-						mode does not use it.<br />
-						• Equity (stocks): estimated monthly total-return proxies from Stooq price-index series (with
-						synthetic dividend adjustments where needed). All foreign indices in the World blend are converted
-						to USD.<br />
-						• Bonds: synthetic 10Y total-return proxies from monthly yield change + carry.<br />
-						• Bank/cash: short-rate proxies converted to monthly returns.<br />
-						• Unadjusted Historical mode jointly replays regional CPI and returns from the same months.
-						Adjusted Historical and Parametric modes use modelled inflation.<br />
-						• Sources: equity index prices from
-						<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>;
-						other market series, CPI, and currency conversion from
-						<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED</a
-						>.
-						<a
-							href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
-							target="_blank"
-							rel="noopener noreferrer">Full methodology and exact series</a
-						>.
-					</div>
-				{/if}
+				</p>
 			{:else if historicalDataLoadError}
 				<p class="assumption-context-line">{historicalDataLoadError}</p>
 			{/if}
@@ -1109,12 +1104,13 @@
 
 					<tr>
 						<td colspan="7">
-							<details class="tax-details">
-								<summary>How tax is modelled</summary>
-								<p class="assumption-context-line tax-caveat">
-									<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
-									every year on that year's gains, whether or not you sold anything — closer to an
-									annual mark-to-market return tax than to capital gains tax. It is charged on the
+							<p class="assumption-context-line tax-caveat">
+								<strong>Tax is simplified.</strong> It is a rough drag on returns, not a tax
+								estimate.
+								{#if showTaxInfo}
+									It is one flat rate charged every year on that year's gains, whether or not you
+									sold anything — closer to an annual mark-to-market return tax than to capital
+									gains tax. It is charged on the
 									<em>real</em>
 									(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
 									paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth,
@@ -1122,8 +1118,16 @@
 									no required minimum distributions. Treat it as a rough drag on returns, not as your
 									tax bill — if your savings are mostly in tax-sheltered accounts, a lower rate is usually
 									the better approximation.
-								</p>
-							</details>
+								{/if}
+								<button
+									type="button"
+									class="inline-link"
+									onclick={() => (showTaxInfo = !showTaxInfo)}
+									aria-expanded={showTaxInfo}
+								>
+									{showTaxInfo ? 'less info' : 'more info'}
+								</button>
+							</p>
 						</td>
 					</tr>
 
