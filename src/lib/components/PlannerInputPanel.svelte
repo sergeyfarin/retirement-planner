@@ -565,6 +565,52 @@
 		</summary>
 
 		<div class="simulation-mode-section">
+			{#if selectedHistoricalRegion}
+				<div class="historical-dataset-strip">
+					<span>
+						<strong>Historical modes use:</strong>
+						{selectedHistoricalRegion.label},
+						{selectedHistoricalRegion.sampleSize} complete years ({selectedHistoricalRegion.annualCoverage ??
+							selectedHistoricalRegion.coverage}); monthly
+						{selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}.
+					</span>
+					<button
+						type="button"
+						class="inline-link"
+						onclick={() => {
+							showHistoricalMethodologyInfo = !showHistoricalMethodologyInfo;
+						}}
+						aria-expanded={showHistoricalMethodologyInfo}
+					>
+						{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
+					</button>
+				</div>
+				{#if showHistoricalMethodologyInfo}
+					<div class="note mono-value methodology-info">
+						This dataset supplies the return sequences used by both Historical modes. Parametric
+						mode does not use it.<br />
+						• Equity (stocks): estimated monthly total-return proxies from Stooq price-index series (with
+						synthetic dividend adjustments where needed). All foreign indices in the World blend are converted
+						to USD.<br />
+						• Bonds: synthetic 10Y total-return proxies from monthly yield change + carry.<br />
+						• Bank/cash: short-rate proxies converted to monthly returns.<br />
+						• Unadjusted Historical mode jointly replays regional CPI and returns from the same months.
+						Adjusted Historical and Parametric modes use modelled inflation.<br />
+						• Sources: equity index prices from
+						<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>;
+						other market series, CPI, and currency conversion from
+						<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED</a
+						>.
+						<a
+							href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
+							target="_blank"
+							rel="noopener noreferrer">Full methodology and exact series</a
+						>.
+					</div>
+				{/if}
+			{:else if historicalDataLoadError}
+				<p class="assumption-context-line">{historicalDataLoadError}</p>
+			{/if}
 			<div class="simulation-mode-options" role="group" aria-label="Simulation mode selection">
 				<div class="simulation-mode-option">
 					<button
@@ -651,7 +697,7 @@
 				</p>
 
 				{#if selectedHistoricalRegion}
-					{#if input.historicalMonthlyInflation?.length}
+					{#if input.simulationMode === 'historical' && !input.historicalMomentTargeting && input.historicalMonthlyInflation?.length}
 						<p
 							class="assumption-context-line"
 							title="Each simulated month draws its return and its inflation from the same real historical month, so high-inflation periods land on the same months as weak markets — and inflation keeps its real-world persistence."
@@ -659,60 +705,6 @@
 							<strong>✓ Inflation sampled jointly with returns from history</strong>
 						</p>
 					{/if}
-					<p class="assumption-context-line">
-						<strong>Historical dataset:</strong>
-						{selectedHistoricalRegion.label}: {selectedHistoricalRegion.sampleSize} complete annual observations
-						({selectedHistoricalRegion.annualCoverage ?? selectedHistoricalRegion.coverage});
-						monthly data {selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}
-						<button
-							type="button"
-							class="inline-link"
-							onclick={() => {
-								showHistoricalMethodologyInfo = !showHistoricalMethodologyInfo;
-							}}
-							aria-expanded={showHistoricalMethodologyInfo}
-						>
-							{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
-						</button>
-					</p>
-					{#if showHistoricalMethodologyInfo}
-						<div class="note mono-value methodology-info">
-							Active calibration dataset (used now):<br />
-							• Coverage: {selectedHistoricalRegion.annualCoverage ??
-								selectedHistoricalRegion.coverage}
-							({selectedHistoricalRegion.sampleSize} complete annual observations); CPI-aligned monthly
-							series {selectedHistoricalRegion.monthlyCoverage ?? 'unavailable'}.<br />
-							• Equity (stocks): estimated monthly total-return proxies from Stooq price-index series
-							(with synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK
-							+ Japan (Nikkei) and Asia/EM (Hang Seng, backfilled 1960-69 with Nikkei to preserve deep
-							history). All foreign indices in the World blend are converted to USD.<br />
-							• Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based),
-							then compounded to annual returns.<br />
-							• Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br
-							/>
-							• For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments
-							computed from that annual return series (not handbook constants).<br />
-							• Monte Carlo path is monthly; when monthly history is available, calibration now uses empirical
-							monthly portfolio returns with monthly regime detection/bootstrap. Annual moments are retained
-							for summary/inputs.<br />
-							• Inflation: in unadjusted Historical mode, regional CPI changes are replayed from the same
-							months as returns. Adjusted Historical and Parametric modes instead use the editable modelled
-							inflation assumptions.<br />
-							• Sources: equity index prices from
-							<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>;
-							bond yields, cash rates, CPI, and currency conversion from
-							<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer"
-								>FRED</a
-							>. Exact series IDs and transformations are listed in the
-							<a
-								href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
-								target="_blank"
-								rel="noopener noreferrer">source methodology</a
-							>.
-						</div>
-					{/if}
-				{:else if historicalDataLoadError}
-					<p class="assumption-context-line">{historicalDataLoadError}</p>
 				{/if}
 			</div>
 		</div>
@@ -725,7 +717,7 @@
 							title="The arithmetic mean is the mathematical center used to generate random Monte Carlo paths."
 							>Arith. Input</th
 						>
-						<th title="The statistical standard deviation (volatility).">Volatility</th>
+						<th title="The statistical standard deviation (volatility).">Volatil-<br />ity</th>
 						<th
 							title="Expected Compound Annual Growth Rate (Geometric Mean). Growth over time is dragged down by volatility: CAGR ≈ Arithmetic Mean - Volatility²/2"
 							>CAGR (Geom)</th
@@ -1117,18 +1109,21 @@
 
 					<tr>
 						<td colspan="7">
-							<p class="assumption-context-line tax-caveat">
-								<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
-								every year on that year's gains, whether or not you sold anything — closer to an
-								annual mark-to-market return tax than to capital gains tax. It is charged on the
-								<em>real</em>
-								(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
-								paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth, SIPP
-								or Box 3, no tax-free allowances, no withdrawal ordering between accounts, and no required
-								minimum distributions. Treat it as a rough drag on returns, not as your tax bill — if
-								your savings are mostly in tax-sheltered accounts, a lower rate is usually the better
-								approximation.
-							</p>
+							<details class="tax-details">
+								<summary>How tax is modelled</summary>
+								<p class="assumption-context-line tax-caveat">
+									<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
+									every year on that year's gains, whether or not you sold anything — closer to an
+									annual mark-to-market return tax than to capital gains tax. It is charged on the
+									<em>real</em>
+									(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
+									paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth,
+									SIPP or Box 3, no tax-free allowances, no withdrawal ordering between accounts, and
+									no required minimum distributions. Treat it as a rough drag on returns, not as your
+									tax bill — if your savings are mostly in tax-sheltered accounts, a lower rate is usually
+									the better approximation.
+								</p>
+							</details>
 						</td>
 					</tr>
 

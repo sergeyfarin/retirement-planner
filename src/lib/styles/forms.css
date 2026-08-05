@@ -6,7 +6,7 @@
 /* ─── Field grid ──────────────────────────────────────────────────── */
 .form-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr);
 	gap: 0.18rem 0.28rem;
 }
 
@@ -32,6 +32,7 @@
 	font-size: var(--text-small);
 	color: var(--ink-muted);
 	cursor: pointer;
+	white-space: nowrap;
 }
 
 .already-retired input[type='checkbox'] {
@@ -260,7 +261,7 @@
 
 .assumptions-table th,
 .assumptions-table td {
-	padding: 0.14rem 0.18rem;
+	padding: 0.12rem 0.1rem;
 	border-bottom: 1px solid var(--line);
 	text-align: left;
 	vertical-align: middle;
@@ -294,6 +295,26 @@
 .assumptions-table input {
 	width: 100%;
 	max-width: none;
+	padding: 0.18rem 0.2rem;
+	font-size: var(--text-small);
+}
+
+.historical-dataset-strip {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.4rem;
+	margin-bottom: 0.55rem;
+	padding: 0.35rem 0.45rem;
+	border-radius: var(--radius-sm);
+	background: var(--surface-muted);
+	font-size: var(--text-note);
+	line-height: 1.4;
+	color: var(--ink-soft);
+}
+
+.historical-dataset-strip .inline-link {
+	flex: 0 0 auto;
 }
 
 .assumptions-table .portfolio-row td {
@@ -477,6 +498,29 @@
 
 .tax-caveat {
 	text-align: left;
+}
+
+.tax-details {
+	padding: 0.08rem 0;
+	text-align: left;
+}
+
+.tax-details summary {
+	display: inline-block;
+	font-size: var(--text-note);
+	font-weight: 600;
+	color: var(--accent-deep);
+	cursor: pointer;
+}
+
+.tax-details[open] summary {
+	margin-bottom: 0.15rem;
+}
+
+@media (max-width: 370px) {
+	.form-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 }
 
 .withdrawal-strategy-block .strategy-toggle-group {

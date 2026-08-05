@@ -2218,4 +2218,17 @@
 		line-height: 1.4;
 		color: var(--ink-soft);
 	}
+
+	@media (min-width: 1025px) {
+		.retirement-planner {
+			display: flex;
+			flex-direction: column;
+			height: calc(100dvh - 2.25rem);
+		}
+
+		:global(.workspace) {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+	}
 </style>
