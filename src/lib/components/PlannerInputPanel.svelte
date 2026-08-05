@@ -190,14 +190,14 @@
 	<div class="card input-overview-card">
 		<div class="form-grid">
 			<label>
-				Current age
+				<span>Current<br />age</span>
 				<input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
 			</label>
 			<label
 				class="already-retired"
 				title="Drawdown only: retirement starts today, so there is no saving phase."
 			>
-				<span>Already retired</span>
+				<span>Already<br />retired</span>
 				<span class="checkbox-control">
 					<input
 						type="checkbox"
@@ -207,7 +207,7 @@
 				</span>
 			</label>
 			<label class:input-disabled={alreadyRetired}>
-				Retire at age
+				<span>Retire at<br />age</span>
 				<input
 					type="number"
 					min="25"
@@ -222,7 +222,7 @@
 				/>
 			</label>
 			<label title="A longer planning horizon provides a more conservative longevity stress test.">
-				Plan until age
+				<span>Plan until<br />age</span>
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
 		</div>
@@ -570,7 +570,7 @@
 		<div class="simulation-mode-section">
 			{#if selectedHistoricalRegion}
 				<p class="assumption-context-line historical-dataset-line">
-					<strong>Historical modes use:</strong>
+					<strong>Data available to both Historical modes:</strong>
 					{selectedHistoricalRegion.label},
 					{selectedHistoricalRegion.sampleSize} complete years ({selectedHistoricalRegion.annualCoverage ??
 						selectedHistoricalRegion.coverage}); monthly
@@ -638,22 +638,6 @@
 					>
 						Historical <br />(with Adjustments)
 					</button>
-					{#if currentConditions}
-						<button
-							type="button"
-							class="btn-preset current-yields-btn"
-							onclick={applyCurrentConditions}
-							title="Use the latest yields embedded in this dataset plus the historical equity risk premium as editable return assumptions. These are dated observations, not live market data."
-						>
-							Use 2025–2026 yields
-						</button>
-						<span class="current-yields-note mono-value">
-							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
-							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
-							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks<br />
-							<span>(as of {currentConditions.asOf})</span>
-						</span>
-					{/if}
 				</div>
 				<div class="simulation-mode-option">
 					<button
@@ -690,6 +674,25 @@
 						below is read-only.
 					{/if}
 				</p>
+				{#if currentConditions}
+					<p class="assumption-context-line current-yields-row">
+						<strong>Preset for adjusted historical assumptions:</strong>
+						<button
+							type="button"
+							class="btn-preset current-yields-btn"
+							onclick={applyCurrentConditions}
+							title="Use the latest yields embedded in this dataset plus the historical equity risk premium as editable return assumptions. These are dated observations, not live market data."
+						>
+							Use 2025–2026 yields
+						</button>
+						<span>
+							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
+							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
+							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks (as of
+							{currentConditions.asOf})
+						</span>
+					</p>
+				{/if}
 
 				{#if selectedHistoricalRegion}
 					{#if input.simulationMode === 'historical' && !input.historicalMomentTargeting && input.historicalMonthlyInflation?.length}

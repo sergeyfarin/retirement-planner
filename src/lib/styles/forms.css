@@ -28,6 +28,10 @@
 	white-space: nowrap;
 }
 
+.form-grid > label > span:first-child {
+	min-height: 2.3em;
+}
+
 .already-retired .checkbox-control {
 	display: flex;
 	align-items: center;
@@ -299,7 +303,7 @@
 }
 
 .historical-dataset-line {
-	margin: 0 0 0.55rem;
+	margin: 0 0 0.8rem;
 }
 
 .assumptions-table .portfolio-row td {
@@ -447,21 +451,19 @@
 
 .simulation-mode-option > .btn-mode {
 	width: 100%;
+	min-height: 3.15rem;
 }
 
 .current-yields-btn {
-	width: 100%;
+	width: auto;
+	flex: 0 0 auto;
 }
 
-.current-yields-note {
-	font-size: var(--text-micro);
-	line-height: 1.35;
-	text-align: center;
-	color: var(--ink-soft);
-}
-
-.current-yields-note span {
-	opacity: 0.75;
+.current-yields-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.45rem;
 }
 
 .assumption-context {

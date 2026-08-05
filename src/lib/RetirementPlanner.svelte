@@ -2003,7 +2003,6 @@
 	<div class="page-header">
 		<div>
 			<h2>FIRE Retirement Monte Carlo Planner</h2>
-			<p class="note">Results are inflation-adjusted and shown in today's purchasing power.</p>
 		</div>
 		<nav class="header-links" aria-label="Project links">
 			<a
@@ -2108,6 +2107,7 @@
 							{:else}
 								Click "Run Monte Carlo" to generate your retirement forecast.
 							{/if}
+							<br />Monetary results are inflation-adjusted and shown in today's purchasing power.
 						</p>
 					</div>
 					<div class="status-controls">
