@@ -497,10 +497,9 @@
 
 <div class="card chart-card chart-card-main">
 	<div class="chart-card-heading">
-		<div>
-			<p class="eyebrow phase-eyebrow">Portfolio outlook</p>
-			<h3 class="card-title">Portfolio projection — inflation-adjusted ({currencySymbol})</h3>
-		</div>
+		<h3 class="card-title phase-title">
+			Portfolio projection — inflation-adjusted ({currencySymbol})
+		</h3>
 	</div>
 	<div class="chart" bind:this={chartEl}></div>
 	<p class="note">

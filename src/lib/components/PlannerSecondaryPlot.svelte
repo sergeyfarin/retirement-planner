@@ -507,14 +507,11 @@
 {#if stats && simulation}
 	<div class="card chart-card">
 		<div class="chart-card-heading">
-			<div>
-				<p class="eyebrow">Plan adjustment map</p>
-				<h3 class="card-title">
-					{stats.ruinSurface.retirementAges.length === 1
-						? `How spending changes the chance of staying funded to age ${simulateUntilAge}`
-						: `How retirement timing and spending change the chance of staying funded to age ${simulateUntilAge}`}
-				</h3>
-			</div>
+			<h3 class="card-title">
+				{stats.ruinSurface.retirementAges.length === 1
+					? `How spending changes the chance of staying funded to age ${simulateUntilAge}`
+					: `How retirement timing and spending change the chance of staying funded to age ${simulateUntilAge}`}
+			</h3>
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
 		<p class="chart-explainer">

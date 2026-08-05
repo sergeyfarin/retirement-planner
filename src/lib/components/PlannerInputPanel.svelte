@@ -192,6 +192,17 @@
 				Current age
 				<input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
 			</label>
+			<label
+				class="already-retired"
+				title="Drawdown only: retirement starts today, so there is no saving phase."
+			>
+				<input
+					type="checkbox"
+					checked={alreadyRetired}
+					onchange={(e) => onAlreadyRetiredChange(e.currentTarget.checked)}
+				/>
+				<span>Already retired</span>
+			</label>
 			<label class:input-disabled={alreadyRetired}>
 				Retire at age
 				<input
@@ -212,19 +223,6 @@
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
 		</div>
-
-		<label
-			class="already-retired"
-			title="Drawdown only: retirement starts today, so there is no saving phase. Salary is dropped, an age for stopping contributions no longer applies, and the target becomes the capital the plan needs today rather than a future balance."
-		>
-			<input
-				type="checkbox"
-				checked={alreadyRetired}
-				onchange={(e) => onAlreadyRetiredChange(e.currentTarget.checked)}
-			/>
-			<span>I am already retired — model drawdown only, starting today</span>
-		</label>
-
 		<div class="section-split">
 			<div>
 				<div class="data-table">

@@ -117,11 +117,13 @@
 			class="card outcome-card verdict-card tone-{verdictTone}"
 			aria-labelledby="verdict-title"
 		>
-			<p class="eyebrow">Plan through age {fmtNum(input.simulateUntilAge)} · {verdictLabel}</p>
-			<h3 id="verdict-title" class="stat-sentence">
+			<h3 id="verdict-title" class="card-title">
+				Plan through age {fmtNum(input.simulateUntilAge)} · {verdictLabel}
+			</h3>
+			<p class="stat-sentence">
 				<strong class="mono-value">{lifetimeScore}%</strong> estimated chance your plan stays funded
 				through age {fmtNum(input.simulateUntilAge)}
-			</h3>
+			</p>
 
 			<div class="verdict-next">
 				<table class="stat-table stat-table-compact">
@@ -196,11 +198,11 @@
 			class="card outcome-card retirement-card tone-{retirementTone}"
 			aria-labelledby="portfolio-title"
 		>
-			<p class="eyebrow">
+			<h3 id="portfolio-title" class="card-title">
 				{alreadyRetired ? 'Portfolio today' : `At retirement age ${fmtNum(input.retirementAge)}`} ·
 				{retirementLabel}
-			</p>
-			<h3 id="portfolio-title" class="stat-sentence">
+			</h3>
+			<p class="stat-sentence">
 				{alreadyRetired ? 'Your portfolio today is' : `A typical path reaches`}
 				<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>
 				{alreadyRetired ? '' : `at retirement`},
@@ -211,7 +213,7 @@
 					>{fmtSignedCurrency(capitalGap)} ({fmtMargin(capitalMargin)})</span
 				>
 				against the {fmtCompactCurrency(stats.fiTargetP95)} simulation-based target
-			</h3>
+			</p>
 
 			<table class="stat-table stat-table-compact">
 				<tbody>

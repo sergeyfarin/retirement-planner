@@ -20,12 +20,15 @@
 	border-top: 1px solid var(--surface-muted);
 }
 
-/* Already-retired toggle: sits under the age row and greys out the fields it disables. */
+/* Compact drawdown toggle between current and retirement age. */
 .already-retired {
 	display: flex;
+	flex-direction: row;
 	align-items: center;
 	gap: 0.35rem;
-	margin-top: 0.3rem;
+	align-self: end;
+	min-height: 1.85rem;
+	margin: 0;
 	font-size: var(--text-small);
 	color: var(--ink-muted);
 	cursor: pointer;
@@ -136,6 +139,7 @@
 
 /* ─── Allocation slider ───────────────────────────────────────────── */
 .allocation-control {
+	margin-top: 0.6rem;
 	margin-bottom: 0.35rem;
 }
 

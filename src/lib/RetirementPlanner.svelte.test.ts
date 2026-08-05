@@ -169,7 +169,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(verdict?.querySelector('.gauge-track')).toBeNull();
 		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
 
-		expect(squashed(verdict?.querySelector('h3.stat-sentence'))).toMatch(
+		expect(squashed(verdict?.querySelector('.stat-sentence'))).toMatch(
 			/^\d+% estimated chance your plan stays funded through age \d+$/
 		);
 		expect(squashed(verdict)).not.toContain('simulated market paths');
@@ -200,8 +200,7 @@ describe('RetirementPlanner result communication', () => {
 		}
 
 		const portfolioChart = container.querySelector('.chart-card-main');
-		expect(squashed(portfolioChart?.querySelector('.phase-eyebrow'))).toBe('Portfolio outlook');
-		expect(squashed(portfolioChart?.querySelector('.card-title'))).toMatch(
+		expect(squashed(portfolioChart?.querySelector('.phase-title'))).toMatch(
 			/^Portfolio projection — inflation-adjusted \(.+\)$/
 		);
 
