@@ -5,7 +5,7 @@
  */
 
 /* ─── Headings ────────────────────────────────────────────────────── */
-.retirement-planner h2 {
+:where(.retirement-planner) h2 {
 	margin: 0 0 0.15rem;
 	font-size: var(--text-page);
 	font-weight: 700;
@@ -20,7 +20,7 @@
  * a hundredth of a rem; they now share one rule.
  */
 .eyebrow,
-.retirement-planner label,
+:where(.retirement-planner) label,
 .allocation-head,
 .stat-table caption,
 .stat-table thead th,
@@ -160,7 +160,7 @@
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────── */
-.retirement-planner button {
+:where(.retirement-planner) button {
 	margin-top: 0.1rem;
 	margin-right: 0.3rem;
 	padding: 0.38rem 0.8rem;
@@ -178,23 +178,23 @@
 	transition: all 0.15s ease;
 }
 
-.retirement-planner button:hover:not(:disabled) {
+:where(.retirement-planner) button:hover:not(:disabled) {
 	transform: translateY(-1px);
 	box-shadow: 0 3px 10px rgba(21, 128, 61, 0.25);
 	filter: brightness(1.05);
 }
 
-.retirement-planner button:active:not(:disabled) {
+:where(.retirement-planner) button:active:not(:disabled) {
 	transform: translateY(0);
 }
 
-.retirement-planner button:disabled {
+:where(.retirement-planner) button:disabled {
 	background: var(--ink-faint);
 	box-shadow: none;
 	cursor: not-allowed;
 }
 
-.retirement-planner button.btn-add {
+:where(.retirement-planner) button.btn-add {
 	margin-top: 0.25rem;
 	margin-bottom: 0.15rem;
 	padding: 0.22rem 0.55rem;
@@ -204,11 +204,11 @@
 	font-size: var(--text-small);
 }
 
-.retirement-planner button.btn-add:hover:not(:disabled) {
+:where(.retirement-planner) button.btn-add:hover:not(:disabled) {
 	box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
 }
 
-.retirement-planner button.btn-remove {
+:where(.retirement-planner) button.btn-remove {
 	width: 1.25rem;
 	min-width: 1.25rem;
 	margin: 0;
@@ -223,7 +223,7 @@
 	color: var(--negative);
 }
 
-.retirement-planner button.btn-remove:hover {
+:where(.retirement-planner) button.btn-remove:hover {
 	transform: none;
 	border-color: var(--negative-line-strong);
 	background: var(--negative-wash);
@@ -234,8 +234,8 @@
  * Mode toggles, presets, reset, and share controls use one neutral treatment,
  * followed by size-only variants.
  */
-.retirement-planner button.btn-mode,
-.retirement-planner button.btn-preset,
+:where(.retirement-planner) button.btn-mode,
+:where(.retirement-planner) button.btn-preset,
 .assumptions-reset-cell-btn,
 .btn-share {
 	margin: 0;
@@ -247,8 +247,8 @@
 	color: var(--ink-muted);
 }
 
-.retirement-planner button.btn-mode:hover:not(:disabled),
-.retirement-planner button.btn-preset:hover:not(:disabled),
+:where(.retirement-planner) button.btn-mode:hover:not(:disabled),
+:where(.retirement-planner) button.btn-preset:hover:not(:disabled),
 .assumptions-reset-cell-btn:hover:not(:disabled),
 .btn-share:hover:not(:disabled) {
 	transform: none;
@@ -258,19 +258,19 @@
 	box-shadow: none;
 }
 
-.retirement-planner button.btn-mode {
+:where(.retirement-planner) button.btn-mode {
 	padding: 0.22rem 0.55rem;
 	font-size: var(--text-small);
 }
 
-.retirement-planner button.btn-mode.active {
+:where(.retirement-planner) button.btn-mode.active {
 	border-color: var(--accent-deep);
 	background: linear-gradient(135deg, var(--accent), var(--accent-bright));
 	box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
 	color: var(--surface);
 }
 
-.retirement-planner button.btn-preset {
+:where(.retirement-planner) button.btn-preset {
 	padding: 0.2rem 0.5rem;
 	border-style: dashed;
 	border-color: var(--ink-faint);
@@ -293,13 +293,13 @@
 }
 
 /* ─── Inputs ──────────────────────────────────────────────────────── */
-.retirement-planner label {
+:where(.retirement-planner) label {
 	display: flex;
 	flex-direction: column;
 	gap: 0.04rem;
 }
 
-.retirement-planner input {
+:where(.retirement-planner) input {
 	width: 100%;
 	max-width: 6rem;
 	padding: 0.25rem 0.38rem;
@@ -317,19 +317,19 @@
 		box-shadow 0.15s ease;
 }
 
-.retirement-planner input:focus {
+:where(.retirement-planner) input:focus {
 	outline: none;
 	border-color: var(--focus-line);
 	box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-.retirement-planner input[type='number'] {
+:where(.retirement-planner) input[type='number'] {
 	max-width: 4rem;
 }
 
-.retirement-planner input[type='number'],
-.retirement-planner input[inputmode='numeric'],
-.retirement-planner input[inputmode='decimal'] {
+:where(.retirement-planner) input[type='number'],
+:where(.retirement-planner) input[inputmode='numeric'],
+:where(.retirement-planner) input[inputmode='decimal'] {
 	text-align: center;
 }
 
