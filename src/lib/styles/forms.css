@@ -10,6 +10,10 @@
 	gap: 0.18rem 0.28rem;
 }
 
+.input-overview-card {
+	margin-top: 0.5rem;
+}
+
 .section-split {
 	margin-top: 0.3rem;
 	padding-top: 0.25rem;
@@ -82,10 +86,6 @@
 	background: var(--surface-hover);
 }
 
-.table-row + .table-row {
-	border-top: none;
-}
-
 .table-row input {
 	max-width: none;
 }
@@ -94,11 +94,6 @@
 	width: 100%;
 	min-width: 0;
 	max-width: none;
-}
-
-.age-input,
-.table-row input.age-input {
-	text-align: center !important;
 }
 
 .readonly-age-cell {
@@ -181,11 +176,11 @@
 }
 
 .allocation-segment.bonds {
-	background: #0ea5e9;
+	background: var(--sky);
 }
 
 .allocation-segment.bank {
-	background: #f59e0b;
+	background: var(--amber);
 }
 
 .allocation-range {
@@ -236,11 +231,11 @@
 }
 
 .allocation-range-top::-webkit-slider-thumb {
-	background: #0f766e;
+	background: var(--teal);
 }
 
 .allocation-range-top::-moz-range-thumb {
-	background: #0f766e;
+	background: var(--teal);
 }
 
 /* ─── Assumptions sheet ───────────────────────────────────────────── */
@@ -421,6 +416,14 @@
 	margin-top: 0.2rem;
 }
 
+.simulation-mode-section {
+	margin: 0.75rem 0 1rem;
+}
+
+.simulation-mode-title {
+	margin-bottom: 0.5rem;
+}
+
 .withdrawal-strategy-block .strategy-toggle-group {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -476,6 +479,46 @@
 
 .current-conditions-asof {
 	opacity: 0.75;
+}
+
+/* ─── Expert tuning ──────────────────────────────────────────────── */
+.expert-tuning-card {
+	margin: 1rem 0 0.5rem;
+}
+
+.expert-tuning-fields {
+	display: grid;
+	gap: 0.75rem;
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--line);
+}
+
+.expert-tuning-field {
+	display: grid;
+	gap: 0.25rem;
+}
+
+.expert-tuning-control {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.expert-tuning-input {
+	width: 4rem;
+	flex: 0 0 auto;
+}
+
+.expert-tuning-input-wide {
+	width: 6rem;
+}
+
+.expert-tuning-note {
+	font-size: var(--text-note);
+	line-height: 1.3;
+	color: var(--ink-soft);
+	opacity: 0.8;
 }
 
 /* Per-mode explanation under the simulation-mode toggle */

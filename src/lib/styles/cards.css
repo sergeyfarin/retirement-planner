@@ -40,7 +40,6 @@
 
 .card-title {
 	margin: 0.1rem 0 0;
-	color: var(--ink-body);
 }
 
 /*
@@ -78,7 +77,7 @@
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.65rem;
 	justify-content: start;
-	width: min(100%, 65rem);
+	width: 100%;
 	max-width: 65rem;
 }
 
@@ -88,8 +87,8 @@
 
 /* ─── Tone: one severity vocabulary shared by every result card ───── */
 .tone-good {
-	--tone-line: #0f766e;
-	--tone-ink: #0f766e;
+	--tone-line: var(--teal);
+	--tone-ink: var(--teal);
 	--tone-wash: rgba(240, 253, 250, 0.98);
 }
 
@@ -112,17 +111,8 @@
 }
 
 /* ─── Verdict card ────────────────────────────────────────────────── */
-.verdict-card {
-	padding: 0.9rem 1rem;
-	border-left: 4px solid var(--tone-line);
-	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));
-}
-
 .outcome-card {
 	min-width: 0;
-}
-
-.retirement-card {
 	padding: 0.9rem 1rem;
 	border-left: 4px solid var(--tone-line);
 	background: linear-gradient(135deg, var(--tone-wash), rgba(255, 255, 255, 0.92));

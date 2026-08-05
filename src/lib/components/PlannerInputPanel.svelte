@@ -186,7 +186,7 @@
 		{/each}
 	</div>
 
-	<div class="card mt-2">
+	<div class="card input-overview-card">
 		<div class="form-grid">
 			<label>
 				Current age
@@ -566,8 +566,8 @@
 		</summary>
 
 		<div>
-			<div class="simulation-mode-wrap mb-4 mt-3">
-				<div class="block mb-2 font-semibold">Simulation mode and assumptions</div>
+			<div class="simulation-mode-section">
+				<p class="card-title simulation-mode-title">Simulation mode and assumptions</p>
 				<div class="mode-toggle-group" role="group" aria-label="Simulation mode selection">
 					<button
 						type="button"
@@ -702,7 +702,7 @@
 			{/if}
 		</div>
 		<div class="assumptions-table-wrap">
-			<table class="assumptions-table mt-1 pb-1">
+			<table class="assumptions-table">
 				<thead>
 					<tr>
 						<th></th>
@@ -748,7 +748,6 @@
 							/></td
 						>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(investmentMetrics.stockStd * investmentMetrics.stockStd) / 2,
 								2
@@ -821,7 +820,6 @@
 							/></td
 						>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(investmentMetrics.bondStd * investmentMetrics.bondStd) / 2,
 								2
@@ -894,7 +892,6 @@
 							/></td
 						>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(investmentMetrics.bankStd * investmentMetrics.bankStd) / 2,
 								2
@@ -969,7 +966,6 @@
 						<td>{fmtPercentDisplay(input.meanReturn, 1)}</td>
 						<td>{fmtPercentDisplay(input.returnVariability, 1)}</td>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(input.returnVariability * input.returnVariability) / 2,
 								2
@@ -1013,7 +1009,6 @@
 							/></td
 						>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(input.inflationVariability * input.inflationVariability) / 2,
 								2
@@ -1131,7 +1126,6 @@
 						<td>{fmtPercentDisplay(realReturnEstimate, 1)}</td>
 						<td>{fmtPercentDisplay(realReturnStdEstimate, 1)}</td>
 						<td
-							class="geometric-cagr"
 							title="Variance Drag ≈ {fmtPercentDisplay(
 								(realReturnStdEstimate * realReturnStdEstimate) / 2,
 								2
@@ -1160,16 +1154,14 @@
 			></div>
 		</div>
 	</details>
-	<details class="card mt-4 mb-2">
+	<details class="card expert-tuning-card">
 		<summary>Expert simulation tuning</summary>
-		<div class="mt-3 pt-3 border-t border-slate-200">
-			<div class="mb-3">
-				<label
-					for="adv-block-length"
-					class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"
+		<div class="expert-tuning-fields">
+			<div class="expert-tuning-field">
+				<label for="adv-block-length"
 					>Historical replay length (bootstrap block length, months)</label
 				>
-				<div class="flex items-center gap-2">
+				<div class="expert-tuning-control">
 					<input
 						id="adv-block-length"
 						type="number"
@@ -1178,10 +1170,10 @@
 						step="1"
 						bind:value={input.blockLength}
 						oninput={onSimulationSettingsChange}
-						class="w-16 text-center"
+						class="expert-tuning-input"
 						title="How many consecutive real months are replayed before jumping elsewhere in history. Longer blocks preserve longer historical runs; shorter blocks preserve only short-run dependence. Six months is provisional: Politis-White is a short-block diagnostic, not a retirement-path optimum."
 					/>
-					<span class="text-xs text-slate-500 opacity-80 leading-tight">
+					<span class="expert-tuning-note">
 						Consecutive real months replayed before jumping elsewhere in history.
 						<strong>The main lever on how long historical runs remain intact.</strong> Six months is provisional;
 						Politis-White supports short blocks for variance estimation, not a unique retirement-path
@@ -1189,13 +1181,9 @@
 					</span>
 				</div>
 			</div>
-			<div>
-				<label
-					for="adv-crisis-jump"
-					class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"
-					>Crisis Inflation Jump</label
-				>
-				<div class="flex items-center gap-2">
+			<div class="expert-tuning-field">
+				<label for="adv-crisis-jump">Crisis Inflation Jump</label>
+				<div class="expert-tuning-control">
 					<input
 						id="adv-crisis-jump"
 						type="text"
@@ -1205,10 +1193,10 @@
 							input.inflationCrisisSpread = Math.max(0, decimalFromPercentEvent(e));
 							onSimulationSettingsChange();
 						}}
-						class="w-16 text-center"
+						class="expert-tuning-input"
 						title="How much higher inflation runs during a simulated crisis than in calm periods. This only bites when inflation is modelled rather than taken from history — Parametric mode, or Historical (with Adjustments). In plain Historical Data Sampling it does nothing, because inflation is read from the same real month as the return."
 					/>
-					<span class="text-xs text-slate-500 opacity-80 leading-tight">
+					<span class="expert-tuning-note">
 						Extra inflation during simulated crises.
 						{#if input.historicalMonthlyInflation?.length}
 							<strong>No effect in the current mode</strong> — inflation is being read from real history
@@ -1219,13 +1207,9 @@
 					</span>
 				</div>
 			</div>
-			<div class="mt-3">
-				<label
-					for="adv-seed"
-					class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"
-					>Random Seed</label
-				>
-				<div class="flex items-center gap-2">
+			<div class="expert-tuning-field">
+				<label for="adv-seed">Random Seed</label>
+				<div class="expert-tuning-control">
 					<input
 						id="adv-seed"
 						type="number"
@@ -1236,9 +1220,9 @@
 							const raw = (e.target as HTMLInputElement).value;
 							input.seed = raw === '' ? undefined : Number(raw);
 						}}
-						class="w-24 text-center"
+						class="expert-tuning-input expert-tuning-input-wide"
 					/>
-					<span class="text-xs text-slate-500 opacity-80 leading-tight"
+					<span class="expert-tuning-note"
 						>Leave blank for a fresh random seed each run. Set a value to reproduce an exact result
 						— the seed actually used is shown after each run completes.</span
 					>

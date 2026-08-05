@@ -1997,204 +1997,205 @@
 	}
 </script>
 
-<div class="page-header">
-	<h2>FIRE Retirement Monte Carlo Planner</h2>
-	<p class="note">Results are inflation-adjusted and shown in today's purchasing power.</p>
-</div>
+<div class="retirement-planner">
+	<div class="page-header">
+		<h2>FIRE Retirement Monte Carlo Planner</h2>
+		<p class="note">Results are inflation-adjusted and shown in today's purchasing power.</p>
+	</div>
 
-<div class="workspace">
-	<PlannerInputPanel
-		{CURRENCIES}
-		bind:selectedCurrencyCode
-		{selectedCurrency}
-		bind:input
-		{alreadyRetired}
-		onAlreadyRetiredChange={setAlreadyRetired}
-		bind:incomeSources
-		bind:spendingPeriods
-		bind:lumpSumEvents
-		bind:stockBoundaryPercent
-		bind:bondBoundaryPercent
-		{stockAllocationPercent}
-		{bondAllocationPercent}
-		{bankAllocationPercent}
-		investmentMetrics={activeMetrics}
-		bind:parametricMetrics
-		bind:parametricInflationMean
-		bind:parametricInflationVariability
-		bind:parametricInflationSkewness
-		bind:parametricInflationKurtosis
-		{selectedHistoricalRegion}
-		{historicalDataLoadError}
-		bind:showHistoricalMethodologyInfo
-		{portfolioDisplaySkew}
-		{portfolioDisplayKurt}
-		{realReturnEstimate}
-		{realReturnStdEstimate}
-		{realReturnSkewEstimate}
-		{realReturnKurtEstimate}
-		{errorMessage}
-		bind:realReturnCdfEl
-		{fmtNum}
-		{numFromEvent}
-		{decimalFromPercentEvent}
-		{fmtPercentInputSig3}
-		{fmtPercentDisplay}
-		{clamp}
-		{addIncomeSource}
-		{removeIncomeSource}
-		{addSpendingPeriod}
-		{removeSpendingPeriod}
-		{addLumpSumEvent}
-		{removeLumpSumEvent}
-		{onStockBoundaryChange}
-		{onBondBoundaryChange}
-		{onInvestmentMetricChange}
-		{onInflationMetricChange}
-		{onSimulationSettingsChange}
-		{resetStockMetricsToDefault}
-		{resetBondMetricsToDefault}
-		{resetBankMetricsToDefault}
-		{resetInflationToDefault}
-		{resetDragToDefault}
-		onAssumptionsToggle={scheduleRealReturnCdfChart}
-		{currentConditions}
-		{applyCurrentConditions}
-	/>
+	<div class="workspace">
+		<PlannerInputPanel
+			{CURRENCIES}
+			bind:selectedCurrencyCode
+			{selectedCurrency}
+			bind:input
+			{alreadyRetired}
+			onAlreadyRetiredChange={setAlreadyRetired}
+			bind:incomeSources
+			bind:spendingPeriods
+			bind:lumpSumEvents
+			bind:stockBoundaryPercent
+			bind:bondBoundaryPercent
+			{stockAllocationPercent}
+			{bondAllocationPercent}
+			{bankAllocationPercent}
+			investmentMetrics={activeMetrics}
+			bind:parametricMetrics
+			bind:parametricInflationMean
+			bind:parametricInflationVariability
+			bind:parametricInflationSkewness
+			bind:parametricInflationKurtosis
+			{selectedHistoricalRegion}
+			{historicalDataLoadError}
+			bind:showHistoricalMethodologyInfo
+			{portfolioDisplaySkew}
+			{portfolioDisplayKurt}
+			{realReturnEstimate}
+			{realReturnStdEstimate}
+			{realReturnSkewEstimate}
+			{realReturnKurtEstimate}
+			{errorMessage}
+			bind:realReturnCdfEl
+			{fmtNum}
+			{numFromEvent}
+			{decimalFromPercentEvent}
+			{fmtPercentInputSig3}
+			{fmtPercentDisplay}
+			{clamp}
+			{addIncomeSource}
+			{removeIncomeSource}
+			{addSpendingPeriod}
+			{removeSpendingPeriod}
+			{addLumpSumEvent}
+			{removeLumpSumEvent}
+			{onStockBoundaryChange}
+			{onBondBoundaryChange}
+			{onInvestmentMetricChange}
+			{onInflationMetricChange}
+			{onSimulationSettingsChange}
+			{resetStockMetricsToDefault}
+			{resetBondMetricsToDefault}
+			{resetBankMetricsToDefault}
+			{resetInflationToDefault}
+			{resetDragToDefault}
+			onAssumptionsToggle={scheduleRealReturnCdfChart}
+			{currentConditions}
+			{applyCurrentConditions}
+		/>
 
-	<section class="right-panel">
-		<div class="card status-banner" class:attention={inputsChangedSinceLastRun && !running}>
-			<div class="status-row">
-				<div class="status-text">
-					<strong>
-						{#if running}
-							Computing Monte Carlo Simulation…
-						{:else if inputsChangedSinceLastRun}
-							Inputs Changed — Re-run Required
-						{:else if resultStage === 'final'}
-							Simulation Up to Date
-						{:else}
-							Ready to Simulate
-						{/if}
-					</strong>
-					<p class="note">
-						{#if running}
-							{runStatusMessage || 'Running...'}
-						{:else if inputsChangedSinceLastRun}
-							Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
-							results below.
-						{:else if resultStage === 'final'}
-							Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}
-								Seed:
-								{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this exact
-								result).{/if}
-						{:else}
-							Click "Run Monte Carlo" to generate your retirement forecast.
-						{/if}
-					</p>
-				</div>
-				<div class="status-controls">
-					<label>
-						Simulations
-						<input
-							type="text"
-							inputmode="numeric"
-							value={fmtNum(input.simulations)}
-							onchange={(e) => {
-								input.simulations = numFromEvent(e);
-								onSimulationSettingsChange();
-							}}
-						/>
-					</label>
-					<button
-						class="btn-primary"
-						disabled={running || (!inputsChangedSinceLastRun && resultStage === 'final')}
-						onclick={() => void runSimulation()}
-						title="Run a massive Monte Carlo simulation on background thread."
-					>
-						{running ? 'Running…' : 'Run Monte Carlo'}
-					</button>
-					{#if resultStage === 'final' && !running}
+		<section class="right-panel">
+			<div class="card status-banner" class:attention={inputsChangedSinceLastRun && !running}>
+				<div class="status-row">
+					<div>
+						<strong>
+							{#if running}
+								Computing Monte Carlo Simulation…
+							{:else if inputsChangedSinceLastRun}
+								Inputs Changed — Re-run Required
+							{:else if resultStage === 'final'}
+								Simulation Up to Date
+							{:else}
+								Ready to Simulate
+							{/if}
+						</strong>
+						<p class="note">
+							{#if running}
+								{runStatusMessage || 'Running...'}
+							{:else if inputsChangedSinceLastRun}
+								Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
+								results below.
+							{:else if resultStage === 'final'}
+								Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}
+									Seed:
+									{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this exact
+									result).{/if}
+							{:else}
+								Click "Run Monte Carlo" to generate your retirement forecast.
+							{/if}
+						</p>
+					</div>
+					<div class="status-controls">
+						<label>
+							Simulations
+							<input
+								type="text"
+								inputmode="numeric"
+								value={fmtNum(input.simulations)}
+								onchange={(e) => {
+									input.simulations = numFromEvent(e);
+									onSimulationSettingsChange();
+								}}
+							/>
+						</label>
 						<button
-							class="btn-share"
-							onclick={() => void copyShareLink()}
-							title="Copies a link that restores these exact inputs and seed."
+							disabled={running || (!inputsChangedSinceLastRun && resultStage === 'final')}
+							onclick={() => void runSimulation()}
+							title="Run a massive Monte Carlo simulation on background thread."
 						>
-							{shareLinkCopied ? 'Link copied ✓' : 'Copy share link'}
+							{running ? 'Running…' : 'Run Monte Carlo'}
 						</button>
-					{/if}
+						{#if resultStage === 'final' && !running}
+							<button
+								class="btn-share"
+								onclick={() => void copyShareLink()}
+								title="Copies a link that restores these exact inputs and seed."
+							>
+								{shareLinkCopied ? 'Link copied ✓' : 'Copy share link'}
+							</button>
+						{/if}
+					</div>
 				</div>
 			</div>
-		</div>
 
-		{#if stats}
-			<div class="outputs-wrapper" class:stale-results={inputsChangedSinceLastRun}>
-				<PlannerOutputCards
-					{stats}
-					{input}
-					{fmtCompactCurrency}
-					{FI_TARGET_SUCCESS_PROBABILITY}
-					{fmtNum}
-					{alreadyRetired}
-					{actionableRecommendations}
-				/>
-
-				<PlannerDiagnostics
-					{stats}
-					{input}
-					simCount={lastSimulatedCount}
-					{percentFormatter}
-					{fmtNum}
-					{fmtCompactCurrency}
-					{retirementYearlySpending}
-					{FI_TARGET_SUCCESS_PROBABILITY}
-				/>
-
-				<div class="chart-row">
-					<PlannerTimelinePlot
-						{Plotly}
-						{plotReady}
-						{simulation}
+			{#if stats}
+				<div class:stale-results={inputsChangedSinceLastRun}>
+					<PlannerOutputCards
 						{stats}
-						retirementAge={input.retirementAge}
-						{baselineFiTarget}
-						{spendingPeriods}
-						{lumpSumEvents}
-						currencySymbol={selectedCurrency.symbol}
-						{fmtCompactValue}
-						{fmtHoverCompactCurrency}
+						{input}
+						{fmtCompactCurrency}
+						{FI_TARGET_SUCCESS_PROBABILITY}
+						{fmtNum}
+						{alreadyRetired}
+						{actionableRecommendations}
 					/>
-					<PlannerSecondaryPlot
-						{Plotly}
-						{plotReady}
-						{simulation}
+
+					<PlannerDiagnostics
 						{stats}
-						retirementAge={input.retirementAge}
-						simulateUntilAge={input.simulateUntilAge}
-						currencySymbol={selectedCurrency.symbol}
-						{fmtCompactValue}
-						{fmtHoverCompactCurrency}
+						{input}
+						simCount={lastSimulatedCount}
+						{percentFormatter}
+						{fmtNum}
+						{fmtCompactCurrency}
+						{retirementYearlySpending}
+						{FI_TARGET_SUCCESS_PROBABILITY}
 					/>
+
+					<div class="chart-row">
+						<PlannerTimelinePlot
+							{Plotly}
+							{plotReady}
+							{simulation}
+							{stats}
+							retirementAge={input.retirementAge}
+							{baselineFiTarget}
+							{spendingPeriods}
+							{lumpSumEvents}
+							currencySymbol={selectedCurrency.symbol}
+							{fmtCompactValue}
+							{fmtHoverCompactCurrency}
+						/>
+						<PlannerSecondaryPlot
+							{Plotly}
+							{plotReady}
+							{simulation}
+							{stats}
+							retirementAge={input.retirementAge}
+							simulateUntilAge={input.simulateUntilAge}
+							currencySymbol={selectedCurrency.symbol}
+							{fmtCompactValue}
+							{fmtHoverCompactCurrency}
+						/>
+					</div>
 				</div>
-			</div>
-		{/if}
-	</section>
+			{/if}
+		</section>
+	</div>
+
+	<p class="disclaimer-footer">
+		This tool is for education and planning exploration only — it is not financial, tax, or
+		retirement advice, and its projections are not guarantees of future performance. Historical
+		market data does not predict future returns. Consult a qualified financial advisor before making
+		retirement decisions.
+		<br />
+		<!-- AGPL-3.0 §13: network-served software must offer its users the corresponding source. -->
+		Open source (AGPL-3.0) —
+		<a
+			href="https://github.com/sergeyfarin/retirement-planner"
+			target="_blank"
+			rel="noopener noreferrer">view or download the source</a
+		>.
+	</p>
 </div>
-
-<p class="disclaimer-footer">
-	This tool is for education and planning exploration only — it is not financial, tax, or retirement
-	advice, and its projections are not guarantees of future performance. Historical market data does
-	not predict future returns. Consult a qualified financial advisor before making retirement
-	decisions.
-	<br />
-	<!-- AGPL-3.0 §13: network-served software must offer its users the corresponding source. -->
-	Open source (AGPL-3.0) —
-	<a
-		href="https://github.com/sergeyfarin/retirement-planner"
-		target="_blank"
-		rel="noopener noreferrer">view or download the source</a
-	>.
-</p>
 
 <style>
 	.stale-results {

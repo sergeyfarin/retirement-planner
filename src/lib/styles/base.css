@@ -5,7 +5,7 @@
  */
 
 /* ─── Headings ────────────────────────────────────────────────────── */
-h2 {
+.retirement-planner h2 {
 	margin: 0 0 0.15rem;
 	font-size: var(--text-page);
 	font-weight: 700;
@@ -17,10 +17,10 @@ h2 {
 /*
  * One micro-label for the whole app. Card eyebrows, sub-section labels, table
  * column heads, and field labels were four separate rules that differed only by
- * a hundredth of a rem; they are one rule with two optional modifiers now.
+ * a hundredth of a rem; they now share one rule.
  */
 .eyebrow,
-label,
+.retirement-planner label,
 .allocation-head,
 .stat-table caption,
 .stat-table thead th,
@@ -36,7 +36,6 @@ label,
 }
 
 /* Column heads sit behind their data, so they step back one shade. */
-.eyebrow-faint,
 .stat-table thead th,
 .table-header,
 .assumptions-table th {
@@ -47,7 +46,6 @@ label,
  * Editable data grids keep the numeric face in their heads so the head aligns with
  * the tabular figures beneath it. Read-only summary tables do not need it.
  */
-.eyebrow-mono,
 .table-header,
 .assumptions-table th {
 	font-family: var(--font-mono);
@@ -108,17 +106,6 @@ label,
 	margin: 0.15rem 0 0.5rem;
 }
 
-.hint {
-	margin-top: 0.04rem;
-	font-size: var(--text-micro);
-	line-height: 1.25;
-	font-weight: 500;
-	font-style: italic;
-	letter-spacing: normal;
-	text-transform: none;
-	color: var(--ink-faint);
-}
-
 /*
  * A standing caveat about what the model deliberately does not do, rather than a
  * passing hint. Kept legible instead of muted, because it changes how the number
@@ -148,9 +135,9 @@ label,
 .methodology-info {
 	margin-top: 0.1rem;
 	padding: 0.3rem 0.35rem;
-	border: 1px solid #dbeafe;
+	border: 1px solid var(--info-line);
 	border-radius: var(--radius-sm);
-	background: rgba(239, 246, 255, 0.4);
+	background: var(--info-wash);
 	line-height: 1.45;
 }
 
@@ -162,23 +149,23 @@ label,
 	box-shadow: none;
 	font-family: var(--font-mono);
 	font-size: var(--text-note);
-	color: #2563eb;
+	color: var(--info);
 	text-decoration: underline;
 	text-underline-offset: 2px;
 	cursor: pointer;
 }
 
 .inline-link:hover {
-	color: #1d4ed8;
+	color: var(--info-deep);
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────── */
-button {
+.retirement-planner button {
 	margin-top: 0.1rem;
 	margin-right: 0.3rem;
 	padding: 0.38rem 0.8rem;
 	border: none;
-	border-radius: 7px;
+	border-radius: var(--radius-control);
 	background: linear-gradient(135deg, var(--positive), var(--positive-deep));
 	box-shadow: 0 1px 3px rgba(21, 128, 61, 0.2);
 	font-family: var(--font-sans);
@@ -191,23 +178,23 @@ button {
 	transition: all 0.15s ease;
 }
 
-button:hover:not(:disabled) {
+.retirement-planner button:hover:not(:disabled) {
 	transform: translateY(-1px);
 	box-shadow: 0 3px 10px rgba(21, 128, 61, 0.25);
 	filter: brightness(1.05);
 }
 
-button:active:not(:disabled) {
+.retirement-planner button:active:not(:disabled) {
 	transform: translateY(0);
 }
 
-button:disabled {
+.retirement-planner button:disabled {
 	background: var(--ink-faint);
 	box-shadow: none;
 	cursor: not-allowed;
 }
 
-button.btn-add {
+.retirement-planner button.btn-add {
 	margin-top: 0.25rem;
 	margin-bottom: 0.15rem;
 	padding: 0.22rem 0.55rem;
@@ -217,11 +204,11 @@ button.btn-add {
 	font-size: var(--text-small);
 }
 
-button.btn-add:hover:not(:disabled) {
+.retirement-planner button.btn-add:hover:not(:disabled) {
 	box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
 }
 
-button.btn-remove {
+.retirement-planner button.btn-remove {
 	width: 1.25rem;
 	min-width: 1.25rem;
 	margin: 0;
@@ -236,21 +223,19 @@ button.btn-remove {
 	color: var(--negative);
 }
 
-button.btn-remove:hover {
+.retirement-planner button.btn-remove:hover {
 	transform: none;
-	border-color: #fca5a5;
+	border-color: var(--negative-line-strong);
 	background: var(--negative-wash);
 	box-shadow: none;
 }
 
 /*
- * The neutral chip. Seven buttons — mode toggles, presets, reset, info, close,
- * share — each carried its own copy of this same quiet grey treatment, with the
- * same hover, written out seven times. One rule, then size-only variants.
+ * Mode toggles, presets, reset, and share controls use one neutral treatment,
+ * followed by size-only variants.
  */
-.btn-chip,
-button.btn-mode,
-button.btn-preset,
+.retirement-planner button.btn-mode,
+.retirement-planner button.btn-preset,
 .assumptions-reset-cell-btn,
 .btn-share {
 	margin: 0;
@@ -262,9 +247,8 @@ button.btn-preset,
 	color: var(--ink-muted);
 }
 
-.btn-chip:hover:not(:disabled),
-button.btn-mode:hover:not(:disabled),
-button.btn-preset:hover:not(:disabled),
+.retirement-planner button.btn-mode:hover:not(:disabled),
+.retirement-planner button.btn-preset:hover:not(:disabled),
 .assumptions-reset-cell-btn:hover:not(:disabled),
 .btn-share:hover:not(:disabled) {
 	transform: none;
@@ -274,19 +258,19 @@ button.btn-preset:hover:not(:disabled),
 	box-shadow: none;
 }
 
-button.btn-mode {
+.retirement-planner button.btn-mode {
 	padding: 0.22rem 0.55rem;
 	font-size: var(--text-small);
 }
 
-button.btn-mode.active {
-	border-color: #4338ca;
+.retirement-planner button.btn-mode.active {
+	border-color: var(--accent-deep);
 	background: linear-gradient(135deg, var(--accent), var(--accent-bright));
 	box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
 	color: var(--surface);
 }
 
-button.btn-preset {
+.retirement-planner button.btn-preset {
 	padding: 0.2rem 0.5rem;
 	border-style: dashed;
 	border-color: var(--ink-faint);
@@ -309,13 +293,13 @@ button.btn-preset {
 }
 
 /* ─── Inputs ──────────────────────────────────────────────────────── */
-label {
+.retirement-planner label {
 	display: flex;
 	flex-direction: column;
 	gap: 0.04rem;
 }
 
-input {
+.retirement-planner input {
 	width: 100%;
 	max-width: 6rem;
 	padding: 0.25rem 0.38rem;
@@ -333,19 +317,19 @@ input {
 		box-shadow 0.15s ease;
 }
 
-input:focus {
+.retirement-planner input:focus {
 	outline: none;
 	border-color: var(--focus-line);
 	box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-input[type='number'] {
+.retirement-planner input[type='number'] {
 	max-width: 4rem;
 }
 
-input[type='number'],
-input[inputmode='numeric'],
-input[inputmode='decimal'] {
+.retirement-planner input[type='number'],
+.retirement-planner input[inputmode='numeric'],
+.retirement-planner input[inputmode='decimal'] {
 	text-align: center;
 }
 
@@ -356,7 +340,7 @@ input[inputmode='decimal'] {
 
 .page-header h2 {
 	margin: 0 0 0.1rem;
-	background: linear-gradient(135deg, #0f766e 0%, #0ea5a4 45%, #22c55e 100%);
+	background: linear-gradient(135deg, var(--teal) 0%, var(--teal-bright) 45%, var(--positive) 100%);
 	-webkit-background-clip: text;
 	background-clip: text;
 	-webkit-text-fill-color: transparent;

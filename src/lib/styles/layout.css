@@ -4,11 +4,7 @@
 	grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
 	gap: 1rem;
 	align-items: start;
-	font-family:
-		'Inter',
-		system-ui,
-		-apple-system,
-		sans-serif;
+	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
@@ -31,7 +27,7 @@
 	overflow: auto;
 	padding-right: 0.2rem;
 	scrollbar-width: thin;
-	scrollbar-color: #cbd5e1 transparent;
+	scrollbar-color: var(--line-strong) transparent;
 }
 
 @media (max-width: 1024px) {

@@ -30,6 +30,7 @@
 
 	/* ─── Accents and semantics ─────────────────────────────────────── */
 	--accent: #4f46e5;
+	--accent-deep: #4338ca;
 	--accent-bright: #6366f1;
 	--accent-soft: #a5b4fc;
 	--accent-wash: #eef2ff;
@@ -37,6 +38,7 @@
 	--positive-deep: #15803d;
 	--negative: #dc2626;
 	--negative-line: #fecaca;
+	--negative-line-strong: #fca5a5;
 	--negative-wash: #fef2f2;
 	--warning: #d97706;
 	--warning-ink: #78350f;
@@ -44,13 +46,21 @@
 	--warning-wash: #fffbeb;
 	--focus-ring: rgba(129, 140, 248, 0.12);
 	--focus-line: #818cf8;
+	--info: #2563eb;
+	--info-deep: #1d4ed8;
+	--info-line: #dbeafe;
+	--info-wash: rgba(239, 246, 255, 0.4);
+	--teal: #0f766e;
+	--teal-bright: #0ea5a4;
+	--sky: #0ea5e9;
+	--amber: #f59e0b;
 
 	/* ─── Type ──────────────────────────────────────────────────────── */
 	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
 	/*
-	 * Six sizes for the whole app. The old sheets used fourteen, most of them
+	 * Seven sizes for the whole app. The old sheets used fourteen, most of them
 	 * within 0.02rem of a neighbour, which is why nothing lined up.
 	 */
 	--text-micro: 0.62rem; /* hints, densest table cells */
@@ -64,6 +74,7 @@
 	/* ─── Shape and elevation ───────────────────────────────────────── */
 	--radius-xs: 4px;
 	--radius-sm: 6px;
+	--radius-control: 7px;
 	--radius-md: 8px;
 	--radius-lg: 12px;
 	--radius-pill: 9999px;

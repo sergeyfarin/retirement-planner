@@ -1,6 +1,5 @@
 /* ─── Charts ──────────────────────────────────────────────────────── */
-.chart,
-.chart-card-main .chart {
+.chart {
 	height: 480px;
 }
 
