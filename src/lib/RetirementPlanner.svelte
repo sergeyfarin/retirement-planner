@@ -1999,8 +1999,18 @@
 
 <div class="retirement-planner">
 	<div class="page-header">
-		<h2>FIRE Retirement Monte Carlo Planner</h2>
-		<p class="note">Results are inflation-adjusted and shown in today's purchasing power.</p>
+		<div>
+			<h2>FIRE Retirement Monte Carlo Planner</h2>
+			<p class="note">Results are inflation-adjusted and shown in today's purchasing power.</p>
+		</div>
+		<nav class="header-links" aria-label="Project links">
+			<a
+				href="https://github.com/sergeyfarin/retirement-planner"
+				target="_blank"
+				rel="noopener noreferrer">GitHub</a
+			>
+			<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">My home page</a>
+		</nav>
 	</div>
 
 	<div class="workspace">

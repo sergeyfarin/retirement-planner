@@ -234,11 +234,5 @@
 				percentile statistics are in advanced statistics.
 			</p>
 		</section>
-
-		<p class="scope-note">
-			Modelled here: retirement timing, changing spending periods, pensions and other income, lump
-			sums, taxes and fees, inflation, withdrawal strategy, and simulated sequences of market
-			returns. Tested scenarios, not personal financial advice.
-		</p>
 	</div>
 {/if}

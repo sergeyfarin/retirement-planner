@@ -185,9 +185,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(squashed(container)).not.toContain(
 			'How much does the timing of market gains and losses matter?'
 		);
-		expect(squashed(container.querySelector('.scope-note'))).toContain(
-			'not personal financial advice'
-		);
+		expect(container.querySelector('.scope-note')).toBeNull();
 
 		const strategyGroup = container.querySelector<HTMLElement>('.strategy-toggle-group');
 		const strategyButtons = strategyGroup?.querySelectorAll<HTMLElement>('.btn-mode') ?? [];

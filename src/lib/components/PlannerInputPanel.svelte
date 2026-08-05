@@ -563,10 +563,9 @@
 			</span>
 		</summary>
 
-		<div>
-			<div class="simulation-mode-section">
-				<p class="card-title simulation-mode-title">Simulation mode and assumptions</p>
-				<div class="mode-toggle-group" role="group" aria-label="Simulation mode selection">
+		<div class="simulation-mode-section">
+			<div class="simulation-mode-options" role="group" aria-label="Simulation mode selection">
+				<div class="simulation-mode-option">
 					<button
 						type="button"
 						class="btn-mode"
@@ -581,6 +580,8 @@
 					>
 						Historical<br />Data Sampling
 					</button>
+				</div>
+				<div class="simulation-mode-option">
 					<button
 						type="button"
 						class="btn-mode"
@@ -595,6 +596,24 @@
 					>
 						Historical <br />(with Adjustments)
 					</button>
+					{#if currentConditions}
+						<button
+							type="button"
+							class="btn-preset current-yields-btn"
+							onclick={applyCurrentConditions}
+							title="Use today's cash and bond yields plus the historical equity risk premium as editable return assumptions."
+						>
+							Use today's yields
+						</button>
+						<span class="current-yields-note mono-value">
+							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
+							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
+							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks<br />
+							<span>(as of {currentConditions.asOf})</span>
+						</span>
+					{/if}
+				</div>
+				<div class="simulation-mode-option">
 					<button
 						type="button"
 						class="btn-mode"
@@ -610,94 +629,80 @@
 						Parametric<br />(User Inputs)
 					</button>
 				</div>
-				{#if currentConditions}
-					<div class="current-conditions-row">
+			</div>
+			<div class="assumption-context">
+				<p class="assumption-context-line">
+					{#if input.simulationMode === 'parametric'}
+						<strong>Uses no historical data.</strong> Returns are generated from a statistical model built
+						only from the numbers you enter below. Most flexible, least anchored to what markets actually
+						did.
+					{:else if input.historicalMomentTargeting}
+						<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the
+						crashes, recoveries and clustering — but slides average return and volatility to the values
+						you set below. Answers “what if returns are worse than the past?”. Inflation falls back to
+						a modelled draw in this mode.
+					{:else}
+						<strong>Replays real market history.</strong> Stitches together runs of actual past months
+						in their original order. Returns and inflation come from the same real months, so high-inflation
+						periods land on the markets that truly accompanied them. Averages match history, so the table
+						below is read-only.
+					{/if}
+				</p>
+
+				{#if selectedHistoricalRegion}
+					{#if input.historicalMonthlyInflation?.length}
+						<p
+							class="assumption-context-line"
+							title="Each simulated month draws its return and its inflation from the same real historical month, so high-inflation periods land on the same months as weak markets — and inflation keeps its real-world persistence."
+						>
+							<strong>✓ Inflation sampled jointly with returns from history</strong>
+						</p>
+					{/if}
+					<p class="assumption-context-line">
+						<strong>Historical dataset:</strong>
+						{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage}
+						of monthly data)
 						<button
 							type="button"
-							class="btn-preset"
-							onclick={applyCurrentConditions}
-							title="Anchors expected returns to today's yields instead of a 65-year average: cash = current short rate, bonds = current 10y yield, equities = that yield plus the historical equity risk premium. Volatility and the shape of the return distribution stay historical."
+							class="inline-link"
+							onclick={() => {
+								showHistoricalMethodologyInfo = !showHistoricalMethodologyInfo;
+							}}
+							aria-expanded={showHistoricalMethodologyInfo}
 						>
-							Use today's yields
+							{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
 						</button>
-						<span class="note current-conditions-note">
-							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
-							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
-							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks
-							<span class="current-conditions-asof">(as of {currentConditions.asOf})</span>
-						</span>
-					</div>
+					</p>
+					{#if showHistoricalMethodologyInfo}
+						<div class="note mono-value methodology-info">
+							Active calibration dataset (used now):<br />
+							• Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual
+							observations), built from monthly market data.<br />
+							• Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with
+							synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK
+							+ Japan (Nikkei) and Asia/EM (Hang Seng, backfilled 1960-69 with Nikkei to preserve deep
+							history). All foreign indices in the World blend are converted to USD.<br />
+							• Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based),
+							then compounded to annual returns.<br />
+							• Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br
+							/>
+							• For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments
+							computed from that annual return series (not handbook constants).<br />
+							• Monte Carlo path is monthly; when monthly history is available, calibration now uses empirical
+							monthly portfolio returns with monthly regime detection/bootstrap. Annual moments are retained
+							for summary/inputs.<br />
+							• Inflation currently remains a curated long-run reference input (separate from this market-file
+							pipeline), with user-editable mean/volatility and neutral default shape (skew 0, kurt 3).<br
+							/>
+							• Legacy reference assumptions (MSCI/STOXX/FTSE/FRED/ECB/ONS-style long-run sources) remain
+							broadly in line; this pipeline is preferred because it is one reproducible method across
+							regions.
+						</div>
+					{/if}
+				{:else if historicalDataLoadError}
+					<p class="assumption-context-line">{historicalDataLoadError}</p>
 				{/if}
 			</div>
-			<p class="mode-explainer">
-				{#if input.simulationMode === 'parametric'}
-					<strong>Uses no historical data.</strong> Returns are generated from a statistical model built
-					only from the numbers you enter below. Most flexible, least anchored to what markets actually
-					did.
-				{:else if input.historicalMomentTargeting}
-					<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the crashes,
-					recoveries and clustering — but slides average return and volatility to the values you set below.
-					Answers “what if returns are worse than the past?”. Inflation falls back to a modelled draw
-					in this mode.
-				{:else}
-					<strong>Replays real market history.</strong> Stitches together runs of actual past months in
-					their original order. Returns and inflation come from the same real months, so high-inflation
-					periods land on the markets that truly accompanied them. Averages match history, so the table
-					below is read-only.
-				{/if}
-			</p>
-
-			{#if selectedHistoricalRegion}
-				{#if input.historicalMonthlyInflation?.length}
-					<p
-						class="note mono-value joint-inflation-badge"
-						title="Each simulated month draws its return and its inflation from the same real historical month, so high-inflation periods land on the same months as weak markets — and inflation keeps its real-world persistence."
-					>
-						✓ Inflation sampled jointly with returns from history
-					</p>
-				{/if}
-				<p class="note mono-value">
-					Historical market dataset loaded:<br />
-					{selectedHistoricalRegion.label} ({selectedHistoricalRegion.coverage} of monthly data)
-					<button
-						type="button"
-						class="inline-link"
-						onclick={() => {
-							showHistoricalMethodologyInfo = !showHistoricalMethodologyInfo;
-						}}
-						aria-expanded={showHistoricalMethodologyInfo}
-					>
-						{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
-					</button>
-				</p>
-				{#if showHistoricalMethodologyInfo}
-					<div class="note mono-value methodology-info">
-						Active calibration dataset (used now):<br />
-						• Coverage: {selectedHistoricalRegion.coverage} ({selectedHistoricalRegion.sampleSize} annual
-						observations), built from monthly market data.<br />
-						• Equity (stocks): monthly close-to-close total return proxies from Stooq index series (with
-						synthetic dividend adjustments if needed, e.g. for CAC). World blend includes US/EUR/UK +
-						Japan (Nikkei) and Asia/EM (Hang Seng, backfilled 1960-69 with Nikkei to preserve deep history).
-						All foreign indices in the World blend are converted to USD.<br />
-						• Bonds: synthetic 10Y bond total-return proxy from monthly yield change + carry (duration-based),
-						then compounded to annual returns.<br />
-						• Bank/cash: short-rate proxy converted as monthly rate/12 and compounded to annual returns.<br
-						/>
-						• For each instrument (stocks, bonds, bank), Average/Volatility/Skew/Kurt are sample moments
-						computed from that annual return series (not handbook constants).<br />
-						• Monte Carlo path is monthly; when monthly history is available, calibration now uses empirical
-						monthly portfolio returns with monthly regime detection/bootstrap. Annual moments are retained
-						for summary/inputs.<br />
-						• Inflation currently remains a curated long-run reference input (separate from this market-file
-						pipeline), with user-editable mean/volatility and neutral default shape (skew 0, kurt 3).<br
-						/>
-						• Legacy reference assumptions (MSCI/STOXX/FTSE/FRED/ECB/ONS-style long-run sources) remain
-						broadly in line; this pipeline is preferred because it is one reproducible method across regions.
-					</div>
-				{/if}
-			{:else if historicalDataLoadError}
-				<p class="note mono-value">{historicalDataLoadError}</p>
-			{/if}
 		</div>
 		<div class="assumptions-table-wrap">
 			<table class="assumptions-table">
@@ -1100,7 +1105,7 @@
 
 					<tr>
 						<td colspan="7">
-							<p class="note tax-caveat">
+							<p class="assumption-context-line tax-caveat">
 								<strong>Tax here is deliberately simplified.</strong> It is one flat rate charged
 								every year on that year's gains, whether or not you sold anything — closer to an
 								annual wealth-style levy than to capital gains tax. It is charged on the

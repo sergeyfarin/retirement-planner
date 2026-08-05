@@ -152,15 +152,6 @@
 	font-size: clamp(1.4rem, 2.6vw, 1.8rem);
 }
 
-.scope-note {
-	grid-column: 1 / -1;
-	margin: 0.1rem 0 0;
-	padding: 0 0.15rem;
-	font-size: var(--text-small);
-	line-height: 1.45;
-	color: var(--ink-faint);
-}
-
 /*
  * Supporting figures for a card: label left, numbers right-aligned under each
  * other, which is what makes rows comparable at a glance. Deliberately not a box
