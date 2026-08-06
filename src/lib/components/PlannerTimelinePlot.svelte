@@ -418,6 +418,33 @@
 				borderpad: 3
 			}));
 
+		annotations.push(
+			{
+				x: ages[0],
+				y: fiTargetP95,
+				text: fmtHoverCompactCurrency(fiTargetP95),
+				showarrow: false,
+				xanchor: 'left',
+				yanchor: 'bottom',
+				xshift: 6,
+				font: { size: 10, color: '#dc2626', family: "'JetBrains Mono', monospace" },
+				bgcolor: 'rgba(255,255,255,0.82)',
+				borderpad: 2
+			},
+			{
+				x: ages[0],
+				y: fiTargetSWR,
+				text: fmtHoverCompactCurrency(fiTargetSWR),
+				showarrow: false,
+				xanchor: 'left',
+				yanchor: 'top',
+				xshift: 6,
+				font: { size: 10, color: '#d97706', family: "'JetBrains Mono', monospace" },
+				bgcolor: 'rgba(255,255,255,0.82)',
+				borderpad: 2
+			}
+		);
+
 		if (!alreadyRetired) {
 			annotations.push({
 				x: retirementAge,
