@@ -42,6 +42,7 @@
 	import PlannerSecondaryPlot from './components/PlannerSecondaryPlot.svelte';
 	import PlannerTimelinePlot from './components/PlannerTimelinePlot.svelte';
 	import { buildActionableRecommendations } from './actionableHeadline';
+	import { additionalIncomeDefaults } from './incomeDefaults';
 	import { SHARE_INPUT_SCALARS, decodeShareHash, parseShareState, toBase64Url } from './shareState';
 	import './retirement.css';
 
@@ -1152,15 +1153,13 @@
 	]);
 
 	function addIncomeSource() {
+		const pensionStartAge =
+			incomeSources.find((source) => source.id === 'is-pension')?.fromAge ?? 67;
 		incomeSources = [
 			...incomeSources,
 			{
 				id: `is-${Date.now()}`,
-				label: 'Pension / Social security',
-				fromAge: 67,
-				toAge: input.simulateUntilAge,
-				yearlyAmount: 15000,
-				inflationAdjusted: true
+				...additionalIncomeDefaults(input.retirementAge, pensionStartAge, input.simulateUntilAge)
 			}
 		];
 	}
