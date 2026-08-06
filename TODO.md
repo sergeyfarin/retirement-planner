@@ -1,7 +1,8 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-08-03 (calculator audit triaged; P95 target corrected, then its release
-blockers cleared). Mortality-weighted ruin remains declined as a product decision — see 2.2.
+**Updated:** 2026-08-06 (calculator review: 0.23–0.28 logged; the ruin-surface spending
+axis was reviewed and confirmed as intended — see 0.26). Mortality-weighted ruin remains
+declined as a product decision — see 2.2.
 
 ## Active backlog — ordered by priority
 
@@ -24,7 +25,12 @@ completed decision history remain below for context.
    release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
    A log-domain draw would keep the price level positive by construction instead of by
    truncation, and the UI still says nothing when a draw is clipped.
-3. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
+3. **Stop `guardrails` from consuming surplus income (0.28).** When income ≥ planned
+   spending the `.max(income)` guard makes effective spending equal income, so the surplus
+   is never invested. Affects any plan with a pension above planned spending in some year;
+   `fixed` and `percentOfPortfolio` behave differently on the same plan. Fix sketch and
+   measured impact in 0.28.
+4. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
    justify its complexity (0.12), calibrate block length for retirement outcomes rather
    than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
    targeting limitation (second 0.15 entry).
@@ -119,6 +125,113 @@ strangers at the tool, and none of them were tracked as TODO items.
 ## Priority 0 — Correctness & Data Quality (found 2026-07-07)
 
 These bias current results **materially pessimistic** and should land before new features.
+
+### 0.28 `guardrails` consumes surplus income instead of investing it (M) — found 2026-08-06
+
+`WithdrawalRunner` ends the guardrails branch with `.max(income)`
+(`engine2.rs` `monthly_spending_with_income`, mirrored at `retirementEngine.ts`
+`WithdrawalRunner.monthlySpending`). The guard exists so the `spendingFloor` clamp can
+never push planned spending below income the retiree is already receiving. But it is
+applied to the _result_, so whenever income ≥ planned spending it also makes effective
+spending equal income — and `balance += income − effectiveSpending` then contributes
+nothing. Every euro of surplus pension is spent rather than invested, for the rest of the
+plan.
+
+`fixed` banks the surplus and `percentOfPortfolio` has no such clamp, so the three
+strategies disagree on the same plan. Measured with zero returns and zero inflation,
+100k start, retired at 60, spending 30k to 65, pension 40k to 70:
+
+| strategy             | final balance |
+| -------------------- | ------------- |
+| `fixed`              | 350,000       |
+| `percentOfPortfolio` | 290,000       |
+| `guardrails`         | **100,000**   |
+
+The guardrails run burned all 400k of pension income. Triggers whenever income exceeds
+planned spending in any retirement month — a generous state pension, a spending period
+that ends before the horizon, or the years between two spending phases. Not reachable
+from the default plan (living expenses span to `simulateUntilAge` and exceed the default
+pension), which is why it survived this long.
+
+**Suggested fix.** Only raise to income when the clamp would otherwise cut _below_ it, and
+only while there is portfolio-funded spending to protect:
+
+```rust
+let clamped = total_spending.clamp(monthly_floor, monthly_ceiling);
+let effective = if portfolio_base > 0.0 { clamped.max(income) } else { clamped };
+```
+
+`portfolio_base` is already `(base − income).max(0.0)`, so it is zero in exactly the
+surplus-income months. Where the guard is meant to matter — planned spending above income,
+floor trying to cut under it — behaviour is unchanged; where income covers the plan,
+spending falls back to the clamped schedule and the surplus reaches the portfolio like it
+does under `fixed`. Both engines must change together, plus a parity case and a regression
+asserting `guardrails ≈ fixed` on a surplus-income plan. Note this raises guardrails
+success probabilities on affected plans, so the calibrated `guardrails ≥ fixed` test in
+`retirementEngine.test.ts` needs re-checking rather than assuming it still passes.
+
+### 0.27 Guardrail multiplier bounds bind tighter than the documented floor/ceiling (S) — found 2026-08-06
+
+Same function: `multiplier.clamp(spending_floor, spending_ceiling)` applies the
+[0.6, 1.4] ratios — documented in README §5.1.1 as bounds on _total_ spending — to the
+_portfolio-funded portion_ alone. With 40k planned and 15k income, the multiplier bound
+caps total spending at [0.75, 1.25]× planned, so the outer total clamp can never bind and
+the stated 0.6 floor is unreachable. Conservative in both directions, but it is not what
+the docs describe. Either give the multiplier its own bounds or derive them from the
+floor/ceiling and the current income share.
+
+### 0.26 Ruin-surface spending multiplier scales the whole plan, and the card does not say so (S) — found 2026-08-06
+
+`build_ruin_surface` scales every spending period by the cell multiplier, so with the
+default `sp-default` row (`currentAge → simulateUntilAge`) the axis also cuts
+pre-retirement expenses and therefore raises contributions during accumulation.
+
+**Decided 2026-08-06: this is the intended reading.** "Spend less" is a change to the
+household's standard of living from now on, not a retirement-only adjustment, and the
+surface models exactly that. Measured for reference (age 35→50→90, 200k start, 36k spend,
+65k salary, 15k pension, seed 12345): at ×0.85 the surface reports 94.6% success, while
+scaling only post-retirement spending gives 90.8% — the difference is the accumulation leg,
+and it is real, not an artifact.
+
+What remains open is presentation, not the model:
+
+- The card renders "Spend less each year: €X/yr" with no timeframe. It should say the cut
+  starts now, otherwise a user can read it as a retirement-only figure and act on the
+  wrong number.
+- `yearlySpendingReduction` is `spendingAtAge(retirementAge) × (1 − multiplier)`
+  (`RetirementPlanner.svelte`, `actionableHeadline.ts`), i.e. the euro amount is derived
+  from spending at the retirement age while the multiplier is applied to every period. For
+  the default single-period plan those coincide. For a plan whose pre- and
+  post-retirement spending differ, the displayed euro figure is not the amount actually
+  modelled in either phase. Either quote the multiplier as a percentage, or show the cut
+  per phase.
+
+### 0.25 Engine parity is untested above the reservoir threshold (S) — found 2026-08-06
+
+`simulation.rs` draws `rng.random()` once per month per sim once `sim ≥ RESERVOIR_K`
+(5,000) for reservoir replacement. The TS engine keeps every path and draws nothing, so
+above 5,000 simulations the two engines consume different RNG streams and a shared seed no
+longer reproduces the same run. `enginesParity.test.ts` only exercises 400 simulations, so
+nothing catches it. Either make the reservoir draw from a separate RNG instance, mirror it
+in TS, or state in `1.3` that parity is only claimed below the reservoir threshold and
+assert that bound in the test.
+
+### 0.24 `retireBalances` is one month late for already-retired plans (S) — found 2026-08-06
+
+`retire_index = retire_month.saturating_sub(1)` gives index 0 when `retire_month == 0`,
+which is the balance _after_ month 0's cashflows, growth, fees and deflation — not the
+capital held today. The FI probabilities correctly compare against `current_savings`
+instead, so only the displayed "portfolio at retirement" percentiles are affected, but
+they should read `current_savings` in that branch.
+
+### 0.23 Coast FIRE scans every month for adaptive strategies (S) — found 2026-08-06
+
+`find_coast_age` falls back to a linear scan over all candidate months when
+`strategy.kind != "fixed"`, because adaptive policies are not pathwise monotone in the
+coast date. For a 30-year accumulation that is 360 candidates × 2,000 tapes × 660 months —
+roughly 3× the cost of the entire ruin surface, on a metric shown in one card. A coarse
+scan (say every 6 months) followed by a local refinement keeps the non-monotonicity
+guarantee at a fraction of the work; the current version is correct, just expensive.
 
 ### 0.22 Payload validation now reaches the worker and Wasm boundaries — ✅ FIXED 2026-08-04
 
