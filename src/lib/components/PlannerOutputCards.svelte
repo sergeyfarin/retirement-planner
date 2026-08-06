@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { retirementCapitalLabel, retirementCapitalTone } from '../resultPresentation';
+	import { lifetimeVerdict, retirementCapitalLabel } from '../resultPresentation';
 
 	let {
 		stats,
@@ -8,7 +8,8 @@
 		FI_TARGET_SUCCESS_PROBABILITY = 0.95,
 		fmtNum,
 		alreadyRetired = false,
-		actionableRecommendations = null
+		actionableRecommendations = null,
+		simCount = 0
 	} = $props();
 
 	const targetPercent = $derived(Math.round(FI_TARGET_SUCCESS_PROBABILITY * 100));
@@ -20,24 +21,8 @@
 	 */
 	const lifetimeProbability = $derived(stats?.successProbability ?? 0);
 	const lifetimeScore = $derived(Math.round(lifetimeProbability * 100));
-
-	const verdictLabel = $derived(
-		lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY
-			? 'On track'
-			: lifetimeProbability >= 0.75
-				? 'Needs adjustment'
-				: lifetimeProbability >= 0.5
-					? 'At risk'
-					: 'Unlikely to last'
-	);
-	const verdictTone = $derived(
-		lifetimeProbability >= FI_TARGET_SUCCESS_PROBABILITY
-			? 'good'
-			: lifetimeProbability >= 0.75
-				? 'warn'
-				: lifetimeProbability >= 0.5
-					? 'caution'
-					: 'bad'
+	const verdict = $derived(
+		lifetimeVerdict(lifetimeProbability, simCount, FI_TARGET_SUCCESS_PROBABILITY)
 	);
 
 	/** Money-terms position at the retirement date, used by the portfolio card. */
@@ -46,7 +31,6 @@
 	const capitalMargin = $derived(
 		stats && stats.fiTargetP95 > 0 ? capitalToday / stats.fiTargetP95 - 1 : 0
 	);
-	const retirementTone = $derived(retirementCapitalTone(capitalMargin));
 	const retirementLabel = $derived(retirementCapitalLabel(capitalMargin));
 
 	const bestScenario = $derived(actionableRecommendations?.bestTestedScenario ?? null);
@@ -114,16 +98,22 @@
 {#if stats}
 	<div class="results-summary">
 		<section
-			class="card outcome-card verdict-card tone-{verdictTone}"
+			class="card outcome-card verdict-card tone-{verdict.tone}"
 			aria-labelledby="verdict-title"
 		>
 			<h3 id="verdict-title" class="card-title">
-				Plan through age {fmtNum(input.simulateUntilAge)} · {verdictLabel}
+				Plan through age {fmtNum(input.simulateUntilAge)} · {verdict.label}
 			</h3>
 			<p class="stat-sentence">
 				<strong class="mono-value">{lifetimeScore}%</strong> estimated chance your plan stays funded
 				through age {fmtNum(input.simulateUntilAge)}
 			</p>
+			{#if verdict.nearBoundary != null}
+				<p class="card-note boundary-note">
+					Near the {Math.round(verdict.nearBoundary * 100)}% rating boundary; simulation noise could
+					place the estimate on either side.
+				</p>
+			{/if}
 
 			<div class="verdict-next">
 				<table class="stat-table stat-table-compact">
@@ -199,7 +189,7 @@
 		</section>
 
 		<section
-			class="card outcome-card retirement-card tone-{retirementTone}"
+			class="card outcome-card retirement-card tone-neutral"
 			aria-labelledby="portfolio-title"
 		>
 			<h3 id="portfolio-title" class="card-title">

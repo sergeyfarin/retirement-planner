@@ -2153,6 +2153,7 @@
 						{fmtNum}
 						{alreadyRetired}
 						{actionableRecommendations}
+						simCount={lastSimulatedCount}
 					/>
 
 					<PlannerDiagnostics

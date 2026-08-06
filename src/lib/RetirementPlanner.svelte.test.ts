@@ -176,6 +176,8 @@ describe('RetirementPlanner result communication', () => {
 		expect(squashed(verdict)).not.toContain('meets the 95%');
 
 		const retirement = container.querySelector('.retirement-card');
+		expect(retirement?.classList.contains('tone-neutral')).toBe(true);
+		expect(retirement?.className).not.toMatch(/tone-(good|warn|caution|bad)/);
 		expect(squashed(retirement)).toContain('At retirement age');
 		expect(squashed(retirement)).toContain('Typical outcome');
 		expect(squashed(retirement)).toContain('Simulation-based target');

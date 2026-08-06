@@ -89,6 +89,12 @@
 }
 
 /* ─── Tone: one severity vocabulary shared by every result card ───── */
+.tone-neutral {
+	--tone-line: var(--ink-faint);
+	--tone-ink: var(--ink-muted);
+	--tone-wash: rgba(248, 250, 252, 0.98);
+}
+
 .tone-good {
 	--tone-line: var(--teal);
 	--tone-ink: var(--teal);
