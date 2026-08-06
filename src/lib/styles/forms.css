@@ -264,7 +264,7 @@
 
 .assumptions-table th,
 .assumptions-table td {
-	padding: 0.12rem 0.1rem;
+	padding: 0.1rem 0.06rem;
 	border-bottom: 1px solid var(--line);
 	text-align: left;
 	vertical-align: middle;
@@ -277,18 +277,18 @@
 
 .assumptions-table th:first-child,
 .assumptions-table td:first-child {
-	width: 19%;
+	width: 18%;
 	text-align: left;
 }
 
 .assumptions-table th:nth-child(n + 2):nth-child(-n + 6),
 .assumptions-table td:nth-child(n + 2):nth-child(-n + 6) {
-	width: 14.8%;
+	width: 14.6%;
 }
 
 .assumptions-table th:nth-child(7),
 .assumptions-table td:nth-child(7) {
-	width: 7%;
+	width: 9%;
 }
 
 .assumptions-table td:nth-child(6) {
@@ -297,9 +297,16 @@
 
 .assumptions-table input {
 	width: 100%;
+	min-width: 0;
 	max-width: none;
-	padding: 0.18rem 0.2rem;
+	padding: 0.16rem 0.12rem;
 	font-size: var(--text-small);
+}
+
+.assumptions-table .assumptions-reset-cell-btn {
+	width: 100%;
+	min-width: 0;
+	padding-inline: 0.08rem;
 }
 
 .historical-dataset-line {

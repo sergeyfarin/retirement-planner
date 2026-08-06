@@ -1,7 +1,7 @@
 /* ─── Layout ──────────────────────────────────────────────────────── */
 .workspace {
 	display: grid;
-	grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+	grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
 	gap: 1rem;
 	align-items: start;
 	font-family: var(--font-sans);
