@@ -10,6 +10,7 @@ export type TestedPlanScenario = {
 
 export type ActionableRecommendations = {
 	yearlySpendingReduction: number | null;
+	spendingReductionPercent: number | null;
 	monthsLonger: number | null;
 	combinedScenario: TestedPlanScenario | null;
 	bestTestedScenario: TestedPlanScenario | null;
@@ -84,6 +85,10 @@ export function buildActionableRecommendations(
 		qualifyingMultiplier != null && qualifyingMultiplier < 1
 			? yearlySpending * (1 - qualifyingMultiplier)
 			: null;
+	const spendingReductionPercent =
+		qualifyingMultiplier != null && qualifyingMultiplier < 1
+			? (1 - qualifyingMultiplier) * 100
+			: null;
 	const monthsLonger =
 		retirementDelayAvailable && qualifyingAge != null && qualifyingAge > retirementAge
 			? Math.ceil((qualifyingAge - retirementAge) * 12)
@@ -144,6 +149,7 @@ export function buildActionableRecommendations(
 
 	return {
 		yearlySpendingReduction,
+		spendingReductionPercent,
 		monthsLonger,
 		combinedScenario,
 		bestTestedScenario,

@@ -163,9 +163,9 @@
 					<table class="stat-table">
 						<caption>Tested ways to reach {targetPercent}%</caption>
 						<tbody>
-							{#if actionableRecommendations.yearlySpendingReduction != null}<tr>
-									<th scope="row">Spend less each year</th><td class="mono-value"
-										>{fmtCompactCurrency(actionableRecommendations.yearlySpendingReduction)}/yr</td
+							{#if actionableRecommendations.spendingReductionPercent != null}<tr>
+									<th scope="row">Spend less from now</th><td class="mono-value"
+										>{fmtNum(actionableRecommendations.spendingReductionPercent)}%</td
 									>
 								</tr>{/if}
 							{#if actionableRecommendations.monthsLonger != null}<tr>

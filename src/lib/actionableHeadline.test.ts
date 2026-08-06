@@ -25,6 +25,7 @@ describe('buildActionableRecommendations', () => {
 		const result = buildActionableRecommendations(statsWithSurface(), 65, 40_000);
 
 		expect(result.yearlySpendingReduction).toBeCloseTo(3_000);
+		expect(result.spendingReductionPercent).toBeCloseTo(7.5);
 		expect(result.monthsLonger).toBe(27);
 		expect(result.targetResult).toBe('single-lever');
 	});
@@ -37,6 +38,7 @@ describe('buildActionableRecommendations', () => {
 
 		expect(buildActionableRecommendations(stats, 65, 40_000)).toMatchObject({
 			yearlySpendingReduction: null,
+			spendingReductionPercent: null,
 			monthsLonger: null,
 			targetResult: 'outside-tested-range'
 		});

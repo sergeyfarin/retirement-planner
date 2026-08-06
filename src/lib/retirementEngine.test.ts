@@ -761,7 +761,11 @@ describe('coast FIRE age', () => {
 
 describe('exact path evaluator', () => {
 	const fixed = { kind: 'fixed' as const };
-	const emptyCashflows = (months: number, spending: Float64Array, income = new Float64Array(months)) => ({
+	const emptyCashflows = (
+		months: number,
+		spending: Float64Array,
+		income = new Float64Array(months)
+	) => ({
 		monthlyRealIncomeFlow: income,
 		monthlyNominalIncomeFlow: new Float64Array(months),
 		monthlyRealSpendingFlow: spending,
@@ -1450,6 +1454,50 @@ describe('withdrawal strategies', () => {
 		// Pension plus the 4% portfolio target would be 70k, so the 56k total-spending ceiling
 		// limits the portfolio withdrawal to 26k rather than adding income after the clamp.
 		expect(evaluation.finalBalance).toBeCloseTo(974_000, 6);
+	});
+
+	it('invests income above planned spending under guardrails', () => {
+		const input = stressedInput({
+			kind: 'guardrails',
+			guardrailBand: 0.2,
+			adjustment: 0.1,
+			spendingFloor: 0.6,
+			spendingCeiling: 1.4
+		});
+		input.currentSavings = 100_000;
+		const lowerSpending: SpendingPeriod[] = [
+			{
+				id: 'sp-living',
+				label: 'Living',
+				fromAge: 60,
+				toAge: 61,
+				yearlyAmount: 30_000,
+				inflationAdjusted: true
+			}
+		];
+		const surplusPension: IncomeSource[] = [
+			{
+				id: 'is-pension',
+				label: 'Pension',
+				fromAge: 60,
+				toAge: 61,
+				yearlyAmount: 40_000,
+				inflationAdjusted: true
+			}
+		];
+		const cashflows = buildCashflowArrays(input, lowerSpending, surplusPension, [], 12);
+		const evaluation = evaluatePath(
+			{ assetReturns: new Float64Array(12), inflationRates: new Float64Array(12) },
+			cashflows,
+			100_000,
+			12,
+			input.withdrawalStrategy!,
+			0,
+			0,
+			0
+		);
+
+		expect(evaluation.finalBalance).toBeCloseTo(110_000, 6);
 	});
 
 	it.each(['guardrails', 'percentOfPortfolio'] as const)(

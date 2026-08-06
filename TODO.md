@@ -25,12 +25,7 @@ completed decision history remain below for context.
    release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
    A log-domain draw would keep the price level positive by construction instead of by
    truncation, and the UI still says nothing when a draw is clipped.
-3. **Stop `guardrails` from consuming surplus income (0.28).** When income ≥ planned
-   spending the `.max(income)` guard makes effective spending equal income, so the surplus
-   is never invested. Affects any plan with a pension above planned spending in some year;
-   `fixed` and `percentOfPortfolio` behave differently on the same plan. Fix sketch and
-   measured impact in 0.28.
-4. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
+3. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
    justify its complexity (0.12), calibrate block length for retirement outcomes rather
    than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
    targeting limitation (second 0.15 entry).
@@ -126,7 +121,7 @@ strangers at the tool, and none of them were tracked as TODO items.
 
 These bias current results **materially pessimistic** and should land before new features.
 
-### 0.28 `guardrails` consumes surplus income instead of investing it (M) — found 2026-08-06
+### ✅ 0.28 `guardrails` consumed surplus income instead of investing it (M) — fixed 2026-08-06
 
 `WithdrawalRunner` ends the guardrails branch with `.max(income)`
 (`engine2.rs` `monthly_spending_with_income`, mirrored at `retirementEngine.ts`
@@ -153,22 +148,29 @@ that ends before the horizon, or the years between two spending phases. Not reac
 from the default plan (living expenses span to `simulateUntilAge` and exceed the default
 pension), which is why it survived this long.
 
-**Suggested fix.** Only raise to income when the clamp would otherwise cut _below_ it, and
-only while there is portfolio-funded spending to protect:
+**Fix.** When income covers the plan, start from planned spending rather than
+from income; then only raise the clamped result to income while there is portfolio-funded
+spending to protect:
 
 ```rust
-let clamped = total_spending.clamp(monthly_floor, monthly_ceiling);
+let adjusted_spending = if portfolio_base > 0.0 {
+    income + portfolio_base * multiplier
+} else {
+    base
+};
+let clamped = adjusted_spending.clamp(monthly_floor, monthly_ceiling);
 let effective = if portfolio_base > 0.0 { clamped.max(income) } else { clamped };
 ```
 
 `portfolio_base` is already `(base − income).max(0.0)`, so it is zero in exactly the
-surplus-income months. Where the guard is meant to matter — planned spending above income,
-floor trying to cut under it — behaviour is unchanged; where income covers the plan,
-spending falls back to the clamped schedule and the surplus reaches the portfolio like it
-does under `fixed`. Both engines must change together, plus a parity case and a regression
-asserting `guardrails ≈ fixed` on a surplus-income plan. Note this raises guardrails
-success probabilities on affected plans, so the calibrated `guardrails ≥ fixed` test in
-`retirementEngine.test.ts` needs re-checking rather than assuming it still passes.
+surplus-income months. Using `base` in those months is essential: merely gating
+`.max(income)` would still leave `total_spending = income`. Where the guard is meant to
+matter — planned spending above income, floor trying to cut under it — behaviour is
+unchanged; where income covers the plan, spending follows the clamped schedule and the
+surplus reaches the portfolio like it does under `fixed`. Both engines must change
+together. A zero-return regression verifies that a 40k pension against 30k planned
+spending adds the 10k surplus to the portfolio, and the cross-engine suite covers the same
+surplus-income branch. The calibrated `guardrails ≥ fixed` scenario still passes.
 
 ### 0.27 Guardrail multiplier bounds bind tighter than the documented floor/ceiling (S) — found 2026-08-06
 
@@ -180,7 +182,7 @@ the stated 0.6 floor is unreachable. Conservative in both directions, but it is 
 the docs describe. Either give the multiplier its own bounds or derive them from the
 floor/ceiling and the current income share.
 
-### 0.26 Ruin-surface spending multiplier scales the whole plan, and the card does not say so (S) — found 2026-08-06
+### ✅ 0.26 Ruin-surface spending multiplier scales the whole plan (S) — clarified 2026-08-06
 
 `build_ruin_surface` scales every spending period by the cell multiplier, so with the
 default `sp-default` row (`currentAge → simulateUntilAge`) the axis also cuts
@@ -193,18 +195,16 @@ surface models exactly that. Measured for reference (age 35→50→90, 200k star
 scaling only post-retirement spending gives 90.8% — the difference is the accumulation leg,
 and it is real, not an artifact.
 
-What remains open is presentation, not the model:
+The presentation now matches that model:
 
-- The card renders "Spend less each year: €X/yr" with no timeframe. It should say the cut
-  starts now, otherwise a user can read it as a retirement-only figure and act on the
-  wrong number.
+- The card says the cut starts now, preventing a retirement-only reading.
 - `yearlySpendingReduction` is `spendingAtAge(retirementAge) × (1 − multiplier)`
   (`RetirementPlanner.svelte`, `actionableHeadline.ts`), i.e. the euro amount is derived
   from spending at the retirement age while the multiplier is applied to every period. For
   the default single-period plan those coincide. For a plan whose pre- and
   post-retirement spending differ, the displayed euro figure is not the amount actually
-  modelled in either phase. Either quote the multiplier as a percentage, or show the cut
-  per phase.
+  modelled in either phase. The card therefore quotes the plan-wide percentage, which is
+  exact for every schedule.
 
 ### 0.25 Engine parity is untested above the reservoir threshold (S) — found 2026-08-06
 

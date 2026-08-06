@@ -328,6 +328,40 @@ const scenarios: Array<{
 		}),
 		retireMonth: 0,
 		incomeSources: retiredIncomeSources
+	},
+	{
+		name: 'already retired, guardrails invest surplus income',
+		input: baseInput({
+			retirementAge: CURRENT_AGE,
+			withdrawalStrategy: {
+				kind: 'guardrails',
+				guardrailBand: 0.2,
+				adjustment: 0.1,
+				spendingFloor: 0.6,
+				spendingCeiling: 1.4
+			}
+		}),
+		retireMonth: 0,
+		spendingPeriods: [
+			{
+				id: 'sp-living',
+				label: 'Living',
+				fromAge: CURRENT_AGE,
+				toAge: UNTIL_AGE,
+				yearlyAmount: 30_000,
+				inflationAdjusted: true
+			}
+		],
+		incomeSources: [
+			{
+				id: 'is-pension',
+				label: 'Pension',
+				fromAge: CURRENT_AGE,
+				toAge: UNTIL_AGE,
+				yearlyAmount: 40_000,
+				inflationAdjusted: true
+			}
+		]
 	}
 ];
 

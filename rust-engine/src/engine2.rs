@@ -114,10 +114,17 @@ impl WithdrawalRunner {
                 let max_mult = self.spending_ceiling;
                 self.multiplier = self.multiplier.clamp(min_mult, max_mult);
             }
-            let total_spending = income + portfolio_base * self.multiplier;
-            total_spending
-                .clamp(monthly_floor, monthly_ceiling)
-                .max(income)
+            let adjusted_spending = if portfolio_base > 0.0 {
+                income + portfolio_base * self.multiplier
+            } else {
+                base
+            };
+            let clamped = adjusted_spending.clamp(monthly_floor, monthly_ceiling);
+            if portfolio_base > 0.0 {
+                clamped.max(income)
+            } else {
+                clamped
+            }
         } else {
             // Percent-of-portfolio (recomputed annually, held for the year).
             if is_year_start {

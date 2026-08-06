@@ -128,8 +128,9 @@ class WithdrawalRunner {
 					Math.max(this.spendingFloor, this.multiplier)
 				);
 			}
-			const totalSpending = income + portfolioBase * this.multiplier;
-			return Math.max(income, Math.min(monthlyCeiling, Math.max(monthlyFloor, totalSpending)));
+			const adjustedSpending = portfolioBase > 0 ? income + portfolioBase * this.multiplier : base;
+			const clamped = Math.min(monthlyCeiling, Math.max(monthlyFloor, adjustedSpending));
+			return portfolioBase > 0 ? Math.max(income, clamped) : clamped;
 		}
 
 		if (isYearStart) {
@@ -143,10 +144,7 @@ class WithdrawalRunner {
 		// portfolio withdrawal. Without this offset it was added on top until the next
 		// anniversary, allowing total spending to jump through the configured ceiling.
 		const incomeChange = income - this.reviewedMonthlyIncome;
-		const adjustedPortfolioSpending = Math.max(
-			0,
-			this.heldMonthlyPortfolioSpending - incomeChange
-		);
+		const adjustedPortfolioSpending = Math.max(0, this.heldMonthlyPortfolioSpending - incomeChange);
 		return Math.min(monthlyCeiling, Math.max(monthlyFloor, income + adjustedPortfolioSpending));
 	}
 }
