@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { probabilityInterval } from '../resultPresentation';
+
 	let {
 		stats,
 		input,
@@ -65,12 +67,14 @@
 		let best: number | null = null;
 		for (let row = 0; row < spendingMultipliers.length; row++) {
 			const success = 1 - ruinProbabilities[row][baselineAgeIndex];
-			if (success >= FI_TARGET_SUCCESS_PROBABILITY) {
+			const conservativeSuccess = probabilityInterval(success, surfaceSampleCount)[0];
+			if (conservativeSuccess >= FI_TARGET_SUCCESS_PROBABILITY) {
 				best = best == null ? spendingMultipliers[row] : Math.max(best, spendingMultipliers[row]);
 			}
 		}
 		return best;
 	});
+	const fmtWholePercent = (value: number): string => `${Math.round(value * 100)}%`;
 	const sustainableSpending = $derived(
 		sustainableMultiplier == null ? null : retirementYearlySpending * sustainableMultiplier
 	);
@@ -153,8 +157,8 @@
 							></tr
 						>
 						<tr
-							><th scope="row">Chance of reaching it</th><td
-								>{percentFormatter.format(stats.fiProbabilitySWR)}</td
+							><th scope="row">Estimated chance of reaching it</th><td
+								>{fmtWholePercent(stats.fiProbabilitySWR)}</td
 							></tr
 						>
 						<tr
@@ -179,14 +183,14 @@
 							{#each sequenceBuckets as bucket (bucket.bucketLabel)}
 								<tr
 									><th scope="row">{bucket.bucketLabel}</th><td
-										>{percentFormatter.format(bucket.ruinProbability)} ruin</td
+										>{fmtWholePercent(bucket.ruinProbability)} ruin</td
 									></tr
 								>
 							{/each}
 						</tbody>
 					</table>
 					<p>
-						Ruin probability spans {(sequenceSpread * 100).toFixed(1)} percentage points between the worst
+						Ruin probability spans {(sequenceSpread * 100).toFixed(0)} percentage points between the worst
 						and best early-return groups. A wide spread means early retirement returns materially affect
 						the result. Compare adaptive spending or a higher bank allocation in separate runs.
 					</p>
@@ -237,12 +241,12 @@
 					{percentFormatter.format(stats.returnMoments.geometricMean)}
 				</p>
 				<p class="mono-value">
-					Requested shape: skew {fmtNum(stats.requestedReturnMoments.skewness, 2)} · kurtosis
-					{fmtNum(stats.requestedReturnMoments.kurtosis, 2)}
+					Requested shape: skew {fmtNum(stats.requestedReturnMoments.skewness, 1)} · kurtosis
+					{fmtNum(stats.requestedReturnMoments.kurtosis, 1)}
 				</p>
 				<p class="mono-value">
-					Effective shape: skew {fmtNum(stats.returnMoments.skewness, 2)} · kurtosis
-					{fmtNum(stats.returnMoments.kurtosis, 2)}
+					Effective shape: skew {fmtNum(stats.returnMoments.skewness, 1)} · kurtosis
+					{fmtNum(stats.returnMoments.kurtosis, 1)}
 				</p>
 				<p>
 					Only mean and volatility are matched to the inputs. Skew and kurtosis emerge from the

@@ -178,9 +178,10 @@ describe('RetirementPlanner result communication', () => {
 		const retirement = container.querySelector('.retirement-card');
 		expect(retirement?.classList.contains('tone-neutral')).toBe(true);
 		expect(retirement?.className).not.toMatch(/tone-(good|warn|caution|bad)/);
-		expect(squashed(retirement)).toContain('At retirement age');
+		expect(squashed(retirement)).toContain('Projected portfolio range at retirement age');
+		expect(squashed(retirement)).toContain('middle 80%');
 		expect(squashed(retirement)).toContain('Typical outcome');
-		expect(squashed(retirement)).toContain('Simulation-based target');
+		expect(squashed(retirement)).not.toContain('Simulation-based target');
 		expect(squashed(retirement)).not.toContain('Chance of hitting it');
 		expect(container.querySelector('.downside-card')).toBeNull();
 		expect(container.querySelector('.terminal-wealth-chart')).toBeNull();

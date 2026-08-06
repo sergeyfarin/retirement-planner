@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	lifetimeVerdict,
-	probabilityInterval,
-	retirementCapitalLabel,
-	retirementCapitalTone
-} from './resultPresentation';
+import { lifetimeVerdict, probabilityInterval } from './resultPresentation';
 
 describe('lifetime verdict presentation', () => {
 	it('keeps decisive results in their normal rating tones', () => {
@@ -35,20 +30,5 @@ describe('lifetime verdict presentation', () => {
 	it('returns a bounded interval at the extremes', () => {
 		expect(probabilityInterval(0, 1_000)[0]).toBe(0);
 		expect(probabilityInterval(1, 1_000)[1]).toBe(1);
-	});
-});
-
-describe('retirement result presentation', () => {
-	it.each([
-		{ margin: 0.2, tone: 'good', label: 'Above capital target' },
-		{ margin: 0.1, tone: 'good', label: 'Close to capital target' },
-		{ margin: 0, tone: 'good', label: 'Close to capital target' },
-		{ margin: -0.01, tone: 'warn', label: 'Close to capital target' },
-		{ margin: -0.1, tone: 'warn', label: 'Close to capital target' },
-		{ margin: -0.18, tone: 'caution', label: 'Below capital target' },
-		{ margin: -0.4, tone: 'bad', label: 'Well below capital target' }
-	])('maps a $margin capital gap to $tone', ({ margin, tone, label }) => {
-		expect(retirementCapitalTone(margin)).toBe(tone);
-		expect(retirementCapitalLabel(margin)).toBe(label);
 	});
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { lifetimeVerdict, retirementCapitalLabel } from '../resultPresentation';
+	import { lifetimeVerdict } from '../resultPresentation';
 
 	let {
 		stats,
@@ -25,13 +25,8 @@
 		lifetimeVerdict(lifetimeProbability, simCount, FI_TARGET_SUCCESS_PROBABILITY)
 	);
 
-	/** Money-terms position at the retirement date, used by the portfolio card. */
+	/** Money-terms outcomes at the retirement date, used by the portfolio card. */
 	const capitalToday = $derived(alreadyRetired ? input.currentSavings : (stats?.retireMedian ?? 0));
-	const capitalGap = $derived(capitalToday - (stats?.fiTargetP95 ?? 0));
-	const capitalMargin = $derived(
-		stats && stats.fiTargetP95 > 0 ? capitalToday / stats.fiTargetP95 - 1 : 0
-	);
-	const retirementLabel = $derived(retirementCapitalLabel(capitalMargin));
 
 	const bestScenario = $derived(actionableRecommendations?.bestTestedScenario ?? null);
 	const baselineAgeIndex = $derived.by(() => {
@@ -84,11 +79,6 @@
 			value: alreadyRetired ? null : (stats?.retireHigh ?? 0)
 		}
 	]);
-
-	function fmtCapitalDifference(amount: number, margin: number): string {
-		if (amount === 0) return 'equal to';
-		return `${fmtCompactCurrency(Math.abs(amount))} (${Math.abs(margin * 100).toFixed(0)}%) ${amount > 0 ? 'above' : 'below'}`;
-	}
 </script>
 
 {#if stats}
@@ -147,11 +137,11 @@
 					{/if}
 				{:else if actionableRecommendations?.targetResult === 'single-lever'}
 					<table class="stat-table">
-						<caption>Tested ways to reach {targetPercent}%</caption>
+						<caption>Tested adjustments likely to reach the {targetPercent}% region</caption>
 						<tbody>
 							{#if actionableRecommendations.spendingReductionPercent != null}<tr>
 									<th scope="row">Spend less from now</th><td class="mono-value"
-										>{fmtNum(actionableRecommendations.spendingReductionPercent)}%</td
+										>about {fmtNum(actionableRecommendations.spendingReductionPercent)}%</td
 									>
 								</tr>{/if}
 							{#if actionableRecommendations.monthsLonger != null}<tr>
@@ -160,14 +150,14 @@
 											? 'Or retire later by'
 											: 'Retire later by'}</th
 									><td class="mono-value"
-										>{fmtNum(actionableRecommendations.monthsLonger)} months</td
+										>about {fmtNum(Math.ceil(actionableRecommendations.monthsLonger / 6) * 6)} months</td
 									>
 								</tr>{/if}
 						</tbody>
 					</table>
 				{:else if actionableRecommendations?.targetResult === 'combined' && actionableRecommendations.combinedScenario}
 					<p class="card-note">
-						<strong>To reach {targetPercent}% in the tested range:</strong> spend
+						<strong>A tested adjustment likely to reach the {targetPercent}% region:</strong> spend
 						{Math.round((1 - actionableRecommendations.combinedScenario.spendingMultiplier) * 100)}%
 						less and retire at age {fmtNum(
 							actionableRecommendations.combinedScenario.retirementAge
@@ -175,7 +165,7 @@
 					</p>
 				{:else if bestScenario}
 					<p class="card-note">
-						The strongest tested adjustment reaches
+						The strongest tested adjustment is estimated at
 						<strong>{Math.round(bestScenario.successProbability * 100)}%</strong
 						>{#if bestScenarioChanges.length > 0}
 							with {bestScenarioChanges.join(' and ')}{/if}.
@@ -189,20 +179,20 @@
 			aria-labelledby="portfolio-title"
 		>
 			<h3 id="portfolio-title" class="card-title">
-				{alreadyRetired ? 'Portfolio today' : `At retirement age ${fmtNum(input.retirementAge)}`} ·
-				{retirementLabel}
+				{alreadyRetired
+					? 'Portfolio today'
+					: `Projected portfolio range at retirement age ${fmtNum(input.retirementAge)}`}
 			</h3>
 			<p class="stat-sentence">
-				{alreadyRetired ? 'Your portfolio is' : `The median simulated retirement balance is`}
-				<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong
-				>{#if Math.abs(capitalMargin) < 0.05}, essentially in line with{:else},
-					<span
-						class="mono-value"
-						class:amount-positive={capitalGap >= 0}
-						class:amount-negative={capitalGap < 0}
-						>{fmtCapitalDifference(capitalGap, capitalMargin)}</span
-					>{/if}
-				the simulation-based capital target of {fmtCompactCurrency(stats.fiTargetP95)}.
+				{#if alreadyRetired}
+					Your portfolio is <strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>.
+				{:else}
+					The middle 80% of simulated retirement balances spans
+					<strong class="mono-value">{fmtCompactCurrency(stats.retireLow)}</strong> to
+					<strong class="mono-value">{fmtCompactCurrency(stats.retireHigh)}</strong>, with a median
+					of
+					<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>.
+				{/if}
 			</p>
 
 			<table class="stat-table stat-table-compact">
@@ -213,16 +203,12 @@
 							<td class="mono-value">{row.value == null ? '—' : fmtCompactCurrency(row.value)}</td>
 						</tr>
 					{/each}
-					<tr>
-						<th scope="row">Simulation-based target</th>
-						<td class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</td>
-					</tr>
 				</tbody>
 			</table>
 			<p class="card-note">
-				This supporting comparison is not the overall plan rating; that comes from the funded chance
-				in the first card. The 4% rule comparison and full percentile statistics are in advanced
-				statistics.
+				A median is the midpoint, not a success test. The overall rating follows every simulated
+				path through the end of the plan and is shown in the first card. Capital targets and full
+				percentile statistics are in advanced statistics.
 			</p>
 		</section>
 	</div>

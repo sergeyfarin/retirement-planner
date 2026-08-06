@@ -699,21 +699,7 @@
 	}
 
 	function fmtHoverCompactValue(value: number): string {
-		const sign = value < 0 ? '-' : '';
-		const abs = Math.abs(value);
-		if (abs >= 1_000_000) {
-			const millions = stripTrailingZeros(toSignificant(abs / 1_000_000, 3).toString());
-			return `${sign}${millions} mln`;
-		}
-		if (abs >= 1_000) {
-			const thousands = stripTrailingZeros(toSignificant(abs / 1_000, 3).toString());
-			return `${sign}${thousands}k`;
-		}
-		const rounded = toSignificant(abs, 3);
-		const shown = rounded
-			.toLocaleString('en-US', { maximumSignificantDigits: 3 })
-			.replace(/,/g, "'");
-		return `${sign}${shown}`;
+		return fmtCompactValue(value);
 	}
 
 	const fmtHoverCompactCurrency = $derived(
@@ -1453,7 +1439,8 @@
 					input.retirementAge,
 					retirementYearlySpending,
 					FI_TARGET_SUCCESS_PROBABILITY,
-					effectiveIncomeSources
+					effectiveIncomeSources,
+					lastSimulatedCount
 				)
 			: null
 	);
@@ -1899,7 +1886,7 @@
 				type: 'scatter',
 				mode: 'lines',
 				line: { color: '#334155', width: 1.3 },
-				hovertemplate: 'Real return %{x:.2%}<br>Probability %{y:.0%}<extra></extra>',
+				hovertemplate: 'Real return %{x:.1%}<br>Probability %{y:.0%}<extra></extra>',
 				showlegend: false
 			},
 			{
@@ -1913,7 +1900,7 @@
 					color: percentileValues.map((value) => (value >= 0 ? '#16a34a' : '#dc2626')),
 					line: { color: '#ffffff', width: 1 }
 				},
-				hovertemplate: 'Real return %{x:.2%}<br>Probability %{y:.0%}<extra></extra>',
+				hovertemplate: 'Real return %{x:.1%}<br>Probability %{y:.0%}<extra></extra>',
 				showlegend: false
 			}
 		];

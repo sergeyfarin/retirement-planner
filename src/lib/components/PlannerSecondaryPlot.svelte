@@ -201,8 +201,8 @@
 				yanchor: 'middle'
 			},
 			hovertemplate: spendingOnly
-				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
-				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.1%}<extra></extra>'
+				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.0%}<extra></extra>'
+				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.0%}<extra></extra>'
 		};
 		const goalContour = {
 			type: 'contour',
@@ -433,7 +433,7 @@
 					)
 				},
 				yaxis: 'y',
-				hovertemplate: 'Bucket %{x}<br>Ruin %{y:.1%}<extra></extra>'
+				hovertemplate: 'Bucket %{x}<br>Ruin %{y:.0%}<extra></extra>'
 			},
 			{
 				type: 'scatter',

@@ -980,7 +980,7 @@
 								1
 							)}</td
 						>
-						<td>{fmtNum(portfolioDisplaySkew, 2)}</td>
+						<td>{fmtNum(portfolioDisplaySkew, 1)}</td>
 						<td>{fmtNum(portfolioDisplayKurt, 1)}</td>
 						<td></td>
 					</tr>
@@ -1152,7 +1152,7 @@
 								1
 							)}</td
 						>
-						<td>{fmtNum(realReturnSkewEstimate, 2)}</td>
+						<td>{fmtNum(realReturnSkewEstimate, 1)}</td>
 						<td>{fmtNum(realReturnKurtEstimate, 1)}</td>
 						<td></td>
 					</tr>

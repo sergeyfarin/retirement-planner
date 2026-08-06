@@ -1,4 +1,5 @@
 import type { IncomeSource, SummaryStats } from './retirementEngine';
+import { probabilityInterval } from './resultPresentation';
 
 type Point = { x: number; success: number };
 
@@ -41,7 +42,8 @@ export function buildActionableRecommendations(
 	retirementAge: number,
 	yearlySpending: number,
 	target = 0.95,
-	incomeSources: readonly IncomeSource[] = []
+	incomeSources: readonly IncomeSource[] = [],
+	headlineSampleCount = stats.ruinSurface.sampleCount
 ): ActionableRecommendations {
 	const surface = stats.ruinSurface;
 	const firstSweptAge = Math.min(...surface.retirementAges);
@@ -68,11 +70,19 @@ export function buildActionableRecommendations(
 		row === baselineSpendingIndex && column === baselineAgeIndex
 			? stats.successProbability
 			: 1 - surface.ruinProbabilities[row][column];
+	const effectiveHeadlineSampleCount =
+		headlineSampleCount > 0 ? headlineSampleCount : surface.sampleCount;
+	const sampleCountAt = (row: number, column: number): number =>
+		row === baselineSpendingIndex && column === baselineAgeIndex
+			? effectiveHeadlineSampleCount
+			: surface.sampleCount;
+	const conservativeSuccessAt = (row: number, column: number): number =>
+		probabilityInterval(successAt(row, column), sampleCountAt(row, column))[0];
 
 	const spendingMultiplier = crossing(
 		surface.spendingMultipliers.map((multiplier, row) => ({
 			x: -multiplier,
-			success: successAt(row, baselineAgeIndex)
+			success: conservativeSuccessAt(row, baselineAgeIndex)
 		})),
 		target
 	);
@@ -81,7 +91,7 @@ export function buildActionableRecommendations(
 	const qualifyingAge = crossing(
 		surface.retirementAges.map((age, column) => ({
 			x: age,
-			success: successAt(baselineSpendingIndex, column)
+			success: conservativeSuccessAt(baselineSpendingIndex, column)
 		})),
 		target
 	);
@@ -131,7 +141,7 @@ export function buildActionableRecommendations(
 		candidates
 			.filter(
 				(candidate) =>
-					candidate.successProbability >= target &&
+					probabilityInterval(candidate.successProbability, surface.sampleCount)[0] >= target &&
 					candidate.spendingMultiplier < 1 &&
 					candidate.retirementAge > baselineAge
 			)
@@ -146,7 +156,8 @@ export function buildActionableRecommendations(
 		)[0] ?? null;
 
 	let targetResult: ActionableRecommendations['targetResult'];
-	if (stats.successProbability >= target) targetResult = 'already-met';
+	if (probabilityInterval(stats.successProbability, effectiveHeadlineSampleCount)[0] >= target)
+		targetResult = 'already-met';
 	else if (yearlySpendingReduction != null || monthsLonger != null) targetResult = 'single-lever';
 	else if (combinedScenario) targetResult = 'combined';
 	else targetResult = 'outside-tested-range';

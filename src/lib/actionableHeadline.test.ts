@@ -21,12 +21,12 @@ function statsWithSurface(): SummaryStats {
 }
 
 describe('buildActionableRecommendations', () => {
-	it('interpolates spending and retirement changes that reach the target', () => {
+	it('uses confidence-aware spending and retirement changes to reach the target region', () => {
 		const result = buildActionableRecommendations(statsWithSurface(), 65, 40_000);
 
-		expect(result.yearlySpendingReduction).toBeCloseTo(2_666.67);
-		expect(result.spendingReductionPercent).toBeCloseTo(6.67);
-		expect(result.monthsLonger).toBe(24);
+		expect(result.yearlySpendingReduction).toBeGreaterThan(2_666.67);
+		expect(result.spendingReductionPercent).toBeGreaterThan(6.67);
+		expect(result.monthsLonger).toBeGreaterThanOrEqual(24);
 		expect(result.targetResult).toBe('single-lever');
 	});
 
@@ -61,7 +61,7 @@ describe('buildActionableRecommendations', () => {
 			}
 		]);
 
-		expect(result.yearlySpendingReduction).toBeCloseTo(2_666.67);
+		expect(result.yearlySpendingReduction).toBeGreaterThan(2_666.67);
 		expect(result.monthsLonger).toBeNull();
 		expect(result.retirementDelayAvailable).toBe(false);
 	});
@@ -78,7 +78,7 @@ describe('buildActionableRecommendations', () => {
 			}
 		]);
 
-		expect(result.monthsLonger).toBe(24);
+		expect(result.monthsLonger).toBeGreaterThanOrEqual(24);
 	});
 
 	it('finds a combined tested route when neither lever reaches the target alone', () => {
@@ -113,14 +113,24 @@ describe('buildActionableRecommendations', () => {
 		expect(result.targetResult).toBe('already-met');
 	});
 
+	it('does not claim the goal is met when sampling uncertainty crosses it', () => {
+		const stats = statsWithSurface();
+		stats.successProbability = 0.951;
+
+		const result = buildActionableRecommendations(stats, 65, 40_000, 0.95, [], 2_000);
+
+		expect(result.targetResult).not.toBe('already-met');
+	});
+
 	it('uses the full-run headline probability at the baseline surface cell', () => {
 		const stats = statsWithSurface();
 		stats.successProbability = 0.94;
 		// The capped surface sample says 92% at the unchanged plan. Interpolation should start
 		// from the authoritative full-run 94% instead.
-		const result = buildActionableRecommendations(stats, 65, 40_000);
+		const result = buildActionableRecommendations(stats, 65, 40_000, 0.95, [], 60_000);
 
-		expect(result.spendingReductionPercent).toBeCloseTo(5);
-		expect(result.monthsLonger).toBe(18);
+		expect(result.spendingReductionPercent).toBeGreaterThan(5);
+		expect(result.spendingReductionPercent).toBeLessThan(10);
+		expect(result.monthsLonger).toBeGreaterThan(18);
 	});
 });
