@@ -265,8 +265,15 @@
 				name: 'Median outcome',
 				line: { color: '#15803d', width: 2.5 },
 				type: 'scatter',
-				customdata: p.p50.map((v: number) => fmtHoverCompactCurrency(v)),
-				hovertemplate: 'Age %{x:.1f}<br>Portfolio %{customdata}<extra></extra>'
+				customdata: p.p50.map((v: number, index: number) => [
+					fmtHoverCompactCurrency(p.p90[index]),
+					fmtHoverCompactCurrency(p.p75[index]),
+					fmtHoverCompactCurrency(v),
+					fmtHoverCompactCurrency(p.p25[index]),
+					fmtHoverCompactCurrency(p.p10[index])
+				]),
+				hovertemplate:
+					'<b>Age %{x:.1f}</b><br>P90 %{customdata[0]}<br>P75 %{customdata[1]}<br>Median %{customdata[2]}<br>P25 %{customdata[3]}<br>P10 %{customdata[4]}<extra></extra>'
 			},
 			{
 				x: [...ages, ...ages.slice().reverse()],
@@ -295,8 +302,7 @@
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
 				type: 'scatter',
-				customdata: p.p75.map((v: number) => fmtHoverCompactCurrency(v)),
-				hovertemplate: 'Age %{x:.1f}<br>P75 %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			},
 			{
 				x: ages,
@@ -305,8 +311,7 @@
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
 				type: 'scatter',
-				customdata: p.p25.map((v: number) => fmtHoverCompactCurrency(v)),
-				hovertemplate: 'Age %{x:.1f}<br>P25 %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			},
 			{
 				x: ages,
@@ -315,8 +320,7 @@
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
 				type: 'scatter',
-				customdata: p.p10.map((v: number) => fmtHoverCompactCurrency(v)),
-				hovertemplate: 'Age %{x:.1f}<br>P10 %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			},
 			{
 				x: ages,
@@ -325,8 +329,7 @@
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
 				type: 'scatter',
-				customdata: p.p90.map((v: number) => fmtHoverCompactCurrency(v)),
-				hovertemplate: 'Age %{x:.1f}<br>P90 %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			},
 			{
 				x: [ages[0], lastAge],
@@ -335,8 +338,7 @@
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dash', width: 1.5, color: '#ef4444' },
-				customdata: [fmtHoverCompactCurrency(fiTargetP95), fmtHoverCompactCurrency(fiTargetP95)],
-				hovertemplate: 'Simulation-based target: %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			},
 			{
 				x: [ages[0], lastAge],
@@ -345,8 +347,7 @@
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dot', width: 1.5, color: '#f59e0b' },
-				customdata: [fmtHoverCompactCurrency(fiTargetSWR), fmtHoverCompactCurrency(fiTargetSWR)],
-				hovertemplate: 'Spending-rule target: %{customdata}<extra></extra>'
+				hoverinfo: 'skip'
 			}
 		];
 
@@ -454,6 +455,8 @@
 			},
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 11 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 11 } },
+			hovermode: 'x',
+			hoverdistance: -1,
 			showlegend: true,
 			legend: {
 				x: 0.99,
