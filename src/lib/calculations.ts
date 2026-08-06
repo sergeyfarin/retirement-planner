@@ -5,6 +5,7 @@ export type AllocationSplit = {
 };
 
 export type PercentileSeries<T = number> = {
+	p05: T;
 	p10: T;
 	p25: T;
 	p50: T;
@@ -541,6 +542,7 @@ export function normalCdf(x: number): number {
 export function summarize(values: number[]): PercentileSeries<number> {
 	const sorted = [...values].sort((a, b) => a - b);
 	return {
+		p05: percentile(sorted, 0.05),
 		p10: percentile(sorted, 0.1),
 		p25: percentile(sorted, 0.25),
 		p50: percentile(sorted, 0.5),

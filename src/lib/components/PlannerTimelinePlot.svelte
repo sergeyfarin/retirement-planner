@@ -270,10 +270,11 @@
 					fmtHoverCompactCurrency(p.p75[index]),
 					fmtHoverCompactCurrency(v),
 					fmtHoverCompactCurrency(p.p25[index]),
-					fmtHoverCompactCurrency(p.p10[index])
+					fmtHoverCompactCurrency(p.p10[index]),
+					fmtHoverCompactCurrency(p.p05[index])
 				]),
 				hovertemplate:
-					'<b>Age %{x:.1f}</b><br>P90 %{customdata[0]}<br>P75 %{customdata[1]}<br>Median %{customdata[2]}<br>P25 %{customdata[3]}<br>P10 %{customdata[4]}<extra></extra>'
+					'<b>Age %{x:.1f}</b><br>P90 %{customdata[0]}<br>P75 %{customdata[1]}<br>Median %{customdata[2]}<br>P25 %{customdata[3]}<br>P10 %{customdata[4]}<br>P5 downside %{customdata[5]}<extra></extra>'
 			},
 			{
 				x: [...ages, ...ages.slice().reverse()],
@@ -328,6 +329,14 @@
 				name: 'P90 boundary',
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
+				type: 'scatter',
+				hoverinfo: 'skip'
+			},
+			{
+				x: ages,
+				y: p.p05,
+				name: 'P5 downside boundary',
+				line: { color: 'rgba(220,38,38,0.65)', width: 1.1, dash: 'dot' },
 				type: 'scatter',
 				hoverinfo: 'skip'
 			},
@@ -506,8 +515,9 @@
 	</div>
 	<div class="chart" bind:this={chartEl}></div>
 	<p class="note">
-		Fan shows the middle 50% and 80% of outcomes. Dotted vertical = retirement; red dashed =
-		simulation target; orange dotted = spending-rule target. Percentile bands are month-by-month
-		summaries, not individual paths.
+		Fan shows the middle 50% and 80% of outcomes; the thin red P5 line marks the downside level only
+		5% of balances fall below at each age. Dotted vertical = retirement; red dashed = simulation
+		target; orange dotted = spending-rule target. Percentiles are month-by-month summaries, not
+		individual paths.
 	</p>
 </div>

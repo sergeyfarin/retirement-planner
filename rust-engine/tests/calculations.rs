@@ -130,17 +130,18 @@ fn percentile_interpolates_linearly_between_neighbours() {
 fn summarize_sorts_before_taking_percentiles() {
     let unsorted: Vec<f64> = (0..=10).rev().map(|v| v as f64).collect();
     let series = summarize(&unsorted);
+    assert_eq!(series.p05, 0.5);
     assert_eq!(series.p10, 1.0);
     assert_eq!(series.p50, 5.0);
     assert_eq!(series.p90, 9.0);
-    assert!(series.p10 <= series.p25 && series.p25 <= series.p50);
+    assert!(series.p05 <= series.p10 && series.p10 <= series.p25 && series.p25 <= series.p50);
     assert!(series.p50 <= series.p75 && series.p75 <= series.p90);
 }
 
 #[test]
 fn summarize_of_a_single_value_is_flat() {
     let series = summarize(&[4.0]);
-    assert_eq!((series.p10, series.p50, series.p90), (4.0, 4.0, 4.0));
+    assert_eq!((series.p05, series.p50, series.p90), (4.0, 4.0, 4.0));
 }
 
 #[test]

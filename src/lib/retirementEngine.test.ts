@@ -1636,6 +1636,7 @@ describe('runMonteCarloSimulation smoke', () => {
 		expect(result.simCount).toBeGreaterThanOrEqual(400);
 		expect(result.simulation.months).toBe(months);
 		expect(result.simulation.percentiles.p50.length).toBe(months);
+		expect(result.simulation.percentiles.p05.length).toBe(months);
 		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
 		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
 		expect(result.stats.finalMedian).toBeGreaterThan(0);
@@ -1721,7 +1722,12 @@ describe('parametric inflation stays in a positive-price domain', () => {
 		expect(result.stats.successProbability).toBeGreaterThanOrEqual(0);
 		expect(result.stats.successProbability).toBeLessThanOrEqual(1);
 		expect(result.simulation.percentiles.p50.every(Number.isFinite)).toBe(true);
-		expect(result.simulation.percentiles.p10.every((b: number) => b >= 0)).toBe(true);
+		expect(result.simulation.percentiles.p05.every((b: number) => b >= 0)).toBe(true);
+		expect(
+			result.simulation.percentiles.p05.every(
+				(value: number, index: number) => value <= result.simulation.percentiles.p10[index]
+			)
+		).toBe(true);
 	});
 
 	it('keeps the Rust engine finite under extreme entered volatility', async () => {

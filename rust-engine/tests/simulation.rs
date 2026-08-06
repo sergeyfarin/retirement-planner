@@ -183,6 +183,7 @@ fn percentile_bands_are_ordered_at_every_month() {
     let result = run(&plan);
     let p = &result.simulation.percentiles;
     for month in 0..plan.months as usize {
+        assert!(p.p05[month] <= p.p10[month]);
         assert!(p.p10[month] <= p.p25[month]);
         assert!(p.p25[month] <= p.p50[month]);
         assert!(p.p50[month] <= p.p75[month]);

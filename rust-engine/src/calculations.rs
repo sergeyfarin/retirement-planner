@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PercentileSeries<T> {
+    pub p05: T,
     pub p10: T,
     pub p25: T,
     pub p50: T,
@@ -123,6 +124,7 @@ pub fn summarize(values: &[f64]) -> PercentileSeries<f64> {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     PercentileSeries {
+        p05: percentile(&sorted, 0.05),
         p10: percentile(&sorted, 0.1),
         p25: percentile(&sorted, 0.25),
         p50: percentile(&sorted, 0.5),

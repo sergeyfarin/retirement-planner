@@ -613,6 +613,7 @@ pub fn run_monte_carlo_simulation(
             .count()
     };
 
+    let mut pt05 = Vec::with_capacity(months_usize);
     let mut pt10 = Vec::with_capacity(months_usize);
     let mut pt25 = Vec::with_capacity(months_usize);
     let mut pt50 = Vec::with_capacity(months_usize);
@@ -621,6 +622,7 @@ pub fn run_monte_carlo_simulation(
 
     for m in 0..months_usize {
         reservoirs[m].sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        pt05.push(percentile(&reservoirs[m], 0.05));
         pt10.push(percentile(&reservoirs[m], 0.1));
         pt25.push(percentile(&reservoirs[m], 0.25));
         pt50.push(percentile(&reservoirs[m], 0.5));
@@ -629,6 +631,7 @@ pub fn run_monte_carlo_simulation(
     }
 
     let percentile_series = PercentileSeries {
+        p05: pt05,
         p10: pt10,
         p25: pt25,
         p50: pt50,

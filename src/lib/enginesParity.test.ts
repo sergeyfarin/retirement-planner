@@ -435,7 +435,7 @@ describe('cross-engine simulation parity', () => {
 			expect(rust.simulation.retireMonth).toBe(ts.simulation.retireMonth);
 
 			// Full per-month percentile bands, not just the endpoints.
-			for (const band of ['p10', 'p25', 'p50', 'p75', 'p90'] as const) {
+			for (const band of ['p05', 'p10', 'p25', 'p50', 'p75', 'p90'] as const) {
 				expectSeriesClose(
 					rust.simulation.percentiles[band],
 					ts.simulation.percentiles[band],

@@ -1790,6 +1790,7 @@ export function runMonteCarloSimulation(
 		: retireBalances.filter((balance) => balance >= targetFISWR).length;
 
 	const percentileSeries: PercentileSeries<number[]> = {
+		p05: [],
 		p10: [],
 		p25: [],
 		p50: [],
@@ -1800,6 +1801,7 @@ export function runMonteCarloSimulation(
 	for (let m = 0; m < months; m++) {
 		for (let s = 0; s < simCount; s++) column[s] = allBalances[s][m];
 		column.sort((a, b) => a - b);
+		percentileSeries.p05.push(percentile(column, 0.05));
 		percentileSeries.p10.push(percentile(column, 0.1));
 		percentileSeries.p25.push(percentile(column, 0.25));
 		percentileSeries.p50.push(percentile(column, 0.5));
