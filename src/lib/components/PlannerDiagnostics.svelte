@@ -13,6 +13,9 @@
 	} = $props();
 
 	const targetPercent = $derived(Math.round(FI_TARGET_SUCCESS_PROBABILITY * 100));
+	const withdrawalRuleLabel = $derived(
+		`${Number((input.safeWithdrawalRate * 100).toFixed(2))}% rule target`
+	);
 	const successProbabilitySE = $derived(
 		simCount > 0 && stats
 			? Math.sqrt((stats.successProbability * (1 - stats.successProbability)) / simCount)
@@ -152,7 +155,7 @@
 				<table class="stat-table stat-table-dense mono-value">
 					<tbody>
 						<tr
-							><th scope="row">Spending-rule target</th><td
+							><th scope="row">{withdrawalRuleLabel}</th><td
 								>{fmtCompactCurrency(stats.fiTargetSWR)}</td
 							></tr
 						>
@@ -169,9 +172,9 @@
 					</tbody>
 				</table>
 				<p>
-					The spending-rule target divides spending by the selected withdrawal rate, net of other
-					income. It ignores sequence risk and your actual horizon, so where the two targets
-					disagree, the simulated one is the one the assessment uses.
+					The {withdrawalRuleLabel} divides spending by the selected withdrawal rate, net of other income.
+					It ignores sequence risk and your actual horizon, so where the two targets disagree, the simulated
+					one is the one the assessment uses.
 				</p>
 			</section>
 

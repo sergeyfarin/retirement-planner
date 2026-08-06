@@ -20,6 +20,7 @@
 		simulation = null,
 		stats = null,
 		retirementAge = 0,
+		safeWithdrawalRate = 0.04,
 		baselineFiTarget = 0,
 		spendingPeriods = [],
 		lumpSumEvents = [],
@@ -32,6 +33,7 @@
 		simulation?: SimulationResult | null;
 		stats?: SummaryStats | null;
 		retirementAge?: number;
+		safeWithdrawalRate?: number;
 		baselineFiTarget?: number;
 		spendingPeriods?: SpendingPeriod[];
 		lumpSumEvents?: LumpSumEvent[];
@@ -39,6 +41,9 @@
 		fmtCompactValue: (value: number) => string;
 		fmtHoverCompactCurrency: (value: number) => string;
 	} = $props();
+	const withdrawalRuleLabel = $derived(
+		`${Number((safeWithdrawalRate * 100).toFixed(2))}% rule target`
+	);
 
 	let chartEl: HTMLDivElement | null = $state(null);
 	let relayoutHandlerAttached = false;
@@ -352,7 +357,7 @@
 			{
 				x: [ages[0], lastAge],
 				y: [fiTargetSWR, fiTargetSWR],
-				name: 'Spending-rule target',
+				name: withdrawalRuleLabel,
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dot', width: 1.5, color: '#f59e0b' },
@@ -517,7 +522,7 @@
 	<p class="note">
 		Fan shows the middle 50% and 80% of outcomes; the thin red P5 line marks the downside level only
 		5% of balances fall below at each age. Dotted vertical = retirement; red dashed = simulation
-		target; orange dotted = spending-rule target. Percentiles are month-by-month summaries, not
+		target; orange dotted = {withdrawalRuleLabel}. Percentiles are month-by-month summaries, not
 		individual paths.
 	</p>
 </div>

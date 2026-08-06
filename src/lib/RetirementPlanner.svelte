@@ -2160,6 +2160,7 @@
 							{simulation}
 							{stats}
 							retirementAge={input.retirementAge}
+							safeWithdrawalRate={input.safeWithdrawalRate}
 							{baselineFiTarget}
 							{spendingPeriods}
 							{lumpSumEvents}
