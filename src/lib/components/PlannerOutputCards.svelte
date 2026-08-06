@@ -180,35 +180,34 @@
 		>
 			<h3 id="portfolio-title" class="card-title">
 				{alreadyRetired
-					? 'Portfolio today'
-					: `Projected portfolio range at retirement age ${fmtNum(input.retirementAge)}`}
+					? 'Capital needed today'
+					: `Capital needed at retirement age ${fmtNum(input.retirementAge)}`}
 			</h3>
 			<p class="stat-sentence">
-				{#if alreadyRetired}
-					Your portfolio is <strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>.
-				{:else}
-					The middle 80% of simulated retirement balances spans
-					<strong class="mono-value">{fmtCompactCurrency(stats.retireLow)}</strong> to
-					<strong class="mono-value">{fmtCompactCurrency(stats.retireHigh)}</strong>, with a median
-					of
-					<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>.
-				{/if}
+				<strong class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</strong> estimated
+				capital needed {alreadyRetired ? 'today' : 'at retirement'} to stay funded in {targetPercent}%
+				of retirement-path replays.
 			</p>
 
 			<table class="stat-table stat-table-compact">
+				<caption
+					>{alreadyRetired ? 'Portfolio comparison' : 'Projected balance at retirement'}</caption
+				>
 				<tbody>
 					{#each retirementRows as row (row.label)}
-						<tr>
-							<th scope="row">{row.label}</th>
-							<td class="mono-value">{row.value == null ? '—' : fmtCompactCurrency(row.value)}</td>
-						</tr>
+						{#if row.value != null}
+							<tr>
+								<th scope="row">{row.label}</th>
+								<td class="mono-value">{fmtCompactCurrency(row.value)}</td>
+							</tr>
+						{/if}
 					{/each}
 				</tbody>
 			</table>
 			<p class="card-note">
-				A median is the midpoint, not a success test. The overall rating follows every simulated
-				path through the end of the plan and is shown in the first card. Capital targets and full
-				percentile statistics are in advanced statistics.
+				The target starts every retirement replay with the same capital. Projected balances vary
+				with accumulation outcomes, so this comparison supports but does not determine the overall
+				success rate in the first card.
 			</p>
 		</section>
 	</div>
