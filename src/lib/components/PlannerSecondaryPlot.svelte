@@ -102,6 +102,11 @@
 				Math.abs(multiplier - 1) < Math.abs(spendingMultipliers[best] - 1) ? index : best,
 			0
 		);
+		// The baseline is already known exactly from the full simulation. The surface replays
+		// at most 2,000 stored paths, so leaving its sampled baseline here can make "Your plan"
+		// disagree by a percentage point with the headline card and can slightly skew the
+		// interpolated recommendations that use this same surface.
+		zValues[baselineSpendingIndex][baselineAgeIndex] = stats.successProbability;
 		const currentPlanProbability = zValues[baselineSpendingIndex][baselineAgeIndex];
 		const currentPlanColor =
 			currentPlanProbability >= 0.95

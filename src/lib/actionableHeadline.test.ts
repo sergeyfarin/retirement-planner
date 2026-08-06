@@ -24,9 +24,9 @@ describe('buildActionableRecommendations', () => {
 	it('interpolates spending and retirement changes that reach the target', () => {
 		const result = buildActionableRecommendations(statsWithSurface(), 65, 40_000);
 
-		expect(result.yearlySpendingReduction).toBeCloseTo(3_000);
-		expect(result.spendingReductionPercent).toBeCloseTo(7.5);
-		expect(result.monthsLonger).toBe(27);
+		expect(result.yearlySpendingReduction).toBeCloseTo(2_666.67);
+		expect(result.spendingReductionPercent).toBeCloseTo(6.67);
+		expect(result.monthsLonger).toBe(24);
 		expect(result.targetResult).toBe('single-lever');
 	});
 
@@ -45,7 +45,7 @@ describe('buildActionableRecommendations', () => {
 		expect(buildActionableRecommendations(stats, 65, 40_000).bestTestedScenario).toMatchObject({
 			retirementAge: 65,
 			spendingMultiplier: 1,
-			successProbability: 0.9
+			successProbability: 0.93
 		});
 	});
 
@@ -61,7 +61,7 @@ describe('buildActionableRecommendations', () => {
 			}
 		]);
 
-		expect(result.yearlySpendingReduction).toBeCloseTo(3_000);
+		expect(result.yearlySpendingReduction).toBeCloseTo(2_666.67);
 		expect(result.monthsLonger).toBeNull();
 		expect(result.retirementDelayAvailable).toBe(false);
 	});
@@ -78,7 +78,7 @@ describe('buildActionableRecommendations', () => {
 			}
 		]);
 
-		expect(result.monthsLonger).toBe(27);
+		expect(result.monthsLonger).toBe(24);
 	});
 
 	it('finds a combined tested route when neither lever reaches the target alone', () => {
@@ -111,5 +111,16 @@ describe('buildActionableRecommendations', () => {
 		const result = buildActionableRecommendations(stats, 65, 40_000);
 
 		expect(result.targetResult).toBe('already-met');
+	});
+
+	it('uses the full-run headline probability at the baseline surface cell', () => {
+		const stats = statsWithSurface();
+		stats.successProbability = 0.94;
+		// The capped surface sample says 92% at the unchanged plan. Interpolation should start
+		// from the authoritative full-run 94% instead.
+		const result = buildActionableRecommendations(stats, 65, 40_000);
+
+		expect(result.spendingReductionPercent).toBeCloseTo(5);
+		expect(result.monthsLonger).toBe(18);
 	});
 });

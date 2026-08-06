@@ -169,7 +169,11 @@
 									>
 								</tr>{/if}
 							{#if actionableRecommendations.monthsLonger != null}<tr>
-									<th scope="row">Or retire later by</th><td class="mono-value"
+									<th scope="row"
+										>{actionableRecommendations.spendingReductionPercent != null
+											? 'Or retire later by'
+											: 'Retire later by'}</th
+									><td class="mono-value"
 										>{fmtNum(actionableRecommendations.monthsLonger)} months</td
 									>
 								</tr>{/if}

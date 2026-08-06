@@ -64,11 +64,15 @@ export function buildActionableRecommendations(
 			Math.abs(multiplier - 1) < Math.abs(surface.spendingMultipliers[best] - 1) ? index : best,
 		0
 	);
+	const successAt = (row: number, column: number): number =>
+		row === baselineSpendingIndex && column === baselineAgeIndex
+			? stats.successProbability
+			: 1 - surface.ruinProbabilities[row][column];
 
 	const spendingMultiplier = crossing(
 		surface.spendingMultipliers.map((multiplier, row) => ({
 			x: -multiplier,
-			success: 1 - surface.ruinProbabilities[row][baselineAgeIndex]
+			success: successAt(row, baselineAgeIndex)
 		})),
 		target
 	);
@@ -77,7 +81,7 @@ export function buildActionableRecommendations(
 	const qualifyingAge = crossing(
 		surface.retirementAges.map((age, column) => ({
 			x: age,
-			success: 1 - surface.ruinProbabilities[baselineSpendingIndex][column]
+			success: successAt(baselineSpendingIndex, column)
 		})),
 		target
 	);
@@ -115,7 +119,7 @@ export function buildActionableRecommendations(
 			candidates.push({
 				retirementAge: candidateAge,
 				spendingMultiplier,
-				successProbability: 1 - surface.ruinProbabilities[row][column],
+				successProbability: successAt(row, column),
 				adjustmentScore:
 					spendingAdjustment / maximumSpendingReduction +
 					retirementAdjustment / maximumRetirementDelay
