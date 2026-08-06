@@ -40,12 +40,13 @@ describe('lifetime verdict presentation', () => {
 
 describe('retirement result presentation', () => {
 	it.each([
-		{ margin: 0.2, tone: 'good', label: 'At or above target' },
-		{ margin: 0, tone: 'good', label: 'At or above target' },
-		{ margin: -0.01, tone: 'warn', label: 'Close to target' },
-		{ margin: -0.1, tone: 'warn', label: 'Close to target' },
-		{ margin: -0.18, tone: 'caution', label: 'Below target' },
-		{ margin: -0.4, tone: 'bad', label: 'Well below target' }
+		{ margin: 0.2, tone: 'good', label: 'Above capital target' },
+		{ margin: 0.1, tone: 'good', label: 'Close to capital target' },
+		{ margin: 0, tone: 'good', label: 'Close to capital target' },
+		{ margin: -0.01, tone: 'warn', label: 'Close to capital target' },
+		{ margin: -0.1, tone: 'warn', label: 'Close to capital target' },
+		{ margin: -0.18, tone: 'caution', label: 'Below capital target' },
+		{ margin: -0.4, tone: 'bad', label: 'Well below capital target' }
 	])('maps a $margin capital gap to $tone', ({ margin, tone, label }) => {
 		expect(retirementCapitalTone(margin)).toBe(tone);
 		expect(retirementCapitalLabel(margin)).toBe(label);

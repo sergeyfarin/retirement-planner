@@ -69,8 +69,8 @@ export function retirementCapitalTone(margin: number): ResultTone {
 }
 
 export function retirementCapitalLabel(margin: number): string {
-	if (margin >= 0) return 'At or above target';
-	if (margin >= -0.1) return 'Close to target';
-	if (margin >= -0.25) return 'Below target';
-	return 'Well below target';
+	if (margin > 0.1) return 'Above capital target';
+	if (margin >= -0.1) return 'Close to capital target';
+	if (margin >= -0.25) return 'Below capital target';
+	return 'Well below capital target';
 }

@@ -85,13 +85,9 @@
 		}
 	]);
 
-	function fmtMargin(margin: number): string {
-		const pct = margin * 100;
-		return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
-	}
-
-	function fmtSignedCurrency(amount: number): string {
-		return `${amount >= 0 ? '+' : '−'}${fmtCompactCurrency(Math.abs(amount))}`;
+	function fmtCapitalDifference(amount: number, margin: number): string {
+		if (amount === 0) return 'equal to';
+		return `${fmtCompactCurrency(Math.abs(amount))} (${Math.abs(margin * 100).toFixed(0)}%) ${amount > 0 ? 'above' : 'below'}`;
 	}
 </script>
 
@@ -197,16 +193,16 @@
 				{retirementLabel}
 			</h3>
 			<p class="stat-sentence">
-				{alreadyRetired ? 'Your portfolio today is' : `The median simulated balance is`}
-				<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong>
-				{alreadyRetired ? '' : `at retirement`},
-				<span
-					class="mono-value"
-					class:amount-positive={capitalGap >= 0}
-					class:amount-negative={capitalGap < 0}
-					>{fmtSignedCurrency(capitalGap)} ({fmtMargin(capitalMargin)})</span
-				>
-				against the {fmtCompactCurrency(stats.fiTargetP95)} simulation-based target
+				{alreadyRetired ? 'Your portfolio is' : `The median simulated retirement balance is`}
+				<strong class="mono-value">{fmtCompactCurrency(capitalToday)}</strong
+				>{#if Math.abs(capitalMargin) < 0.05}, essentially in line with{:else},
+					<span
+						class="mono-value"
+						class:amount-positive={capitalGap >= 0}
+						class:amount-negative={capitalGap < 0}
+						>{fmtCapitalDifference(capitalGap, capitalMargin)}</span
+					>{/if}
+				the simulation-based capital target of {fmtCompactCurrency(stats.fiTargetP95)}.
 			</p>
 
 			<table class="stat-table stat-table-compact">
@@ -224,8 +220,9 @@
 				</tbody>
 			</table>
 			<p class="card-note">
-				Status reflects the typical portfolio's gap to the target. The 4% rule comparison and full
-				percentile statistics are in advanced statistics.
+				This supporting comparison is not the overall plan rating; that comes from the funded chance
+				in the first card. The 4% rule comparison and full percentile statistics are in advanced
+				statistics.
 			</p>
 		</section>
 	</div>
