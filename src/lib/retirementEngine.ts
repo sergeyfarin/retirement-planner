@@ -68,9 +68,8 @@ class WithdrawalRunner {
 	private initialized = false;
 	private multiplier = 1;
 	private initialRate = 0;
-	private initialAnnualSpending = 0;
-	private initialAnnualPortfolioSpending = 0;
 	private heldMonthlyPortfolioSpending = 0;
+	private reviewedMonthlyIncome = 0;
 
 	constructor(
 		strategy: WithdrawalStrategy,
@@ -94,17 +93,24 @@ class WithdrawalRunner {
 
 		const isYearStart = (m - this.retireMonth) % 12 === 0;
 		const portfolioBase = Math.max(0, base - income);
+		// Do not anchor an adaptive policy to an empty retirement month. A valid schedule may
+		// start later (or contain a bridge gap); until there is planned spending there is
+		// nothing for the policy to adapt.
+		if (!this.initialized && base <= 0) return base;
 		if (!this.initialized) {
-			this.initialAnnualSpending = base * 12;
-			this.initialAnnualPortfolioSpending = portfolioBase * 12;
-			this.initialRate = balance > 0 ? this.initialAnnualPortfolioSpending / balance : 0;
+			this.initialRate = balance > 0 ? (portfolioBase * 12) / balance : 0;
 			this.multiplier = 1;
 			this.heldMonthlyPortfolioSpending = portfolioBase;
+			this.reviewedMonthlyIncome = income;
 			this.initialized = true;
 		}
 
-		const floorAnnual = this.spendingFloor * this.initialAnnualSpending;
-		const ceilingAnnual = this.spendingCeiling * this.initialAnnualSpending;
+		// Explicit schedule changes are part of the plan, not discretionary guardrail
+		// adjustments. Base the bounds on the spending active now so a later spending phase
+		// cannot be suppressed by a lower first retirement month.
+		const currentAnnualSpending = base * 12;
+		const floorAnnual = this.spendingFloor * currentAnnualSpending;
+		const ceilingAnnual = this.spendingCeiling * currentAnnualSpending;
 		const monthlyFloor = floorAnnual / 12;
 		const monthlyCeiling = ceilingAnnual / 12;
 
@@ -131,8 +137,17 @@ class WithdrawalRunner {
 			const targetAnnualSpending = annualIncome + this.withdrawalPercent * Math.max(0, balance);
 			const clampedTotal = Math.min(ceilingAnnual, Math.max(floorAnnual, targetAnnualSpending));
 			this.heldMonthlyPortfolioSpending = Math.max(0, clampedTotal - annualIncome) / 12;
+			this.reviewedMonthlyIncome = income;
 		}
-		return income + this.heldMonthlyPortfolioSpending;
+		// A pension starting between annual reviews replaces the same amount of the held
+		// portfolio withdrawal. Without this offset it was added on top until the next
+		// anniversary, allowing total spending to jump through the configured ceiling.
+		const incomeChange = income - this.reviewedMonthlyIncome;
+		const adjustedPortfolioSpending = Math.max(
+			0,
+			this.heldMonthlyPortfolioSpending - incomeChange
+		);
+		return Math.min(monthlyCeiling, Math.max(monthlyFloor, income + adjustedPortfolioSpending));
 	}
 }
 
@@ -405,7 +420,26 @@ function spreadAnnualReturnAcrossMonths(
 	}
 	const geometricMean = Math.exp(logSum / 12);
 
-	return factors.map((factor) => clampMonthlyReturn((baseFactor * factor) / geometricMean - 1));
+	const targetLogSum = 12 * Math.log(baseFactor);
+	const minLog = Math.log(0.4);
+	const maxLog = Math.log(1.6);
+	const logs = factors.map((factor) => Math.log((baseFactor * factor) / geometricMean));
+	const free = new Set(logs.map((_, index) => index));
+	for (let pass = 0; pass < 12 && free.size > 0; pass++) {
+		const delta = (targetLogSum - logs.reduce((sum, value) => sum + value, 0)) / free.size;
+		let clampedAny = false;
+		for (const index of [...free]) {
+			logs[index] += delta;
+			if (logs[index] < minLog || logs[index] > maxLog) {
+				logs[index] = Math.min(maxLog, Math.max(minLog, logs[index]));
+				free.delete(index);
+				clampedAny = true;
+			}
+		}
+		if (!clampedAny) break;
+	}
+
+	return logs.map((value) => Math.exp(value) - 1);
 }
 
 function summarizeMeanStd(values: number[]): { mean: number; std: number } {

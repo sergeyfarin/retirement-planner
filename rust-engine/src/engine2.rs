@@ -11,8 +11,8 @@ use crate::structs::{
 ///   rate drifts above/below the initial rate by `guardrail_band`, that portion is cut or
 ///   raised by `adjustment`. Decisions are made once per retirement year.
 /// - `percentOfPortfolio`: during retirement, withdraw `withdrawal_percent` of the current
-///   balance each year (recomputed annually), clamped to [floor, ceiling] × initial real
-///   spending, then add non-portfolio income to obtain total spending.
+///   balance each year (recomputed annually), clamped to [floor, ceiling] × currently
+///   planned spending. Income changes between reviews offset the held portfolio withdrawal.
 pub struct WithdrawalRunner {
     kind: u8, // 0 fixed, 1 guardrails, 2 percent
     retire_month: usize,
@@ -25,9 +25,8 @@ pub struct WithdrawalRunner {
     initialized: bool,
     multiplier: f64,
     initial_rate: f64,
-    initial_annual_spending: f64,
-    initial_annual_portfolio_spending: f64,
     held_monthly_portfolio_spending: f64,
+    reviewed_monthly_income: f64,
 }
 
 impl WithdrawalRunner {
@@ -54,9 +53,8 @@ impl WithdrawalRunner {
             initialized: false,
             multiplier: 1.0,
             initial_rate: 0.0,
-            initial_annual_spending: 0.0,
-            initial_annual_portfolio_spending: 0.0,
             held_monthly_portfolio_spending: 0.0,
+            reviewed_monthly_income: 0.0,
         }
     }
 
@@ -81,21 +79,24 @@ impl WithdrawalRunner {
         let is_year_start = (m - self.retire_month) % 12 == 0;
         let portfolio_base = (base - income).max(0.0);
 
+        if !self.initialized && base <= 0.0 {
+            return base;
+        }
         if !self.initialized {
-            self.initial_annual_spending = base * 12.0;
-            self.initial_annual_portfolio_spending = portfolio_base * 12.0;
             self.initial_rate = if balance > 0.0 {
-                self.initial_annual_portfolio_spending / balance
+                portfolio_base * 12.0 / balance
             } else {
                 0.0
             };
             self.multiplier = 1.0;
             self.held_monthly_portfolio_spending = portfolio_base;
+            self.reviewed_monthly_income = income;
             self.initialized = true;
         }
 
-        let floor_annual = self.spending_floor * self.initial_annual_spending;
-        let ceiling_annual = self.spending_ceiling * self.initial_annual_spending;
+        let current_annual_spending = base * 12.0;
+        let floor_annual = self.spending_floor * current_annual_spending;
+        let ceiling_annual = self.spending_ceiling * current_annual_spending;
         let monthly_floor = floor_annual / 12.0;
         let monthly_ceiling = ceiling_annual / 12.0;
 
@@ -126,8 +127,12 @@ impl WithdrawalRunner {
                 let clamped_total = target_annual_spending.clamp(floor_annual, ceiling_annual);
                 self.held_monthly_portfolio_spending =
                     (clamped_total - annual_income).max(0.0) / 12.0;
+                self.reviewed_monthly_income = income;
             }
-            income + self.held_monthly_portfolio_spending
+            let income_change = income - self.reviewed_monthly_income;
+            let adjusted_portfolio_spending =
+                (self.held_monthly_portfolio_spending - income_change).max(0.0);
+            (income + adjusted_portfolio_spending).clamp(monthly_floor, monthly_ceiling)
         }
     }
 }

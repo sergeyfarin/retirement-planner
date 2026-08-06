@@ -160,6 +160,31 @@ fn dynamic_strategies_apply_to_portfolio_funded_spending_only() {
 }
 
 #[test]
+fn dynamic_strategies_wait_for_the_first_positive_spending_month() {
+    for kind in ["guardrails", "percentOfPortfolio"] {
+        let mut runner = WithdrawalRunner::new(&strategy(kind), 0);
+        assert_eq!(runner.monthly_spending(0, 1_000_000.0, 0.0), 0.0);
+        assert_eq!(runner.monthly_spending(1, 1_000_000.0, 3_000.0), 3_000.0);
+    }
+}
+
+#[test]
+fn percent_strategy_offsets_income_that_starts_between_reviews() {
+    let mut runner = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
+    assert_close(
+        runner.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 0.0),
+        40_000.0 / 12.0,
+        1e-9,
+    );
+    // A 2,000/month pension replaces portfolio withdrawals instead of being stacked on top.
+    assert_close(
+        runner.monthly_spending_with_income(1, 1_000_000.0, 3_000.0, 2_000.0),
+        40_000.0 / 12.0,
+        1e-9,
+    );
+}
+
+#[test]
 fn percent_of_portfolio_is_clamped_by_the_floor_and_ceiling() {
     let mut runner = WithdrawalRunner::new(&strategy("percentOfPortfolio"), 0);
     runner.monthly_spending(0, 1_000_000.0, 3_000.0);

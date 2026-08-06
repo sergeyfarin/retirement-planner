@@ -761,6 +761,44 @@ describe('coast FIRE age', () => {
 
 describe('exact path evaluator', () => {
 	const fixed = { kind: 'fixed' as const };
+	const emptyCashflows = (months: number, spending: Float64Array, income = new Float64Array(months)) => ({
+		monthlyRealIncomeFlow: income,
+		monthlyNominalIncomeFlow: new Float64Array(months),
+		monthlyRealSpendingFlow: spending,
+		monthlyNominalSpendingFlow: new Float64Array(months),
+		lumpSumByMonth: new Float64Array(months)
+	});
+
+	it.each(['guardrails', 'percentOfPortfolio'] as const)(
+		'%s waits for a delayed spending phase instead of anchoring to zero',
+		(kind) => {
+			const result = evaluatePath(
+				{ assetReturns: new Float64Array(2), inflationRates: new Float64Array(2) },
+				emptyCashflows(2, new Float64Array([0, 100])),
+				1_000,
+				2,
+				{ kind },
+				0,
+				0,
+				0
+			);
+			expect(result.finalBalance).toBeCloseTo(900, 12);
+		}
+	);
+
+	it('percent-of-portfolio offsets a pension that starts between annual reviews', () => {
+		const result = evaluatePath(
+			{ assetReturns: new Float64Array(2), inflationRates: new Float64Array(2) },
+			emptyCashflows(2, new Float64Array([100, 100]), new Float64Array([0, 80])),
+			1_000,
+			2,
+			{ kind: 'percentOfPortfolio' },
+			0,
+			0,
+			0
+		);
+		expect(result.finalBalance).toBeCloseTo(940, 12);
+	});
 
 	it('does not call an exactly balanced zero-savings path depleted', () => {
 		const months = 12;

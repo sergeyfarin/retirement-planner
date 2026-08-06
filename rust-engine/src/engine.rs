@@ -230,11 +230,35 @@ pub fn spread_annual_return_across_months(
     }
     let geometric_mean = (log_sum / 12.0).exp();
 
-    let mut monthly = [0.0_f64; 12];
-    for (index, factor) in factors.iter().enumerate() {
-        monthly[index] = clamp_monthly_return(base_factor * factor / geometric_mean - 1.0);
+    let target_log_sum = 12.0 * base_factor.ln();
+    let min_log = 0.4_f64.ln();
+    let max_log = 1.6_f64.ln();
+    let mut logs = factors.map(|factor| (base_factor * factor / geometric_mean).ln());
+    let mut free = [true; 12];
+    for _ in 0..12 {
+        let free_count = free.iter().filter(|&&is_free| is_free).count();
+        if free_count == 0 {
+            break;
+        }
+        let delta = (target_log_sum - logs.iter().sum::<f64>()) / free_count as f64;
+        let mut clamped_any = false;
+        for index in 0..12 {
+            if !free[index] {
+                continue;
+            }
+            logs[index] += delta;
+            if logs[index] < min_log || logs[index] > max_log {
+                logs[index] = logs[index].clamp(min_log, max_log);
+                free[index] = false;
+                clamped_any = true;
+            }
+        }
+        if !clamped_any {
+            break;
+        }
     }
-    monthly
+
+    logs.map(|value| value.exp() - 1.0)
 }
 
 pub fn clamp_annual_return(value: f64) -> f64 {

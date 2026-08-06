@@ -235,6 +235,21 @@ fn spreading_an_annual_return_preserves_it_exactly() {
 }
 
 #[test]
+fn spreading_preserves_the_annual_return_when_monthly_bounds_bind() {
+    let mut rng = RandomSource::new(Some(90210.0));
+    for annual in [-0.35, 0.0, 0.4] {
+        let months = spread_annual_return_across_months(annual, 2.0, -1.5, 12.0, &mut rng);
+        let compounded = months.iter().fold(1.0, |acc, r| acc * (1.0 + r)) - 1.0;
+        assert_close(compounded, annual, 1e-9);
+        assert!(
+            months
+                .iter()
+                .all(|r| *r >= -0.6 - 1e-12 && *r <= 0.6 + 1e-12)
+        );
+    }
+}
+
+#[test]
 fn spreading_without_dispersion_returns_twelve_equal_months() {
     let mut rng = RandomSource::new(Some(1.0));
     for std in [0.0, -0.1, f64::NAN] {
