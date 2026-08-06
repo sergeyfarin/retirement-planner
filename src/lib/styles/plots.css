@@ -16,6 +16,12 @@
 	margin-top: 0.65rem;
 }
 
+/* Plot interaction should not visually lift the entire, often very large chart card. */
+.chart-card:hover {
+	border-color: var(--line-hairline);
+	box-shadow: var(--shadow-card);
+}
+
 .chart-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
