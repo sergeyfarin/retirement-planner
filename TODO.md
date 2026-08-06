@@ -1,7 +1,8 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-08-06 (calculator review: 0.23–0.28 logged; the ruin-surface spending
-axis was reviewed and confirmed as intended — see 0.26). Mortality-weighted ruin remains
+**Updated:** 2026-08-06 (calculator review: 0.23–0.28 logged; 0.28 fixed, the ruin-surface
+spending axis confirmed as intended in 0.26, and the full-run probability now replaces the
+sampled baseline in the surface and its recommendations). Mortality-weighted ruin remains
 declined as a product decision — see 2.2.
 
 ## Active backlog — ordered by priority
@@ -29,6 +30,10 @@ completed decision history remain below for context.
    justify its complexity (0.12), calibrate block length for retirement outcomes rather
    than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
    targeting limitation (second 0.15 entry).
+4. **Close the calculator-review correctness gaps:** return today's capital for the
+   already-retired retirement snapshot (0.24), decide how seeded TS/Rust parity should work
+   above Rust's reservoir threshold (0.25), and make guardrail floor/ceiling semantics match
+   their total-spending labels (0.27).
 
 ### Priority 1 — interpretation and decision safety
 
@@ -123,18 +128,18 @@ These bias current results **materially pessimistic** and should land before new
 
 ### ✅ 0.28 `guardrails` consumed surplus income instead of investing it (M) — fixed 2026-08-06
 
-`WithdrawalRunner` ends the guardrails branch with `.max(income)`
+Before the fix, `WithdrawalRunner` ended the guardrails branch with `.max(income)`
 (`engine2.rs` `monthly_spending_with_income`, mirrored at `retirementEngine.ts`
 `WithdrawalRunner.monthlySpending`). The guard exists so the `spendingFloor` clamp can
-never push planned spending below income the retiree is already receiving. But it is
-applied to the _result_, so whenever income ≥ planned spending it also makes effective
+never push planned spending below income the retiree is already receiving. But it was
+applied to the _result_, so whenever income ≥ planned spending it also made effective
 spending equal income — and `balance += income − effectiveSpending` then contributes
 nothing. Every euro of surplus pension is spent rather than invested, for the rest of the
 plan.
 
-`fixed` banks the surplus and `percentOfPortfolio` has no such clamp, so the three
-strategies disagree on the same plan. Measured with zero returns and zero inflation,
-100k start, retired at 60, spending 30k to 65, pension 40k to 70:
+`fixed` banked the surplus and `percentOfPortfolio` had no such clamp, so the three
+strategies disagreed on the same plan. Measured before the fix with zero returns and zero
+inflation, 100k start, retired at 60, spending 30k to 65, pension 40k to 70:
 
 | strategy             | final balance |
 | -------------------- | ------------- |

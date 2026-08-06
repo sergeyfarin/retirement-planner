@@ -750,23 +750,27 @@ A 9×9 grid of ruin probabilities across:
 
 (9×1, spending only, when the plan is already in drawdown — see §7.6.)
 
-Each cell replays up to 2000 stored exogenous return/inflation paths through the same
+Each non-baseline cell replays up to 2000 stored exogenous return/inflation paths through the same
 accounting evaluator as the main simulation. Nominal cash flows use realized inflation;
 dynamic withdrawals and balance-dependent gains tax are recomputed. Income source
 `is-default` (salary) has `toAge` adjusted per cell; other income sources remain unchanged.
+The unchanged-plan cell is replaced with `successProbability` from the full simulation so
+the heatmap, headline card and recommendations all start from the same probability instead
+of a noisier replay subsample.
 
-**Sampling precision.** Because each cell is a proportion over `sampleCount` replayed
-paths, it carries binomial error $SE=\sqrt{p(1-p)/N}$ — at N=2000 that is up to ±2.2% at
-95% confidence for mid-range cells, tighter near 0% and 100%. The UI shows each cell's own
-margin on hover and the worst-case margin in the chart caption. Two things follow that the
-caption makes explicit:
+**Sampling precision.** Each non-baseline cell is a proportion over `sampleCount` replayed
+paths, so it carries binomial error $SE=\sqrt{p(1-p)/N}$ — at N=2000 that is up to ±2.2%
+at 95% confidence for mid-range cells, tighter near 0% and 100%. The UI shows each replay
+cell's margin on hover and the worst-case margin in the chart caption. Two things follow
+that the caption makes explicit:
 
 - The replay sample is capped **independently of the `simulations` setting**, so raising
-  the simulation count sharpens the summary cards but not this heatmap.
-- All cells replay the _same_ stored paths (common random numbers), so **differences**
-  between neighbouring cells are considerably steadier than each cell's absolute margin
-  suggests. The chart is meant to be read for the shape of the retire-earlier / spend-more
-  trade-off rather than for any single cell's exact value.
+  the simulation count sharpens the summary cards and the unchanged-plan cell, but not the
+  other heatmap cells.
+- All non-baseline cells replay the _same_ stored paths (common random numbers), so
+  **differences** between neighbouring replay cells are considerably steadier than each
+  cell's absolute margin suggests. The chart is meant to be read for the shape of the
+  retire-earlier / spend-more trade-off rather than for any single replay cell's exact value.
 
 ### 7.6 Already-Retired Mode
 
@@ -821,7 +825,10 @@ would name a year that has already passed.
 - **`RandomSource`** struct in `calculations.rs` wraps either `mulberry32` (when `seed` is provided) or thread-local random
 - **Box-Muller** transform for normal draws, with spare cache **encapsulated per instance** (no global mutable state)
 - **Student-t** generation via ratio of normal to chi-squared (only used in `buildBootstrapHistory` — 120 draws per run, not in the hot loop); the resulting pool is moment-targeted before reuse
-- When `seed` is set, results are fully deterministic and reproducible
+- When `seed` is set, a given engine and simulation count are deterministic and reproducible.
+  The TypeScript and Rust engines consume the same seeded stream only up to Rust's 5,000-path
+  reservoir threshold; above it, Rust's reservoir-replacement draws advance its stream and
+  cross-engine equality is not claimed (TODO 0.25).
 
 ---
 
@@ -844,8 +851,9 @@ The checklist above covers unit/formula consistency. The correctness issues rais
 2026-07-07 review — dividend handling, the tax model and return/inflation coupling — have
 since been fixed (§3.1.1, §5.2, §5.3), as have realized-inflation deflation of nominal
 cashflows (0.3, §5.1) and the kurtosis-blending cross terms (0.5, §6.2). What remains open
-is tracked in `TODO.md` Priority 0, chiefly the guardrails strategy consuming surplus
-income (0.28) and the log-domain inflation model (0.20 follow-up). §10 below lists the
+is tracked in `TODO.md` Priority 0, chiefly the guardrail-bound semantics (0.27), the
+already-retired snapshot offset (0.24), cross-engine seeded behavior above the reservoir
+threshold (0.25), and the log-domain inflation model (0.20 follow-up). §10 below lists the
 standing simplifications.
 
 ---
@@ -885,7 +893,7 @@ standing simplifications.
 | Ruin surface adjusts only the default salary's end age per cell                                                           | Other income sources are held fixed across cells                                                                                                       | TODO 6.2. The "work N months longer" recommendation is suppressed when a non-default income row ends inside the swept age range, so the advice is never derived from an axis that would misprice it |
 | Tax caveat is stated in the UI, not only in these docs                                                                    | A user changing the rate sees what it does and does not model, next to the input                                                                       | Assumptions table, "Tax drag on real gains" row                                                                                                                                                     |
 | No third-party requests at runtime                                                                                        | Nothing about a user's plan leaves the browser; fonts are self-hosted                                                                                  | Only fetch is the local `historical-market-data.json`. Share links are client-side URL fragments and are never sent anywhere                                                                        |
-| Ruin-surface cells replay a capped 2000-path subsample                                                                    | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count                                                                            | Surfaced in the UI (§7); cell _differences_ are steadier than that (common random numbers)                                                                                                          |
+| Ruin-surface non-baseline cells replay a capped 2000-path subsample                                                       | ±2.2% sampling noise at mid-range cells; unaffected by the simulation count                                                                            | The unchanged-plan cell uses the full-run probability; other cells expose replay precision in the UI (§7), and cell _differences_ are steadier than absolute levels (common random numbers)         |
 
 ---
 
@@ -932,8 +940,11 @@ without a wasm build, and makes the parity suite possible.
 
 `src/lib/enginesParity.test.ts` runs identical seeded inputs through both and compares the
 PRNG streams, the full per-month percentile bands, and every summary, sequence-risk and
-ruin-surface value across eight scenarios. The seeded streams are bit-identical, so the
-engines agree to about one ULP and the suite asserts a 1e-9 relative tolerance.
+ruin-surface value across 17 scenarios. Each scenario uses 400 paths, below Rust's
+5,000-path reservoir threshold, so the seeded streams are bit-identical, the engines agree
+to about one ULP, and the suite asserts a 1e-9 relative tolerance. Above that threshold,
+reservoir-replacement draws advance only Rust's stream; parity at production-sized runs is
+an open limitation tracked as TODO 0.25.
 
 > **Any change to simulation behaviour must land in both engines in the same commit.**
 > CI runs `pnpm run test:engines` before the dist build, so drift fails the pipeline.
