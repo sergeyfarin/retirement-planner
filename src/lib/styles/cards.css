@@ -90,9 +90,9 @@
 
 /* ─── Tone: one severity vocabulary shared by every result card ───── */
 .tone-neutral {
-	--tone-line: var(--ink-faint);
+	--tone-line: var(--line-strong);
 	--tone-ink: var(--ink-muted);
-	--tone-wash: rgba(248, 250, 252, 0.98);
+	--tone-wash: rgba(255, 255, 255, 0.98);
 }
 
 .tone-good {
