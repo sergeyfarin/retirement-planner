@@ -715,7 +715,7 @@
 							title="The arithmetic mean is the mathematical center used to generate random Monte Carlo paths."
 							>Arith. Input</th
 						>
-						<th title="The statistical standard deviation (volatility).">Volatil-<br />ity</th>
+						<th title="The statistical standard deviation (volatility).">Vola-<br />tility</th>
 						<th
 							title="Expected Compound Annual Growth Rate (Geometric Mean). Growth over time is dragged down by volatility: CAGR ≈ Arithmetic Mean - Volatility²/2"
 							>CAGR (Geom)</th
