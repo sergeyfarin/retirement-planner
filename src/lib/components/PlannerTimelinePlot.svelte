@@ -43,9 +43,6 @@
 
 	let chartEl: HTMLDivElement | null = $state(null);
 	let relayoutHandlerAttached = false;
-	// Plotly locales are global to the bundle, so registering once per module is enough; the
-	// flag used to be stashed as an untyped property on the Plotly object itself.
-	let aposLocaleRegistered = false;
 	let applyingTickRelayout = false;
 	let defaultYAxisTickValues: number[] = [];
 	let defaultYAxisTickLabels: string[] = [];
@@ -238,14 +235,10 @@
 
 	function drawChart(result: SimulationResult) {
 		if (!Plotly || !chartEl) return;
-		if (!aposLocaleRegistered) {
-			Plotly.register({
-				moduleType: 'locale',
-				name: 'apos',
-				format: { decimal: '.', thousands: "'", grouping: [3], currency: ['', ''] }
-			});
-			aposLocaleRegistered = true;
-		}
+		// No `locale` registration: every number the reader sees on this chart is formatted by
+		// `fmtCompactValue` / `fmtHoverCompactCurrency` before Plotly gets it, and the only
+		// value Plotly formats itself is the hover age, whose one decimal point is the same
+		// character under Plotly's default locale as under the app's own convention.
 		const { ages, percentiles: p } = result;
 		const lastAge = ages[ages.length - 1];
 		const yMax = computeClippedYAxisMax(result);
@@ -512,19 +505,54 @@
 			margin: { t: 20, l: 70, r: 20, b: 50 }
 		};
 
+		/**
+		 * The modebar is spelled out rather than filtered, and holds only buttons this file
+		 * supplies the label for.
+		 *
+		 * Plotly's built-in buttons take their tooltips from its own locale dictionaries,
+		 * which are community-contributed and uneven: of the nine languages here, Polish
+		 * ships an empty dictionary and Dutch is missing four of the labels we would need.
+		 * Registering the matching Plotly locale would therefore leave some users with an
+		 * English toolbar and no way to tell which. Two custom buttons avoid the question —
+		 * and `displaylogo: false` removes the Plotly logo, whose tooltip comes from the
+		 * same dictionaries.
+		 *
+		 * What goes away with the built-ins is box/lasso select, which selected nothing this
+		 * chart acts on, and the stepped zoom in/out. Drag-to-zoom, double-click-to-reset and
+		 * the Reset axes button below all still work — they are drag and event behaviour, not
+		 * modebar entries.
+		 */
 		const config = {
 			responsive: true,
-			locale: 'apos',
-			modeBarButtonsToRemove: ['resetScale2d', 'autoScale2d'],
-			modeBarButtonsToAdd: [
-				{
-					name: m.modebar_reset_axes(),
-					title: m.modebar_reset_axes(),
-					icon: Plotly?.Icons?.home ?? Plotly?.Icons?.autoscale,
-					click: (gd: HTMLElement) => {
-						restoreDefaultAxes(gd);
+			displaylogo: false,
+			modeBarButtons: [
+				[
+					{
+						name: m.modebar_reset_axes(),
+						title: m.modebar_reset_axes(),
+						icon: Plotly?.Icons?.home ?? Plotly?.Icons?.autoscale,
+						click: (gd: HTMLElement) => {
+							restoreDefaultAxes(gd);
+						}
+					},
+					{
+						name: m.modebar_download(),
+						title: m.modebar_download(),
+						icon: Plotly?.Icons?.camera,
+						click: (gd: HTMLElement) => {
+							// Filename stays ASCII and untranslated: it crosses filesystems and
+							// sync clients, where a localized name is a liability rather than a
+							// courtesy.
+							void Plotly?.downloadImage(gd, {
+								format: 'png',
+								filename: 'retirement-projection',
+								width: 1600,
+								height: 900,
+								scale: 2
+							});
+						}
 					}
-				}
+				]
 			]
 		};
 

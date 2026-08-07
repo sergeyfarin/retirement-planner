@@ -26,6 +26,21 @@ declare module 'plotly.js/lib/core' {
 		relayout(element: HTMLElement, update: PlotlyLayout): Promise<unknown>;
 		purge(element: HTMLElement): void;
 		register(modules: unknown): void;
+		/**
+		 * Backs the custom download button on the timeline chart. The built-in `toImage`
+		 * modebar entry would do the same work, but takes its tooltip from Plotly's locale
+		 * dictionaries — see the modebar comment in `PlannerTimelinePlot.svelte`.
+		 */
+		downloadImage(
+			element: HTMLElement,
+			opts: {
+				format: 'png' | 'jpeg' | 'webp' | 'svg';
+				filename?: string;
+				width?: number;
+				height?: number;
+				scale?: number;
+			}
+		): Promise<string>;
 		/** Built-in modebar icons; present on the bundle but not part of the documented API. */
 		readonly Icons?: Record<string, unknown>;
 	}

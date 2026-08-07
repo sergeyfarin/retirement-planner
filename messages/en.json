@@ -289,6 +289,7 @@
 	"axis_age": "Age",
 	"axis_portfolio_value": "Portfolio value ({symbol})",
 	"modebar_reset_axes": "Reset axes",
+	"modebar_download": "Download chart as PNG",
 
 	"chart_surface_title_spending_only": "How spending changes the chance of staying funded to age {age}",
 	"chart_surface_title_full": "How retirement timing and spending change the chance of staying funded to age {age}",

@@ -1006,6 +1006,13 @@ Notes for anyone touching this:
   stay near their English length; `src/lib/styles/i18n.css` carries the wrapping,
   hyphenation and step-down rules that absorb the rest. Add a language by checking the
   input panel at its 300px minimum before considering it done.
+- **The timeline chart's modebar is two custom buttons**, not Plotly's built-ins. Plotly
+  localises its own toolbar from community-contributed dictionaries, and of the nine
+  languages here `pl.js` ships an empty dictionary while `nl.js` is missing four of the
+  labels we would need — registering the matching Plotly locale would leave some users
+  with an English toolbar. `displaylogo: false` removes the logo for the same reason. Box
+  and lasso select go with them; drag-to-zoom, double-click-to-reset and Reset axes are
+  drag and event behaviour and still work.
 - **The share link carries its language** (`l` in the `#s=` payload), applied in
   `src/routes/+layout.ts` before the first render via `overwriteGetLocale`, not
   `setLocale`. A link opens in the language its author saw it in without repointing the

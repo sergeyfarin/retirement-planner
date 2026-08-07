@@ -289,6 +289,7 @@
 	"axis_age": "Età",
 	"axis_portfolio_value": "Valore del portafoglio ({symbol})",
 	"modebar_reset_axes": "Reimposta assi",
+	"modebar_download": "Scarica il grafico in PNG",
 
 	"chart_surface_title_spending_only": "Come la spesa cambia la probabilità di restare finanziato fino a {age} anni",
 	"chart_surface_title_full": "Come il momento della pensione e la spesa cambiano la probabilità di restare finanziato fino a {age} anni",

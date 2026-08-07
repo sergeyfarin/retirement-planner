@@ -289,6 +289,7 @@
 	"axis_age": "Alter",
 	"axis_portfolio_value": "Portfoliowert ({symbol})",
 	"modebar_reset_axes": "Achsen zurücksetzen",
+	"modebar_download": "Diagramm als PNG herunterladen",
 
 	"chart_surface_title_spending_only": "Wie Ausgaben die Chance verändern, bis Alter {age} finanziert zu bleiben",
 	"chart_surface_title_full": "Wie Rentenzeitpunkt und Ausgaben die Chance verändern, bis Alter {age} finanziert zu bleiben",

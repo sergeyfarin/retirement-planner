@@ -289,6 +289,7 @@
 	"axis_age": "Âge",
 	"axis_portfolio_value": "Valeur du portefeuille ({symbol})",
 	"modebar_reset_axes": "Réinitialiser les axes",
+	"modebar_download": "Télécharger le graphique en PNG",
 
 	"chart_surface_title_spending_only": "Comment les dépenses changent la probabilité de rester financé jusqu'à {age} ans",
 	"chart_surface_title_full": "Comment la date de départ et les dépenses changent la probabilité de rester financé jusqu'à {age} ans",

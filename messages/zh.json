@@ -289,6 +289,7 @@
 	"axis_age": "年龄",
 	"axis_portfolio_value": "组合价值 ({symbol})",
 	"modebar_reset_axes": "重置坐标轴",
+	"modebar_download": "下载图表为 PNG",
 
 	"chart_surface_title_spending_only": "支出如何改变资金维持到 {age} 岁的概率",
 	"chart_surface_title_full": "退休时点与支出如何改变资金维持到 {age} 岁的概率",

@@ -289,6 +289,7 @@
 	"axis_age": "Wiek",
 	"axis_portfolio_value": "Wartość portfela ({symbol})",
 	"modebar_reset_axes": "Resetuj osie",
+	"modebar_download": "Pobierz wykres jako PNG",
 
 	"chart_surface_title_spending_only": "Jak wydatki zmieniają szansę na sfinansowanie do wieku {age}",
 	"chart_surface_title_full": "Jak moment emerytury i wydatki zmieniają szansę na sfinansowanie do wieku {age}",
