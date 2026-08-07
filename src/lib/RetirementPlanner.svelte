@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
 	import { onDestroy, onMount, tick } from 'svelte';
-	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
+	import type { PlotlyApi } from './plotly';
 	import type { CurrencyOption } from './plannerTypes';
 	import { createSimulationWorker } from './workerHelper';
 	import { randomId } from './randomId';
@@ -44,6 +44,10 @@
 	import { buildActionableRecommendations } from './actionableHeadline';
 	import { additionalIncomeDefaults } from './incomeDefaults';
 	import { SHARE_INPUT_SCALARS, decodeShareHash, parseShareState, toBase64Url } from './shareState';
+	import LanguageSwitcher from './components/LanguageSwitcher.svelte';
+	import { m } from './paraglide/messages';
+	import { getLocale, setLocale } from './paraglide/runtime';
+	import type { Locale } from './i18n';
 	import './retirement.css';
 
 	// ─── Types ──────────────────────────────────────────────────────────────────
@@ -167,28 +171,28 @@
 			code: 'WORLD',
 			locale: 'en-US',
 			symbol: '$',
-			buttonLabel: 'World ($)',
+			buttonLabel: m.currency_world(),
 			flagAsset: asset('/assets/flags/world.svg')
 		},
 		{
 			code: 'USD',
 			locale: 'en-US',
 			symbol: '$',
-			buttonLabel: 'US ($)',
+			buttonLabel: m.currency_us(),
 			flagAsset: asset('/assets/flags/us.svg')
 		},
 		{
 			code: 'GBP',
 			locale: 'en-GB',
 			symbol: '£',
-			buttonLabel: 'UK (£)',
+			buttonLabel: m.currency_uk(),
 			flagAsset: asset('/assets/flags/uk.svg')
 		},
 		{
 			code: 'EUR',
 			locale: 'de-DE',
 			symbol: '€',
-			buttonLabel: 'Europe (€)',
+			buttonLabel: m.currency_eu(),
 			flagAsset: asset('/assets/flags/eu.svg')
 		}
 	];
@@ -1084,7 +1088,7 @@
 	let spendingPeriods: SpendingPeriod[] = $state([
 		{
 			id: 'sp-default',
-			label: 'Living expenses',
+			label: m.row_default_living_expenses(),
 			fromAge: 35,
 			toAge: 90,
 			yearlyAmount: 32000,
@@ -1097,7 +1101,7 @@
 			...spendingPeriods,
 			{
 				id: `sp-${Date.now()}`,
-				label: 'Extra spending',
+				label: m.row_default_extra_spending(),
 				fromAge: input.currentAge,
 				toAge: input.currentAge + 5,
 				yearlyAmount: 5000,
@@ -1136,7 +1140,7 @@
 	let incomeSources: IncomeSource[] = $state([
 		{
 			id: 'is-default',
-			label: 'Salary',
+			label: m.row_default_salary(),
 			fromAge: 35,
 			toAge: 50,
 			yearlyAmount: 65000,
@@ -1144,7 +1148,7 @@
 		},
 		{
 			id: 'is-pension',
-			label: 'Pension / Social security',
+			label: m.row_default_pension(),
 			fromAge: 67,
 			toAge: 90,
 			yearlyAmount: 15000,
@@ -1243,7 +1247,7 @@
 			...lumpSumEvents,
 			{
 				id: `ls-${Date.now()}`,
-				label: 'One-time event',
+				label: m.row_default_one_time_event(),
 				age: input.retirementAge,
 				amount: -10000 // default: expense
 			}
@@ -1393,25 +1397,32 @@
 	const realReturnCdfXTicksTop = $derived(
 		(() => {
 			if (realReturnStdEstimate <= 1e-9) return [];
+			// `kind` rather than matching on the label text: the mean and break-even ticks read
+			// differently from the sigma ticks, and their labels are now translated, so they
+			// can no longer identify themselves.
 			const topPoints = [
-				{ sig: '-2σ', z: -2, p: 0.02275 },
-				{ sig: '-1σ', z: -1, p: 0.15865 },
-				{ sig: 'Mean', z: 0, p: 0.5 },
-				{ sig: '+1σ', z: 1, p: 0.84135 },
-				{ sig: '+2σ', z: 2, p: 0.97725 },
-				{ sig: '0%', z: (0 - realReturnEstimate) / realReturnStdEstimate, p: zeroReturnPercentile }
+				{ sig: '-2σ', kind: 'sigma', z: -2, p: 0.02275 },
+				{ sig: '-1σ', kind: 'sigma', z: -1, p: 0.15865 },
+				{ sig: m.cdf_tick_mean(), kind: 'mean', z: 0, p: 0.5 },
+				{ sig: '+1σ', kind: 'sigma', z: 1, p: 0.84135 },
+				{ sig: '+2σ', kind: 'sigma', z: 2, p: 0.97725 },
+				{
+					sig: '',
+					kind: 'breakeven',
+					z: (0 - realReturnEstimate) / realReturnStdEstimate,
+					p: zeroReturnPercentile
+				}
 			];
 			return topPoints.map((pt) => {
 				const value = realReturnEstimate + pt.z * realReturnStdEstimate;
 
 				let pLabel = `P${Math.round(pt.p * 100)}`;
 				let valLabel = fmtSignedPercent(value, 1);
-				let sigLabel = pt.sig;
+				const sigLabel = pt.sig;
 
-				if (pt.sig === 'Mean') {
-					pLabel = 'Arith.';
-				} else if (pt.sig === '0%') {
-					sigLabel = '';
+				if (pt.kind === 'mean') {
+					pLabel = m.cdf_tick_arithmetic();
+				} else if (pt.kind === 'breakeven') {
 					valLabel = '0%';
 				}
 
@@ -1581,6 +1592,7 @@
 		return {
 			v: 1,
 			c: selectedCurrencyCode,
+			l: getLocale(),
 			m: input.simulationMode,
 			t: input.historicalMomentTargeting ? 1 : 0,
 			ws: $state.snapshot(input.withdrawalStrategy) ?? { ...DEFAULT_WITHDRAWAL_STRATEGY },
@@ -1645,6 +1657,16 @@
 		return true;
 	}
 
+	/**
+	 * Joined here rather than in the markup so the sentence boundary carries a real space:
+	 * two adjacent mustaches around an `{#if}` render with nothing between them.
+	 */
+	const completedRunNote = $derived.by(() => {
+		const shown = m.status_note_showing({ count: fmtNum(lastSimulatedCount) });
+		if (lastSimulatedSeed === null) return shown;
+		return `${shown} ${m.status_note_seed({ seed: lastSimulatedSeed })}`;
+	});
+
 	let shareLinkCopied = $state(false);
 
 	async function copyShareLink() {
@@ -1656,8 +1678,24 @@
 			shareLinkCopied = true;
 			setTimeout(() => (shareLinkCopied = false), 2000);
 		} catch {
-			window.prompt('Copy this link:', url);
+			window.prompt(m.copy_link_prompt(), url);
 		}
+	}
+
+	/**
+	 * Changing language reloads the page, because the labels a completed run has already
+	 * handed to Plotly (legend entries, axis titles, hover templates) are baked into the
+	 * chart and would otherwise stay in the previous language. The current scenario is
+	 * written to the share hash first and restored on the way back in, so the reload
+	 * costs the user nothing but the re-run.
+	 */
+	function switchLocale(locale: Locale) {
+		// `l` is overridden rather than taken from `buildShareState`, which reports the
+		// locale being left behind — the layout reads this hash back on the reload below
+		// and would otherwise restore the old language.
+		const encoded = toBase64Url(JSON.stringify({ ...buildShareState(), l: locale }));
+		history.replaceState(null, '', `#s=${encoded}`);
+		void setLocale(locale);
 	}
 
 	function restoreFromShareHash() {
@@ -1668,7 +1706,7 @@
 	}
 
 	onMount(async () => {
-		const module = await import('plotly.js-cartesian-dist-min');
+		const module = await import('./plotly');
 		Plotly = module.default ?? module;
 
 		try {
@@ -1681,12 +1719,10 @@
 				lastAppliedReferenceCurrency = '';
 				applyReferenceDefaults(selectedCurrencyCode);
 			} else {
-				historicalDataLoadError =
-					'Historical market dataset could not be loaded; using fallback assumptions.';
+				historicalDataLoadError = m.historical_data_load_error();
 			}
 		} catch {
-			historicalDataLoadError =
-				'Historical market dataset could not be loaded; using fallback assumptions.';
+			historicalDataLoadError = m.historical_data_load_error();
 		}
 
 		restoreFromShareHash();
@@ -1740,7 +1776,7 @@
 
 		running = true;
 		runningProgress = 0;
-		runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations…`;
+		runStatusMessage = m.run_status_running({ count: requestedSimulations });
 
 		// Terminate any existing worker immediately
 		if (activeWorker) {
@@ -1764,7 +1800,8 @@
 					incomeSources: effectiveIncomeSources,
 					lumpSumEvents,
 					months: validated.months,
-					retireMonth: validated.retireMonth
+					retireMonth: validated.retireMonth,
+					locale: getLocale()
 				});
 
 				const msg: WorkerInputMessage = {
@@ -1784,18 +1821,21 @@
 						} else if (e.data.type === 'SIMULATION_PROGRESS') {
 							runningProgress = e.data.payload.progress;
 							if (runningProgress >= 0.9) {
-								runStatusMessage = `Almost done. Processing results…`;
+								runStatusMessage = m.run_status_almost_done();
 							} else if (runningProgress <= 0) {
-								runStatusMessage = `Initializing Rust engine…`;
+								runStatusMessage = m.run_status_initializing();
 							} else {
-								runStatusMessage = `Running Monte Carlo with ${requestedSimulations} simulations… (${Math.round(runningProgress * 100)}%)`;
+								runStatusMessage = m.run_status_progress({
+									count: requestedSimulations,
+									percent: Math.round(runningProgress * 100)
+								});
 							}
 						}
 					}
 				};
 
 				activeWorker!.onerror = (err) => {
-					reject(new Error(`Worker failed: ${err.message}`));
+					reject(new Error(m.worker_failed({ message: err.message })));
 				};
 
 				activeWorker!.postMessage(msg);
@@ -1807,7 +1847,7 @@
 			lastSimulatedFingerprint = fingerprintForThisRun;
 			lastSimulatedCount = workerResult.simCount;
 			lastSimulatedSeed = seedForThisRun;
-			runStatusMessage = `${fmtNum(workerResult.simCount)} Monte Carlo simulations completed.`;
+			runStatusMessage = m.run_status_completed({ count: fmtNum(workerResult.simCount) });
 		} catch (err: unknown) {
 			errorMessage = err instanceof Error ? err.message : String(err);
 			runStatusMessage = '';
@@ -1885,7 +1925,7 @@
 				type: 'scatter',
 				mode: 'lines',
 				line: { color: '#334155', width: 1.3 },
-				hovertemplate: 'Real return %{x:.1%}<br>Probability %{y:.0%}<extra></extra>',
+				hovertemplate: m.cdf_hover({ x: '%{x:.1%}', y: '%{y:.0%}' }),
 				showlegend: false
 			},
 			{
@@ -1899,7 +1939,7 @@
 					color: percentileValues.map((value) => (value >= 0 ? '#16a34a' : '#dc2626')),
 					line: { color: '#ffffff', width: 1 }
 				},
-				hovertemplate: 'Real return %{x:.1%}<br>Probability %{y:.0%}<extra></extra>',
+				hovertemplate: m.cdf_hover({ x: '%{x:.1%}', y: '%{y:.0%}' }),
 				showlegend: false
 			}
 		];
@@ -1988,21 +2028,21 @@
 <div class="retirement-planner">
 	<div class="page-header">
 		<div>
-			<h2>FIRE Retirement Monte Carlo Planner</h2>
+			<h2>{m.app_title()}</h2>
 		</div>
-		<nav class="header-links" aria-label="Project links">
-			<a
-				href="https://github.com/sergeyfarin/retirement-planner"
-				target="_blank"
-				rel="noopener noreferrer">GitHub</a
-			>
-			<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">My home page</a>
-		</nav>
+		<div class="header-controls">
+			<LanguageSwitcher onSelect={switchLocale} />
+			<nav class="header-links" aria-label={m.header_links_aria()}>
+				<a
+					href="https://github.com/sergeyfarin/retirement-planner"
+					target="_blank"
+					rel="noopener noreferrer">{m.link_github()}</a
+				>
+				<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">{m.link_homepage()}</a>
+			</nav>
+		</div>
 	</div>
-	<p class="disclaimer-top">
-		For education and planning exploration only—not financial, tax, or retirement advice.
-		Projections are not guarantees, and historical market data does not predict future returns.
-	</p>
+	<p class="disclaimer-top">{m.disclaimer_top()}</p>
 
 	<div class="workspace">
 		<PlannerInputPanel
@@ -2070,35 +2110,31 @@
 					<div>
 						<strong>
 							{#if running}
-								Computing Monte Carlo Simulation…
+								{m.status_computing()}
 							{:else if inputsChangedSinceLastRun}
-								Inputs Changed — Re-run Required
+								{m.status_inputs_changed()}
 							{:else if resultStage === 'final'}
-								Simulation Up to Date
+								{m.status_up_to_date()}
 							{:else}
-								Ready to Simulate
+								{m.status_ready()}
 							{/if}
 						</strong>
 						<p class="note">
 							{#if running}
-								{runStatusMessage || 'Running...'}
+								{runStatusMessage || m.status_running_generic()}
 							{:else if inputsChangedSinceLastRun}
-								Your inputs have changed since the last run. Click "Run Monte Carlo" to update the
-								results below.
+								{m.status_note_inputs_changed()}
 							{:else if resultStage === 'final'}
-								Showing results for {fmtNum(lastSimulatedCount)} simulations.{#if lastSimulatedSeed !== null}
-									Seed:
-									{lastSimulatedSeed} (enter it in Advanced tuning → Random Seed to reproduce this exact
-									result).{/if}
+								{completedRunNote}
 							{:else}
-								Click "Run Monte Carlo" to generate your retirement forecast.
+								{m.status_note_ready()}
 							{/if}
-							<br />Monetary results are inflation-adjusted and shown in today's purchasing power.
+							<br />{m.status_note_real_terms()}
 						</p>
 					</div>
 					<div class="status-controls">
 						<label>
-							Simulations
+							{m.label_simulations()}
 							<input
 								type="text"
 								inputmode="numeric"
@@ -2112,17 +2148,17 @@
 						<button
 							disabled={running || (!inputsChangedSinceLastRun && resultStage === 'final')}
 							onclick={() => void runSimulation()}
-							title="Run a massive Monte Carlo simulation on background thread."
+							title={m.btn_run_title()}
 						>
-							{running ? 'Running…' : 'Run Monte Carlo'}
+							{running ? m.btn_running() : m.btn_run_monte_carlo()}
 						</button>
 						{#if resultStage === 'final' && !running}
 							<button
 								class="btn-share"
 								onclick={() => void copyShareLink()}
-								title="Copies a link that restores these exact inputs and seed."
+								title={m.btn_share_title()}
 							>
-								{shareLinkCopied ? 'Link copied ✓' : 'Copy share link'}
+								{shareLinkCopied ? m.btn_link_copied() : m.btn_copy_share_link()}
 							</button>
 						{/if}
 					</div>

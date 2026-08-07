@@ -17,13 +17,15 @@ for its own `assets/historical-market-data.json`, served from the same origin.
 Fonts are self-hosted under `static/fonts/` (Inter and JetBrains Mono, both SIL OFL, licence
 files included) rather than loaded from a CDN, so no third party observes a page load.
 
-Charts use **`plotly.js-cartesian-dist-min`**, not the full distribution. The cartesian
-bundle registers scatter, bar and heatmap — every trace this app draws — while omitting the
-geo, mapbox and gl modules, which is where the full build's map-tile hosts (mapbox,
-OpenStreetMap, carto, openmaptiles) live. That removes them from the shipped output rather
-than relying on them never being reached, and takes the bundle from 4.7 MB to 1.4 MB. What
-remains in it is one inert schema default (`topojsonURL`, consumable only by geo traces that
-are not in the bundle) plus licence and XML-namespace strings. The other external URLs in
+Charts use a **custom Plotly bundle** (`src/lib/plotly.ts`), not a prebuilt distribution:
+`plotly.js/lib/core` plus exactly the four traces the app draws — scatter, bar, heatmap and
+contour. Everything else Plotly can render is never imported, and so is never in the output.
+That excludes the geo, mapbox and gl modules, which is where the full build's map-tile hosts
+(mapbox, OpenStreetMap, carto, openmaptiles) live — removed from the shipped output rather
+than relying on them never being reached. The bundle is 1.12 MB (370 KB gzipped), against
+4.7 MB for the full distribution and 1.42 MB for the prebuilt cartesian one this replaced.
+What remains in it is one inert schema default (`topojsonURL`, consumable only by geo traces
+that are not in the bundle) plus licence and XML-namespace strings. The other external URLs in
 the build are ordinary `<a href>` links to the project repository, the author's home page,
 and data sources in the methodology panel; they are contacted only if you click them.
 
@@ -969,6 +971,52 @@ node scripts/preprocess-retirement-market-data.mjs
 The preprocessing step writes to `static/`, which is what SvelteKit serves. Verify data
 changes through the running app, not just the generated file — an earlier version wrote
 to `public/`, and the app silently kept using a months-old dataset.
+
+### Localisation
+
+The UI ships in English, German, Spanish, French, Italian, Dutch, Polish, Russian and
+Chinese, compiled by [Paraglide JS](https://paraglidejs.com) from `messages/<locale>.json`
+into `src/lib/paraglide/` (generated, gitignored). Locales are declared in
+`project.inlang/settings.json`.
+
+```bash
+pnpm run i18n:compile   # also run by `prepare`, `check`, and the Vite plugin
+```
+
+Notes for anyone touching this:
+
+- **Locale resolution is `localStorage → browser language → English`.** There is no `url`
+  strategy: the app is a static single-route SPA, so a locale path segment would mean
+  prerendering the same page nine times. The switcher in the page header writes
+  `localStorage` and reloads, first serialising the current scenario into the `#s=` share
+  hash so the reload restores it. The reload is deliberate — a completed run has already
+  handed its legend entries, axis titles and hover templates to Plotly, and those do not
+  re-render on their own.
+- **The strategy list is written twice**, in `vite.config.ts` and in the `i18n:compile`
+  script. Both must match: the CLI's own default (`cookie`/`globalVariable`/`baseLocale`)
+  will otherwise overwrite the generated runtime whenever `check` or `prepare` runs.
+- **The worker is passed the locale explicitly** (`WorkerInputMessage.payload.locale`).
+  `simulationValidation.ts` is reachable from `retirementWorker.ts`, and Paraglide's
+  `localStorage` strategy throws inside a worker, where there is no `localStorage`.
+- **Plotly template tokens are not message placeholders.** `%{y:.0f}` would be parsed as a
+  variable named `y:.0f`, so hover templates use named placeholders (`{y}`) and the call
+  site passes the Plotly token in.
+- **Length is a layout constraint here.** The assumptions sheet is `table-layout: fixed`
+  and the data tables are fixed-fraction grids, so column heads and row labels need to
+  stay near their English length; `src/lib/styles/i18n.css` carries the wrapping,
+  hyphenation and step-down rules that absorb the rest. Add a language by checking the
+  input panel at its 300px minimum before considering it done.
+- **The share link carries its language** (`l` in the `#s=` payload), applied in
+  `src/routes/+layout.ts` before the first render via `overwriteGetLocale`, not
+  `setLocale`. A link opens in the language its author saw it in without repointing the
+  recipient's own stored preference. This is the one benefit of URL-path locales that
+  applies to a single-route SPA whose deployed HTML is an empty shell; the rest — no
+  flash of the base language, no hydration mismatch, indexability — is either already
+  true or would need real prerendered content first.
+- **User-editable defaults are seeded once.** The starting row labels ("Salary", "Living
+  expenses") are translated when the app first mounts, but a scenario restored from a
+  share link keeps whatever labels it carries — those are user data by then, and
+  re-translating them would overwrite edits.
 
 ---
 

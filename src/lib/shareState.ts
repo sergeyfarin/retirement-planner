@@ -7,6 +7,7 @@ import {
 	type WithdrawalStrategy
 } from './retirementEngine';
 import { randomId } from './randomId';
+import { locales } from './paraglide/runtime';
 
 /**
  * Share links carry a base64 payload that becomes application state on load, so every
@@ -192,6 +193,12 @@ function sanitizeCashflowRows<T extends { id?: unknown; label?: unknown }>(
  */
 export type RestoredShareState = {
 	currencyCode: string | null;
+	/**
+	 * The language the link was built in, so a shared plan reads the way its author saw
+	 * it. Applied before first render (see `src/routes/+layout.ts`) and deliberately not
+	 * persisted: a link should not silently repoint someone's own language preference.
+	 */
+	locale: string | null;
 	simulationMode: 'historical' | 'parametric' | null;
 	momentTargeting: boolean;
 	withdrawalStrategy: WithdrawalStrategy | null;
@@ -302,6 +309,13 @@ export function parseShareState(
 
 	return {
 		currencyCode: typeof payload.c === 'string' && isKnownCurrency(payload.c) ? payload.c : null,
+		// Checked against the compiled locale list rather than an injected predicate: unlike
+		// the currency table, which lives in the UI, the set of locales is a build-time fact
+		// of the message catalogue.
+		locale:
+			typeof payload.l === 'string' && (locales as readonly string[]).includes(payload.l)
+				? payload.l
+				: null,
 		simulationMode: payload.m === 'historical' || payload.m === 'parametric' ? payload.m : null,
 		momentTargeting: payload.t === 1,
 		withdrawalStrategy,

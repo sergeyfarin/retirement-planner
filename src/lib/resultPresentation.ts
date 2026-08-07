@@ -1,7 +1,13 @@
 export type ResultTone = 'neutral' | 'good' | 'warn' | 'caution' | 'bad';
 
+/**
+ * A key rather than a sentence: this module has no locale, and the card that renders
+ * the verdict does. Keep the four keys in step with `verdict_*` in `messages/`.
+ */
+export type LifetimeVerdictKey = 'on-track' | 'needs-adjustment' | 'at-risk' | 'unlikely-to-last';
+
 export type LifetimeVerdict = {
-	label: 'On track' | 'Needs adjustment' | 'At risk' | 'Unlikely to last';
+	key: LifetimeVerdictKey;
 	tone: ResultTone;
 	nearBoundary: number | null;
 };
@@ -29,14 +35,14 @@ export function lifetimeVerdict(
 	sampleSize: number,
 	target = 0.95
 ): LifetimeVerdict {
-	const label =
+	const key: LifetimeVerdictKey =
 		probability >= target
-			? 'On track'
+			? 'on-track'
 			: probability >= 0.75
-				? 'Needs adjustment'
+				? 'needs-adjustment'
 				: probability >= 0.5
-					? 'At risk'
-					: 'Unlikely to last';
+					? 'at-risk'
+					: 'unlikely-to-last';
 	const tone =
 		probability >= target
 			? 'good'
@@ -51,7 +57,7 @@ export function lifetimeVerdict(
 	);
 
 	return {
-		label,
+		key,
 		tone: nearBoundary == null ? tone : 'neutral',
 		nearBoundary: nearBoundary ?? null
 	};

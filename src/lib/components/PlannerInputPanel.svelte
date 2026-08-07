@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { m } from '../paraglide/messages';
 	import type {
 		CurrencyCode,
 		HistoricalRegionDataset,
@@ -146,6 +147,24 @@
 	};
 	let showTaxInfo = $state(false);
 
+	/**
+	 * The dataset labels its regions in English ("Euro area"), and the label is shown in
+	 * two places in this panel. Map by the code the panel already has rather than
+	 * translating strings that arrive from a JSON file.
+	 */
+	const regionLabel = $derived.by(() => {
+		switch (selectedCurrencyCode) {
+			case 'USD':
+				return m.region_us();
+			case 'GBP':
+				return m.region_uk();
+			case 'EUR':
+				return m.region_eu();
+			default:
+				return m.region_world();
+		}
+	});
+
 	function setWithdrawalKind(kind: 'fixed' | 'guardrails' | 'percentOfPortfolio') {
 		input.withdrawalStrategy = {
 			...DEFAULT_WITHDRAWAL_STRATEGY,
@@ -170,7 +189,7 @@
 </script>
 
 <section class="left-panel">
-	<div class="currency-switch" role="group" aria-label="Currency selection">
+	<div class="currency-switch" role="group" aria-label={m.currency_switch_aria()}>
 		{#each CURRENCIES as c (c.code)}
 			<button
 				type="button"
@@ -190,14 +209,11 @@
 	<div class="card input-overview-card">
 		<div class="form-grid">
 			<label>
-				<span>Current<br />age</span>
+				<span>{m.field_current_age()}</span>
 				<input type="number" min="12" max="80" step="1" bind:value={input.currentAge} />
 			</label>
-			<label
-				class="already-retired"
-				title="Drawdown only: retirement starts today, so there is no saving phase."
-			>
-				<span>Already<br />retired</span>
+			<label class="already-retired" title={m.field_already_retired_title()}>
+				<span>{m.field_already_retired()}</span>
 				<span class="checkbox-control">
 					<input
 						type="checkbox"
@@ -207,22 +223,22 @@
 				</span>
 			</label>
 			<label class:input-disabled={alreadyRetired}>
-				<span>Retire at<br />age</span>
+				<span>{m.field_retire_at_age()}</span>
 				<input
 					type="number"
 					min="25"
 					max="80"
 					step="1"
 					disabled={alreadyRetired}
-					title={alreadyRetired ? 'Already retired — retirement is now, at your current age.' : ''}
+					title={alreadyRetired ? m.field_retire_disabled_title() : ''}
 					value={input.retirementAge}
 					onchange={(e) => {
 						input.retirementAge = numFromEvent(e);
 					}}
 				/>
 			</label>
-			<label title="A longer planning horizon provides a more conservative longevity stress test.">
-				<span>Plan until<br />age</span>
+			<label title={m.field_plan_until_title()}>
+				<span>{m.field_plan_until_age()}</span>
 				<input type="number" min="50" max="110" step="1" bind:value={input.simulateUntilAge} />
 			</label>
 		</div>
@@ -230,9 +246,10 @@
 			<div>
 				<div class="data-table">
 					<div class="table-header">
-						<span>Income sources</span><span>From</span><span>To</span><span>Yearly</span><span
+						<span>{m.th_income_sources()}</span><span>{m.th_from()}</span><span>{m.th_to()}</span
+						><span>{m.th_yearly()}</span><span
 							class="inflation-cell"
-							title="Inflation-adjusted">Infl<br />adj.</span
+							title={m.title_inflation_adjusted()}>{m.th_inflation_adjusted_short()}</span
 						><span></span>
 					</div>
 					<!-- The salary row spans current age → retirement age, an interval that is empty
@@ -240,10 +257,10 @@
 					     amount for anyone who unticks the box. -->
 					{#each incomeSources.filter((src: { id: string }) => !(alreadyRetired && src.id === 'is-default')) as src (src.id)}
 						<div class="table-row">
-							<input type="text" bind:value={src.label} placeholder="Salary" />
+							<input type="text" bind:value={src.label} placeholder={m.placeholder_salary()} />
 
 							{#if src.id === 'is-default'}
-								<div class="readonly-age-cell" aria-label="Salary starts at current age">
+								<div class="readonly-age-cell" aria-label={m.aria_salary_starts()}>
 									{fmtNum(input.currentAge)}
 								</div>
 							{:else}
@@ -251,11 +268,11 @@
 							{/if}
 
 							{#if src.id === 'is-default'}
-								<div class="readonly-age-cell" aria-label="Salary ends at retirement age">
+								<div class="readonly-age-cell" aria-label={m.aria_salary_ends()}>
 									{fmtNum(input.retirementAge)}
 								</div>
 							{:else if src.id === 'is-pension'}
-								<div class="readonly-age-cell" aria-label="Pension ends at plan-until age">
+								<div class="readonly-age-cell" aria-label={m.aria_pension_ends()}>
 									{fmtNum(input.simulateUntilAge)}
 								</div>
 							{:else}
@@ -276,8 +293,8 @@
 									class="inflation-flag"
 									type="checkbox"
 									bind:checked={src.inflationAdjusted}
-									title="Inflation-adjusted"
-									aria-label="Inflation-adjusted income"
+									title={m.title_inflation_adjusted()}
+									aria-label={m.aria_inflation_adjusted_income()}
 								/>
 							</span>
 							{#if src.id !== 'is-default' && src.id !== 'is-pension'}
@@ -288,23 +305,24 @@
 						</div>
 					{/each}
 				</div>
-				<button class="btn-add" onclick={addIncomeSource}>+ Add income</button>
+				<button class="btn-add" onclick={addIncomeSource}>{m.btn_add_income()}</button>
 			</div>
 
 			<div class="section-split">
 				<div class="data-table">
 					<div class="table-header">
-						<span>Expenses</span><span>From</span><span>To</span><span>Yearly</span><span
-							class="inflation-cell"
-							title="Inflation-adjusted">Infl<br />adj.</span
+						<span>{m.th_expenses()}</span><span>{m.th_from()}</span><span>{m.th_to()}</span><span
+							>{m.th_yearly()}</span
+						><span class="inflation-cell" title={m.title_inflation_adjusted()}
+							>{m.th_inflation_adjusted_short()}</span
 						><span></span>
 					</div>
 					{#each spendingPeriods as period (period.id)}
 						<div class="table-row">
-							<input type="text" bind:value={period.label} placeholder="Living" />
+							<input type="text" bind:value={period.label} placeholder={m.placeholder_living()} />
 
 							{#if period.id === 'sp-default'}
-								<div class="readonly-age-cell" aria-label="Living expenses starts at current age">
+								<div class="readonly-age-cell" aria-label={m.aria_living_starts()}>
 									{fmtNum(input.currentAge)}
 								</div>
 							{:else}
@@ -318,7 +336,7 @@
 							{/if}
 
 							{#if period.id === 'sp-default'}
-								<div class="readonly-age-cell" aria-label="Living expenses end at plan-until age">
+								<div class="readonly-age-cell" aria-label={m.aria_living_ends()}>
 									{fmtNum(input.simulateUntilAge)}
 								</div>
 							{:else}
@@ -339,8 +357,8 @@
 									class="inflation-flag"
 									type="checkbox"
 									bind:checked={period.inflationAdjusted}
-									title="Inflation-adjusted"
-									aria-label="Inflation-adjusted spending"
+									title={m.title_inflation_adjusted()}
+									aria-label={m.aria_inflation_adjusted_spending()}
 								/>
 							</span>
 							{#if period.id !== 'sp-default'}
@@ -352,21 +370,22 @@
 						</div>
 					{/each}
 				</div>
-				<button class="btn-add" onclick={addSpendingPeriod}>+ Add period</button>
-				<p class="note">Income left after expenses is assumed to be invested.</p>
+				<button class="btn-add" onclick={addSpendingPeriod}>{m.btn_add_period()}</button>
+				<p class="note">{m.note_surplus_invested()}</p>
 			</div>
 
 			<div class="section-split">
-				<p class="eyebrow">One-Time Events</p>
-				<p class="note">Enter one-time amounts in today's purchasing power.</p>
+				<p class="eyebrow">{m.eyebrow_one_time_events()}</p>
+				<p class="note">{m.note_one_time_today()}</p>
 				{#if lumpSumEvents.length > 0}
 					<div class="data-table data-table-events">
 						<div class="table-header">
-							<span>Label</span><span>Age</span><span>Amount</span><span></span>
+							<span>{m.th_label()}</span><span>{m.th_age()}</span><span>{m.th_amount()}</span><span
+							></span>
 						</div>
 						{#each lumpSumEvents as evt (evt.id)}
 							<div class="table-row">
-								<input type="text" bind:value={evt.label} placeholder="Tuition" />
+								<input type="text" bind:value={evt.label} placeholder={m.placeholder_tuition()} />
 								<input type="number" min="0" step="1" bind:value={evt.age} />
 								<input
 									type="text"
@@ -382,31 +401,27 @@
 						{/each}
 					</div>
 				{:else}
-					<p class="note">No one-time events added.</p>
+					<p class="note">{m.note_no_one_time_events()}</p>
 				{/if}
-				<button class="btn-add" onclick={addLumpSumEvent}>+ Add event</button>
+				<button class="btn-add" onclick={addLumpSumEvent}>{m.btn_add_event()}</button>
 			</div>
 		</div>
 
 		<div class="section-split withdrawal-strategy-block">
 			<p class="eyebrow">
-				Spending in retirement
-				<span
-					class="strategy-hint"
-					title="How your retirement spending responds to how the portfolio actually performs."
-					>(?)</span
-				>
+				{m.eyebrow_spending_in_retirement()}
+				<span class="strategy-hint" title={m.strategy_hint_title()}>(?)</span>
 			</p>
-			<div class="strategy-toggle-group" role="group" aria-label="Withdrawal strategy">
+			<div class="strategy-toggle-group" role="group" aria-label={m.aria_withdrawal_strategy()}>
 				<button
 					type="button"
 					class="btn-mode"
 					class:active={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
 					onclick={() => setWithdrawalKind('fixed')}
 					aria-pressed={(input.withdrawalStrategy?.kind ?? 'fixed') === 'fixed'}
-					title="Spend the same amount every year, adjusted for inflation. Simple, but ignores market performance."
+					title={m.strategy_fixed_title()}
 				>
-					Fixed<br />(steady)
+					{m.strategy_fixed()}
 				</button>
 				<button
 					type="button"
@@ -414,9 +429,9 @@
 					class:active={input.withdrawalStrategy?.kind === 'guardrails'}
 					onclick={() => setWithdrawalKind('guardrails')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'guardrails'}
-					title="Simplified withdrawal-rate guardrails inspired by Guyton-Klinger: trim spending when the withdrawal rate rises beyond its band, and raise it when the rate falls below the band."
+					title={m.strategy_guardrails_title()}
 				>
-					Guardrails<br />(adaptive)
+					{m.strategy_guardrails()}
 				</button>
 				<button
 					type="button"
@@ -424,16 +439,16 @@
 					class:active={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
 					onclick={() => setWithdrawalKind('percentOfPortfolio')}
 					aria-pressed={input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
-					title="Recalculate portfolio-funded spending annually from the current balance. Spending adapts, but the floor, market losses, taxes, and other outflows mean the portfolio can still run out."
+					title={m.strategy_percent_of_portfolio_title()}
 				>
-					% of portfolio
+					{m.strategy_percent_of_portfolio()}
 				</button>
 			</div>
 
 			{#if input.withdrawalStrategy?.kind === 'guardrails'}
 				<div class="strategy-params">
 					<label>
-						Guardrail band
+						{m.label_guardrail_band()}
 						<input
 							type="text"
 							inputmode="decimal"
@@ -442,7 +457,7 @@
 						/>
 					</label>
 					<label>
-						Adjustment step
+						{m.label_adjustment_step()}
 						<input
 							type="text"
 							inputmode="decimal"
@@ -452,16 +467,15 @@
 					</label>
 				</div>
 				<p class="note strategy-note">
-					Cuts or raises spending by the adjustment step whenever your withdrawal rate drifts past
-					the band from its starting level. Spending stays within {fmtPercentDisplay(
-						input.withdrawalStrategy.spendingFloor ?? 0.6,
-						0
-					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your planned amount.
+					{m.note_strategy_guardrails({
+						floor: fmtPercentDisplay(input.withdrawalStrategy.spendingFloor ?? 0.6, 0),
+						ceiling: fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)
+					})}
 				</p>
 			{:else if input.withdrawalStrategy?.kind === 'percentOfPortfolio'}
 				<div class="strategy-params">
 					<label>
-						Withdraw each year
+						{m.label_withdraw_each_year()}
 						<input
 							type="text"
 							inputmode="decimal"
@@ -472,23 +486,19 @@
 					</label>
 				</div>
 				<p class="note strategy-note">
-					Spends this share of the current balance each year, clamped to {fmtPercentDisplay(
-						input.withdrawalStrategy.spendingFloor ?? 0.6,
-						0
-					)}–{fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)} of your planned amount
-					so income never collapses or balloons.
+					{m.note_strategy_percent({
+						floor: fmtPercentDisplay(input.withdrawalStrategy.spendingFloor ?? 0.6, 0),
+						ceiling: fmtPercentDisplay(input.withdrawalStrategy.spendingCeiling ?? 1.4, 0)
+					})}
 				</p>
 			{:else}
-				<p class="note strategy-note">
-					Keeps planned real spending unchanged regardless of portfolio performance — the
-					conventional assumption behind fixed-withdrawal analyses such as the “4% rule”.
-				</p>
+				<p class="note strategy-note">{m.note_strategy_fixed()}</p>
 			{/if}
 		</div>
 
 		<div class="allocation-control">
 			<label>
-				Portfolio ({selectedCurrency.symbol})
+				{m.label_portfolio_amount({ symbol: selectedCurrency.symbol })}
 				<input
 					type="text"
 					inputmode="numeric"
@@ -500,12 +510,16 @@
 				/>
 			</label>
 			<div class="allocation-head">
-				<span>Investment split</span>
+				<span>{m.label_investment_split()}</span>
 				<span class="mono-value"
-					>Stocks {stockAllocationPercent}% · Bonds {bondAllocationPercent}% · Bank {bankAllocationPercent}%</span
+					>{m.allocation_summary({
+						stocks: stockAllocationPercent,
+						bonds: bondAllocationPercent,
+						bank: bankAllocationPercent
+					})}</span
 				>
 			</div>
-			<div class="allocation-slider-wrap" aria-label="Investment split slider">
+			<div class="allocation-slider-wrap" aria-label={m.aria_investment_split_slider()}>
 				<div class="allocation-track">
 					<span class="allocation-segment stocks" style={`width: ${stockAllocationPercent}%`}
 					></span>
@@ -526,7 +540,7 @@
 					step="1"
 					bind:value={stockBoundaryPercent}
 					oninput={onStockBoundaryChange}
-					aria-label="Stocks allocation boundary"
+					aria-label={m.aria_stocks_boundary()}
 				/>
 				<input
 					class="allocation-range allocation-range-top"
@@ -536,7 +550,7 @@
 					step="1"
 					bind:value={bondBoundaryPercent}
 					oninput={onBondBoundaryChange}
-					aria-label="Bonds allocation boundary"
+					aria-label={m.aria_bonds_boundary()}
 				/>
 			</div>
 		</div>
@@ -549,47 +563,44 @@
 		}}
 	>
 		<summary>
-			Advanced assumptions
+			{m.summary_advanced_assumptions()}
 			<span class="assumptions-summary-line">
 				{#if input.simulationMode === 'parametric'}
-					parametric (user inputs)
+					{m.assumptions_mode_parametric()}
 				{:else if selectedHistoricalRegion}
-					{selectedHistoricalRegion.label} history {selectedHistoricalRegion.coverage}{input.historicalMomentTargeting
-						? ' (adjusted)'
-						: ''}
+					{m.assumptions_mode_historical({
+						region: regionLabel,
+						coverage: selectedHistoricalRegion.coverage
+					})}{input.historicalMomentTargeting ? m.assumptions_mode_adjusted_suffix() : ''}
 				{:else}
-					fallback assumptions
+					{m.assumptions_mode_fallback()}
 				{/if}
-				· {fmtPercentDisplay(input.annualFeePercent, 1)} fees · {fmtPercentDisplay(
-					input.taxOnGainsPercent,
-					0
-				)} tax — open to customize the model
+				{m.assumptions_summary_tail({
+					fees: fmtPercentDisplay(input.annualFeePercent, 1),
+					tax: fmtPercentDisplay(input.taxOnGainsPercent, 0)
+				})}
 			</span>
 		</summary>
 
 		<div class="simulation-mode-section">
 			{#if selectedHistoricalRegion}
 				<p class="assumption-context-line historical-dataset-line">
-					<strong>Data available to both Historical modes:</strong>
-					{selectedHistoricalRegion.label},
-					{selectedHistoricalRegion.sampleSize} complete years ({selectedHistoricalRegion.annualCoverage ??
-						selectedHistoricalRegion.coverage}); monthly
-					{selectedHistoricalRegion.monthlyCoverage ?? 'coverage unavailable'}.
+					<strong>{m.historical_data_available_label()}</strong>
+					{m.historical_dataset_line({
+						region: regionLabel,
+						sampleSize: selectedHistoricalRegion.sampleSize,
+						coverage: selectedHistoricalRegion.annualCoverage ?? selectedHistoricalRegion.coverage,
+						monthly: selectedHistoricalRegion.monthlyCoverage ?? m.coverage_unavailable()
+					})}
 					{#if showHistoricalMethodologyInfo}
-						<br />This dataset supplies return sequences to both Historical modes; Parametric mode
-						does not use them. Equity returns are estimated monthly total-return proxies from Stooq
-						price indices, with synthetic dividends where needed and foreign World indices converted
-						to USD. Bonds use synthetic 10Y total returns from yield change plus carry; bank/cash
-						uses short-rate proxies. Unadjusted Historical mode jointly replays CPI and returns from
-						the same months. Adjusted Historical and Parametric modes use modelled inflation.
-						Sources:
+						<br />{m.historical_methodology()}
 						<a href="https://stooq.com/q/d/" target="_blank" rel="noopener noreferrer">Stooq</a>,
 						<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED</a
-						>, and the
+						>,
 						<a
 							href="https://github.com/sergeyfarin/retirement-planner#31-historical-sources-per-region"
 							target="_blank"
-							rel="noopener noreferrer">full methodology</a
+							rel="noopener noreferrer">{m.link_full_methodology()}</a
 						>.
 					{/if}
 					<button
@@ -600,13 +611,13 @@
 						}}
 						aria-expanded={showHistoricalMethodologyInfo}
 					>
-						{showHistoricalMethodologyInfo ? 'less info' : 'more info'}
+						{showHistoricalMethodologyInfo ? m.link_less_info() : m.link_more_info()}
 					</button>
 				</p>
 			{:else if historicalDataLoadError}
 				<p class="assumption-context-line">{historicalDataLoadError}</p>
 			{/if}
-			<div class="simulation-mode-options" role="group" aria-label="Simulation mode selection">
+			<div class="simulation-mode-options" role="group" aria-label={m.aria_simulation_mode()}>
 				<div class="simulation-mode-option">
 					<button
 						type="button"
@@ -618,9 +629,9 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
-						title="Replays real market history. Stitches together runs of actual past months in their original order. Returns and inflation are taken from the same real months, so the two stay linked. Averages match history and cannot be edited — the table below is read-only in this mode."
+						title={m.mode_historical_sampling_title()}
 					>
-						Historical<br />Data Sampling
+						{m.mode_historical_sampling()}
 					</button>
 				</div>
 				<div class="simulation-mode-option">
@@ -634,9 +645,9 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'historical' && input.historicalMomentTargeting}
-						title="The same real market history, rescaled to return targets you choose. Keeps history's shape — the crashes, recoveries and clustering — while sliding average return and volatility to your numbers. Use it to ask 'what if returns are worse than the past?'. Trade-off: inflation reverts to a modelled draw, so the return/inflation link is lost."
+						title={m.mode_historical_adjusted_title()}
 					>
-						Historical <br />(with Adjustments)
+						{m.mode_historical_adjusted()}
 					</button>
 				</div>
 				<div class="simulation-mode-option">
@@ -650,57 +661,51 @@
 							onSimulationSettingsChange();
 						}}
 						aria-pressed={input.simulationMode === 'parametric'}
-						title="Uses no historical data. Returns are generated from a statistical model built only from the numbers you enter, via a two-state growth/crisis regime switcher with fat-tailed draws. Most flexible and least anchored to reality — for exploring hypothetical markets rather than planning against history."
+						title={m.mode_parametric_title()}
 					>
-						Parametric<br />(User Inputs)
+						{m.mode_parametric()}
 					</button>
 				</div>
 			</div>
 			<div class="assumption-context">
 				<p class="assumption-context-line">
 					{#if input.simulationMode === 'parametric'}
-						<strong>Uses no historical data.</strong> Returns are generated from a statistical model built
-						only from the numbers you enter below. Most flexible, least anchored to what markets actually
-						did.
+						<strong>{m.context_parametric_strong()}</strong>
+						{m.context_parametric_rest()}
 					{:else if input.historicalMomentTargeting}
-						<strong>Real history, rescaled to your targets.</strong> Keeps the shape of history — the
-						crashes, recoveries and clustering — but slides average return and volatility to the values
-						you set below. Answers “what if returns are worse than the past?”. Inflation falls back to
-						a modelled draw in this mode.
+						<strong>{m.context_adjusted_strong()}</strong>
+						{m.context_adjusted_rest()}
 					{:else}
-						<strong>Replays real market history.</strong> Stitches together runs of actual past months
-						in their original order. Returns and inflation come from the same real months, so high-inflation
-						periods land on the markets that truly accompanied them. Averages match history, so the table
-						below is read-only.
+						<strong>{m.context_historical_strong()}</strong>
+						{m.context_historical_rest()}
 					{/if}
 				</p>
 				{#if currentConditions}
 					<p class="assumption-context-line current-yields-row">
-						<strong>Preset for adjusted historical assumptions:</strong>
+						<strong>{m.preset_adjusted_label()}</strong>
 						<button
 							type="button"
 							class="btn-preset current-yields-btn"
 							onclick={applyCurrentConditions}
-							title="Use the latest yields embedded in this dataset plus the historical equity risk premium as editable return assumptions. These are dated observations, not live market data."
+							title={m.btn_use_current_yields_title()}
 						>
-							Use 2025–2026 yields
+							{m.btn_use_current_yields()}
 						</button>
 						<span>
-							{fmtPercentDisplay(currentConditions.metrics.bankMean, 1)} cash ·
-							{fmtPercentDisplay(currentConditions.metrics.bondMean, 1)} bonds ·
-							{fmtPercentDisplay(currentConditions.metrics.stockMean, 1)} stocks (as of
-							{currentConditions.asOf})
+							{m.current_yields_summary({
+								cash: fmtPercentDisplay(currentConditions.metrics.bankMean, 1),
+								bonds: fmtPercentDisplay(currentConditions.metrics.bondMean, 1),
+								stocks: fmtPercentDisplay(currentConditions.metrics.stockMean, 1),
+								asOf: currentConditions.asOf
+							})}
 						</span>
 					</p>
 				{/if}
 
 				{#if selectedHistoricalRegion}
 					{#if input.simulationMode === 'historical' && !input.historicalMomentTargeting && input.historicalMonthlyInflation?.length}
-						<p
-							class="assumption-context-line"
-							title="Each simulated month draws its return and its inflation from the same real historical month, so high-inflation periods land on the same months as weak markets — and inflation keeps its real-world persistence."
-						>
-							<strong>✓ Inflation sampled jointly with returns from history</strong>
+						<p class="assumption-context-line" title={m.joint_inflation_title()}>
+							<strong>{m.joint_inflation_text()}</strong>
 						</p>
 					{/if}
 				{/if}
@@ -711,23 +716,17 @@
 				<thead>
 					<tr>
 						<th></th>
-						<th
-							title="The arithmetic mean is the mathematical center used to generate random Monte Carlo paths."
-							>Arith. Input</th
-						>
-						<th title="The statistical standard deviation (volatility).">Vola-<br />tility</th>
-						<th
-							title="Expected Compound Annual Growth Rate (Geometric Mean). Growth over time is dragged down by volatility: CAGR ≈ Arithmetic Mean - Volatility²/2"
-							>CAGR (Geom)</th
-						>
-						<th>Skew</th>
-						<th>Kurt</th>
-						<th>Reset</th>
+						<th title={m.th_arith_input_title()}>{m.th_arith_input()}</th>
+						<th title={m.th_volatility_title()}>{m.th_volatility()}</th>
+						<th title={m.th_cagr_title()}>{m.th_cagr()}</th>
+						<th>{m.th_skew()}</th>
+						<th>{m.th_kurt()}</th>
+						<th>{m.th_reset()}</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
-						<td>Stocks</td>
+						<td>{m.row_stocks()}</td>
 						<td
 							><input
 								type="text"
@@ -753,10 +752,12 @@
 							/></td
 						>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(investmentMetrics.stockStd * investmentMetrics.stockStd) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay(
+									(investmentMetrics.stockStd * investmentMetrics.stockStd) / 2,
+									2
+								)
+							})}
 							>{fmtPercentDisplay(
 								investmentMetrics.stockMean -
 									(investmentMetrics.stockStd * investmentMetrics.stockStd) / 2,
@@ -793,13 +794,13 @@
 								class="assumptions-reset-cell-btn"
 								onclick={resetStockMetricsToDefault}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
-								>Reset</button
+								>{m.btn_reset()}</button
 							></td
 						>
 					</tr>
 
 					<tr>
-						<td>Bonds</td>
+						<td>{m.row_bonds()}</td>
 						<td
 							><input
 								type="text"
@@ -825,10 +826,12 @@
 							/></td
 						>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(investmentMetrics.bondStd * investmentMetrics.bondStd) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay(
+									(investmentMetrics.bondStd * investmentMetrics.bondStd) / 2,
+									2
+								)
+							})}
 							>{fmtPercentDisplay(
 								investmentMetrics.bondMean -
 									(investmentMetrics.bondStd * investmentMetrics.bondStd) / 2,
@@ -865,13 +868,13 @@
 								class="assumptions-reset-cell-btn"
 								onclick={resetBondMetricsToDefault}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
-								>Reset</button
+								>{m.btn_reset()}</button
 							></td
 						>
 					</tr>
 
 					<tr>
-						<td>Cash</td>
+						<td>{m.row_cash()}</td>
 						<td
 							><input
 								type="text"
@@ -897,10 +900,12 @@
 							/></td
 						>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(investmentMetrics.bankStd * investmentMetrics.bankStd) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay(
+									(investmentMetrics.bankStd * investmentMetrics.bankStd) / 2,
+									2
+								)
+							})}
 							>{fmtPercentDisplay(
 								investmentMetrics.bankMean -
 									(investmentMetrics.bankStd * investmentMetrics.bankStd) / 2,
@@ -937,12 +942,12 @@
 								class="assumptions-reset-cell-btn"
 								onclick={resetBankMetricsToDefault}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
-								>Reset</button
+								>{m.btn_reset()}</button
 							></td
 						>
 					</tr>
 					<tr>
-						<td>Equity-bond <br />correlation</td>
+						<td>{m.row_equity_bond_correlation()}</td>
 						<td
 							><input
 								type="text"
@@ -967,14 +972,13 @@
 						class:positive-return-row={input.meanReturn >= 0}
 						class:negative-return-row={input.meanReturn < 0}
 					>
-						<td>Portfolio</td>
+						<td>{m.row_portfolio()}</td>
 						<td>{fmtPercentDisplay(input.meanReturn, 1)}</td>
 						<td>{fmtPercentDisplay(input.returnVariability, 1)}</td>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(input.returnVariability * input.returnVariability) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay((input.returnVariability * input.returnVariability) / 2, 2)
+							})}
 							>{fmtPercentDisplay(
 								input.meanReturn - (input.returnVariability * input.returnVariability) / 2,
 								1
@@ -988,7 +992,7 @@
 					<tr class="assumptions-separator"><td colspan="7"></td></tr>
 
 					<tr>
-						<td>Inflation</td>
+						<td>{m.row_inflation()}</td>
 						<td
 							><input
 								type="text"
@@ -1014,10 +1018,12 @@
 							/></td
 						>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(input.inflationVariability * input.inflationVariability) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay(
+									(input.inflationVariability * input.inflationVariability) / 2,
+									2
+								)
+							})}
 							>{fmtPercentDisplay(
 								input.inflationMean - (input.inflationVariability * input.inflationVariability) / 2,
 								1
@@ -1053,13 +1059,13 @@
 								class="assumptions-reset-cell-btn"
 								onclick={resetInflationToDefault}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
-								>Reset</button
+								>{m.btn_reset()}</button
 							></td
 						>
 					</tr>
 
 					<tr>
-						<td>Annual fees</td>
+						<td>{m.row_annual_fees()}</td>
 						<td
 							><input
 								type="text"
@@ -1077,16 +1083,13 @@
 						<td></td>
 						<td
 							><button type="button" class="assumptions-reset-cell-btn" onclick={resetDragToDefault}
-								>Reset</button
+								>{m.btn_reset()}</button
 							></td
 						>
 					</tr>
 
 					<tr>
-						<td
-							title="Applied once a year to positive real mark-to-market investment gains (losses untaxed), whether or not assets are sold."
-							>Tax drag on real gains</td
-						>
+						<td title={m.row_tax_drag_title()}>{m.row_tax_drag()}</td>
 						<td
 							><input
 								type="text"
@@ -1108,19 +1111,10 @@
 					<tr>
 						<td colspan="7">
 							<p class="assumption-context-line tax-caveat">
-								<strong>Tax is simplified.</strong> It is a rough drag on returns, not a tax
-								estimate.
+								<strong>{m.tax_caveat_strong()}</strong>
+								{m.tax_caveat_short()}
 								{#if showTaxInfo}
-									It is one flat rate charged every year on that year's gains, whether or not you
-									sold anything — closer to an annual mark-to-market return tax than to capital
-									gains tax. It is charged on the
-									<em>real</em>
-									(inflation-adjusted) gain, while most tax systems tax the nominal gain, so high-inflation
-									paths are taxed too lightly. There are no account types: no ISA, 401(k), IRA, Roth,
-									SIPP or Box 3, no tax-free allowances, no withdrawal ordering between accounts, and
-									no required minimum distributions. Treat it as a rough drag on returns, not as your
-									tax bill — if your savings are mostly in tax-sheltered accounts, a lower rate is usually
-									the better approximation.
+									{m.tax_caveat_long()}
 								{/if}
 								<button
 									type="button"
@@ -1128,7 +1122,7 @@
 									onclick={() => (showTaxInfo = !showTaxInfo)}
 									aria-expanded={showTaxInfo}
 								>
-									{showTaxInfo ? 'less info' : 'more info'}
+									{showTaxInfo ? m.link_less_info() : m.link_more_info()}
 								</button>
 							</p>
 						</td>
@@ -1139,14 +1133,13 @@
 						class:positive-return-row={realReturnEstimate >= 0}
 						class:negative-return-row={realReturnEstimate < 0}
 					>
-						<td>Real return</td>
+						<td>{m.row_real_return()}</td>
 						<td>{fmtPercentDisplay(realReturnEstimate, 1)}</td>
 						<td>{fmtPercentDisplay(realReturnStdEstimate, 1)}</td>
 						<td
-							title="Variance Drag ≈ {fmtPercentDisplay(
-								(realReturnStdEstimate * realReturnStdEstimate) / 2,
-								2
-							)}"
+							title={m.variance_drag_title({
+								value: fmtPercentDisplay((realReturnStdEstimate * realReturnStdEstimate) / 2, 2)
+							})}
 							>{fmtPercentDisplay(
 								realReturnEstimate - (realReturnStdEstimate * realReturnStdEstimate) / 2,
 								1
@@ -1160,24 +1153,20 @@
 			</table>
 		</div>
 		<div class="real-return-cdf-wrap">
-			<p class="note mono-value">
-				<br />Real return cumulative probability <br />(68% and 95% ranges shaded)
-			</p>
+			<p class="note mono-value"><br />{m.cdf_caption()}</p>
 			<div
 				class="real-return-cdf"
 				bind:this={realReturnCdfEl}
 				role="img"
-				aria-label="Real return cumulative probability plot"
+				aria-label={m.cdf_aria()}
 			></div>
 		</div>
 	</details>
 	<details class="card expert-tuning-card">
-		<summary>Expert simulation tuning</summary>
+		<summary>{m.summary_expert_tuning()}</summary>
 		<div class="expert-tuning-fields">
 			<div class="expert-tuning-field">
-				<label for="adv-block-length"
-					>Historical replay length (bootstrap block length, months)</label
-				>
+				<label for="adv-block-length">{m.label_block_length()}</label>
 				<div class="expert-tuning-control">
 					<input
 						id="adv-block-length"
@@ -1188,18 +1177,17 @@
 						bind:value={input.blockLength}
 						oninput={onSimulationSettingsChange}
 						class="expert-tuning-input"
-						title="How many consecutive real months are replayed before jumping elsewhere in history. Longer blocks preserve longer historical runs; shorter blocks preserve only short-run dependence. Six months is provisional: Politis-White is a short-block diagnostic, not a retirement-path optimum."
+						title={m.block_length_title()}
 					/>
 					<span class="expert-tuning-note">
-						Consecutive real months replayed before jumping elsewhere in history.
-						<strong>The main lever on how long historical runs remain intact.</strong> Six months is provisional;
-						Politis-White supports short blocks for variance estimation, not a unique retirement-path
-						optimum.
+						{m.block_length_note_lead()}
+						<strong>{m.block_length_note_strong()}</strong>
+						{m.block_length_note_tail()}
 					</span>
 				</div>
 			</div>
 			<div class="expert-tuning-field">
-				<label for="adv-crisis-jump">Crisis Inflation Jump</label>
+				<label for="adv-crisis-jump">{m.label_crisis_inflation_jump()}</label>
 				<div class="expert-tuning-control">
 					<input
 						id="adv-crisis-jump"
@@ -1211,21 +1199,21 @@
 							onSimulationSettingsChange();
 						}}
 						class="expert-tuning-input"
-						title="How much higher inflation runs during a simulated crisis than in calm periods. This only bites when inflation is modelled rather than taken from history — Parametric mode, or Historical (with Adjustments). In plain Historical Data Sampling it does nothing, because inflation is read from the same real month as the return."
+						title={m.crisis_inflation_jump_title()}
 					/>
 					<span class="expert-tuning-note">
-						Extra inflation during simulated crises.
+						{m.crisis_inflation_note_lead()}
 						{#if input.historicalMonthlyInflation?.length}
-							<strong>No effect in the current mode</strong> — inflation is being read from real history
-							rather than modelled.
+							<strong>{m.crisis_inflation_no_effect_strong()}</strong>
+							{m.crisis_inflation_no_effect_tail()}
 						{:else}
-							Active in this mode, because inflation is modelled rather than read from history.
+							{m.crisis_inflation_active()}
 						{/if}
 					</span>
 				</div>
 			</div>
 			<div class="expert-tuning-field">
-				<label for="adv-seed">Random Seed</label>
+				<label for="adv-seed">{m.label_random_seed()}</label>
 				<div class="expert-tuning-control">
 					<input
 						id="adv-seed"
@@ -1239,10 +1227,7 @@
 						}}
 						class="expert-tuning-input expert-tuning-input-wide"
 					/>
-					<span class="expert-tuning-note"
-						>Leave blank for a fresh random seed each run. Set a value to reproduce an exact result
-						— the seed actually used is shown after each run completes.</span
-					>
+					<span class="expert-tuning-note">{m.random_seed_note()}</span>
 				</div>
 			</div>
 		</div>

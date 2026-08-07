@@ -1,5 +1,9 @@
 allowBuilds:
   '@swc/core': true
+  # Reached only through plotly.js's gl traces (gl-text, regl-line2d), which the custom
+  # bundle in src/lib/plotly.ts never imports. Its postinstall is a funding notice wrapped
+  # in try/catch, so nothing needs it to run.
+  es5-ext: false
   esbuild: true
 overrides:
   cookie: 0.7.2

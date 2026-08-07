@@ -30,3 +30,6 @@ vite.config.ts.timestamp-*
 # Rust
 rust-engine/pkg
 rust-engine/target
+
+# Paraglide (generated from messages/ by the vite plugin)
+/src/lib/paraglide

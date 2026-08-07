@@ -1,3 +1,4 @@
+import { m } from './paraglide/messages';
 import type { IncomeSource } from './retirementEngine';
 
 export type AdditionalIncomeDefaults = Omit<IncomeSource, 'id'>;
@@ -16,7 +17,7 @@ export function additionalIncomeDefaults(
 	const suggestedEnd = bridgeToPension ? pensionStartAge : retirementAge + 5;
 
 	return {
-		label: 'Part-time work',
+		label: m.row_default_part_time_work(),
 		fromAge: retirementAge,
 		toAge: Math.min(planEndAge, suggestedEnd),
 		yearlyAmount: 15_000,

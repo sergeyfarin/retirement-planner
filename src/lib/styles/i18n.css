@@ -1,0 +1,181 @@
+/*
+ * Translation fit.
+ *
+ * The layout was drawn around English, which is the shortest language this app now
+ * ships. "Volatility" becomes "Volatilität", "Infl. adj." becomes "Infl.corr.", and
+ * "Equity-bond correlation" becomes "Correlación acciones-bonos" — every one of those
+ * lands in a fixed-width grid column or a `table-layout: fixed` cell, where the old
+ * `white-space: nowrap` / single-line assumptions produced overflow rather than a
+ * second line.
+ *
+ * The rules below are deliberately generic: they let dense labels wrap, hyphenate and
+ * shrink one step rather than hard-coding a size per language, so a future locale needs
+ * no new CSS. Loaded last so it wins over the region sheets.
+ */
+
+/* ─── Anything narrow may wrap ────────────────────────────────────── */
+.table-header > span,
+.assumptions-table th,
+.assumptions-table td:first-child,
+.allocation-head > span,
+.form-grid > label > span:first-child,
+:where(.retirement-planner) button.btn-mode,
+.currency-btn,
+.stat-table caption,
+.stat-table th[scope='row'] {
+	overflow-wrap: anywhere;
+	hyphens: auto;
+	white-space: normal;
+}
+
+/* ─── Field grid: two-line labels without the hard-coded <br> ─────── */
+/*
+ * The four top fields used literal `<br />` to force "Current / age" onto two lines.
+ * Translations break in different places (and Chinese does not break at all), so the
+ * height is reserved here and the browser chooses the break.
+ */
+.form-grid > label > span:first-child {
+	display: block;
+	min-height: 2.3em;
+	letter-spacing: 0.03em;
+	line-height: 1.15;
+}
+
+.already-retired {
+	white-space: normal;
+}
+
+/* ─── Editable data tables ───────────────────────────────────────── */
+.table-header > span {
+	line-height: 1.1;
+	letter-spacing: 0.02em;
+}
+
+/*
+ * The inflation column is a checkbox under a two-or-three-word head. Give the head its
+ * own step down rather than widening the column, which would squeeze the amount field.
+ */
+.table-header .inflation-cell {
+	font-size: 0.54rem;
+	text-align: center;
+}
+
+/* ─── Assumptions sheet ──────────────────────────────────────────── */
+/*
+ * Row labels are nouns ("Steuerlast auf reale Gewinne", "Correlazione azioni-obbligazioni")
+ * and need more than the 18% English got; the six numeric columns lose the difference,
+ * which they can afford because they hold short formatted values.
+ */
+.assumptions-table th:first-child,
+.assumptions-table td:first-child {
+	width: 21%;
+	line-height: 1.15;
+}
+
+.assumptions-table th:nth-child(n + 2):nth-child(-n + 6),
+.assumptions-table td:nth-child(n + 2):nth-child(-n + 6) {
+	width: 13.8%;
+}
+
+.assumptions-table th:nth-child(7),
+.assumptions-table td:nth-child(7) {
+	width: 10%;
+}
+
+.assumptions-table th {
+	line-height: 1.1;
+	letter-spacing: 0.02em;
+	vertical-align: bottom;
+}
+
+.assumptions-table .assumptions-reset-cell-btn {
+	overflow: hidden;
+	font-size: 0.55rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ─── Mode and strategy toggles ──────────────────────────────────── */
+/*
+ * Three equal columns holding phrases like "Historische Datenziehung". Height comes
+ * from content, with the English height as the floor so the row does not shrink.
+ */
+:where(.retirement-planner) button.btn-mode {
+	line-height: 1.2;
+	text-align: center;
+	hyphens: auto;
+}
+
+.simulation-mode-option > .btn-mode {
+	height: 100%;
+	padding-inline: 0.35rem;
+	font-size: var(--text-micro);
+}
+
+.withdrawal-strategy-block .strategy-toggle-group .btn-mode {
+	padding-inline: 0.35rem;
+	font-size: var(--text-micro);
+}
+
+/* ─── Currency switch ────────────────────────────────────────────── */
+.currency-btn {
+	padding-inline: 0.35rem;
+	font-size: var(--text-small);
+	hyphens: auto;
+}
+
+/* ─── Allocation summary ─────────────────────────────────────────── */
+.allocation-head {
+	flex-wrap: wrap;
+}
+
+.allocation-head .mono-value {
+	font-size: var(--text-micro);
+}
+
+/* ─── Result cards ───────────────────────────────────────────────── */
+/*
+ * Two-column stat tables: the label column is prose and the value column is a formatted
+ * number. Let the label take the slack and keep the number on one line.
+ */
+.stat-table th[scope='row'] {
+	line-height: 1.3;
+}
+
+.stat-table td.mono-value {
+	white-space: nowrap;
+}
+
+/* ─── Page header ────────────────────────────────────────────────── */
+.header-controls {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.3rem;
+}
+
+@media (max-width: 600px) {
+	.header-controls {
+		align-items: flex-start;
+	}
+
+	.header-controls .language-switch {
+		justify-content: flex-start;
+	}
+}
+
+/* ─── Scripts without word spaces ────────────────────────────────── */
+/*
+ * Chinese has no spaces to break at, so `overflow-wrap: anywhere` is what keeps it
+ * inside a fixed column; the uppercase micro-label treatment is meaningless there and
+ * its letter-spacing only makes the line longer.
+ */
+:root:lang(zh) .eyebrow,
+:root:lang(zh) :where(.retirement-planner) label,
+:root:lang(zh) .table-header,
+:root:lang(zh) .assumptions-table th,
+:root:lang(zh) .stat-table caption,
+:root:lang(zh) .diagnostics-grid h4 {
+	letter-spacing: 0;
+	text-transform: none;
+}

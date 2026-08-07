@@ -1,11 +1,7 @@
 <script lang="ts">
-	import type {
-		PlotlyAnnotation,
-		PlotlyApi,
-		PlotlyHTMLElement,
-		PlotlyShape
-	} from 'plotly.js-cartesian-dist-min';
+	import type { PlotlyAnnotation, PlotlyApi, PlotlyHTMLElement, PlotlyShape } from '../plotly';
 	import { onDestroy, untrack } from 'svelte';
+	import { m } from '../paraglide/messages';
 	import { percentile as calcPercentile } from '../calculations';
 	import type {
 		LumpSumEvent,
@@ -42,7 +38,7 @@
 		fmtHoverCompactCurrency: (value: number) => string;
 	} = $props();
 	const withdrawalRuleLabel = $derived(
-		`${Number((safeWithdrawalRate * 100).toFixed(2))}% rule target`
+		m.withdrawal_rule_label({ rate: Number((safeWithdrawalRate * 100).toFixed(2)) })
 	);
 
 	let chartEl: HTMLDivElement | null = $state(null);
@@ -267,7 +263,7 @@
 			{
 				x: ages,
 				y: p.p50,
-				name: 'Median outcome',
+				name: m.trace_median_outcome(),
 				line: { color: '#15803d', width: 2.5 },
 				type: 'scatter',
 				customdata: p.p50.map((v: number, index: number) => [
@@ -278,8 +274,7 @@
 					fmtHoverCompactCurrency(p.p10[index]),
 					fmtHoverCompactCurrency(p.p05[index])
 				]),
-				hovertemplate:
-					'<b>Age %{x:.1f}</b><br>P90 %{customdata[0]}<br>P75 %{customdata[1]}<br>Median %{customdata[2]}<br>P25 %{customdata[3]}<br>P10 %{customdata[4]}<br>P5 downside %{customdata[5]}<extra></extra>'
+				hovertemplate: `<b>${m.hover_label_age()} %{x:.1f}</b><br>P90 %{customdata[0]}<br>P75 %{customdata[1]}<br>${m.hover_label_median()} %{customdata[2]}<br>P25 %{customdata[3]}<br>P10 %{customdata[4]}<br>${m.hover_label_p5_downside()} %{customdata[5]}<extra></extra>`
 			},
 			{
 				x: [...ages, ...ages.slice().reverse()],
@@ -287,7 +282,7 @@
 				fill: 'toself',
 				fillcolor: 'rgba(34,197,94,0.10)',
 				line: { width: 0 },
-				name: '80% of outcomes',
+				name: m.trace_80_percent(),
 				type: 'scatter',
 				hoverinfo: 'skip'
 			},
@@ -297,14 +292,14 @@
 				fill: 'toself',
 				fillcolor: 'rgba(34,197,94,0.22)',
 				line: { width: 0 },
-				name: '50% of outcomes',
+				name: m.trace_50_percent(),
 				type: 'scatter',
 				hoverinfo: 'skip'
 			},
 			{
 				x: ages,
 				y: p.p75,
-				name: 'P75 boundary',
+				name: m.trace_p75_boundary(),
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
 				type: 'scatter',
@@ -313,7 +308,7 @@
 			{
 				x: ages,
 				y: p.p25,
-				name: 'P25 boundary',
+				name: m.trace_p25_boundary(),
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.45)', width: 1.3 },
 				type: 'scatter',
@@ -322,7 +317,7 @@
 			{
 				x: ages,
 				y: p.p10,
-				name: 'P10 boundary',
+				name: m.trace_p10_boundary(),
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
 				type: 'scatter',
@@ -331,7 +326,7 @@
 			{
 				x: ages,
 				y: p.p90,
-				name: 'P90 boundary',
+				name: m.trace_p90_boundary(),
 				showlegend: false,
 				line: { color: 'rgba(21,128,61,0.35)', width: 1.2, dash: 'dot' },
 				type: 'scatter',
@@ -340,7 +335,7 @@
 			{
 				x: ages,
 				y: p.p05,
-				name: 'P5 downside boundary',
+				name: m.trace_p5_downside(),
 				line: { color: 'rgba(220,38,38,0.65)', width: 1.1, dash: 'dot' },
 				type: 'scatter',
 				hoverinfo: 'skip'
@@ -348,7 +343,7 @@
 			{
 				x: [ages[0], lastAge],
 				y: [fiTargetP95, fiTargetP95],
-				name: 'Simulation-based target (95% success)',
+				name: m.trace_simulation_target(),
 				type: 'scatter',
 				mode: 'lines',
 				line: { dash: 'dash', width: 1.5, color: '#ef4444' },
@@ -450,7 +445,7 @@
 				x: retirementAge,
 				y: 1,
 				yref: 'paper',
-				text: 'Target retirement year',
+				text: m.annotation_target_retirement_year(),
 				showarrow: false,
 				font: { size: 10, color: '#6b7280', family: 'Inter, system-ui, sans-serif' },
 				xanchor: 'left',
@@ -461,7 +456,7 @@
 		const layout = {
 			xaxis: {
 				title: {
-					text: 'Age',
+					text: m.axis_age(),
 					font: { size: 12, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				showgrid: false,
@@ -476,7 +471,7 @@
 			},
 			yaxis: {
 				title: {
-					text: `Portfolio value (${currencySymbol})`,
+					text: m.axis_portfolio_value({ symbol: currencySymbol }),
 					font: { size: 12, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				showgrid: true,
@@ -523,8 +518,8 @@
 			modeBarButtonsToRemove: ['resetScale2d', 'autoScale2d'],
 			modeBarButtonsToAdd: [
 				{
-					name: 'Reset axes',
-					title: 'Reset axes',
+					name: m.modebar_reset_axes(),
+					title: m.modebar_reset_axes(),
 					icon: Plotly?.Icons?.home ?? Plotly?.Icons?.autoscale,
 					click: (gd: HTMLElement) => {
 						restoreDefaultAxes(gd);
@@ -542,14 +537,9 @@
 <div class="card chart-card chart-card-main">
 	<div class="chart-card-heading">
 		<h3 class="card-title phase-title">
-			Portfolio projection — inflation-adjusted ({currencySymbol})
+			{m.chart_timeline_title({ symbol: currencySymbol })}
 		</h3>
 	</div>
 	<div class="chart" bind:this={chartEl}></div>
-	<p class="note">
-		Fan shows the middle 50% and 80% of outcomes; the thin red P5 line marks the downside level only
-		5% of balances fall below at each age. Dotted vertical = retirement; red dashed = simulation
-		target; orange dotted = {withdrawalRuleLabel}. Percentiles are month-by-month summaries, not
-		individual paths.
-	</p>
+	<p class="note">{m.chart_timeline_note({ rule: withdrawalRuleLabel })}</p>
 </div>

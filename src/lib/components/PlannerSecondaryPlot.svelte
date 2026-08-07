@@ -1,6 +1,7 @@
 <script lang="ts">
-	import type { PlotlyApi } from 'plotly.js-cartesian-dist-min';
+	import type { PlotlyApi } from '../plotly';
 	import { onDestroy, untrack } from 'svelte';
+	import { m } from '../paraglide/messages';
 	import type { SimulationResult, SummaryStats } from '../retirementEngine';
 
 	let {
@@ -184,10 +185,10 @@
 			line: spendingOnly ? undefined : { width: 0, smoothing: 0.75 },
 			showscale: true,
 			colorbar: {
-				title: { text: 'Chance funded', side: 'right' },
+				title: { text: m.surface_colorbar_title(), side: 'right' },
 				tickmode: 'array',
 				tickvals: [0, 0.5, 0.75, 0.9, 0.95, 0.99, 1].map(warpProbability),
-				ticktext: ['0%', '50%', '75%', '90%', '95% goal', '99%', '100%'],
+				ticktext: ['0%', '50%', '75%', '90%', m.surface_tick_goal(), '99%', '100%'],
 				tickfont: { family: "'JetBrains Mono', monospace", size: 9, color: '#334155' },
 				titlefont: { family: 'Inter, system-ui, sans-serif', size: 10, color: '#334155' },
 				ticks: 'outside',
@@ -201,8 +202,8 @@
 				yanchor: 'middle'
 			},
 			hovertemplate: spendingOnly
-				? 'Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.0%}<extra></extra>'
-				: 'Retire at age %{x}<br>Spending change %{y:.0f}%<br>Estimated chance funded %{customdata:.0%}<extra></extra>'
+				? m.surface_hover_spending_only({ y: '%{y:.0f}', p: '%{customdata:.0%}' })
+				: m.surface_hover_full({ x: '%{x}', y: '%{y:.0f}', p: '%{customdata:.0%}' })
 		};
 		const goalContour = {
 			type: 'contour',
@@ -241,7 +242,7 @@
 			{
 				x: retirementAge,
 				y: 0,
-				text: `<b>Your plan: ${Math.round(currentPlanProbability * 100)}%</b><br>chance funded`,
+				text: m.surface_ann_your_plan({ percent: Math.round(currentPlanProbability * 100) }),
 				showarrow: false,
 				xanchor: 'center',
 				yanchor: movingToSaferPlan ? 'bottom' : 'top',
@@ -268,7 +269,9 @@
 		scenarioAnnotations.push({
 			x: retirementAge,
 			y: spendingChanges[scenarioSpendingIndex],
-			text: `<b>Spend 10% ${movingToSaferPlan ? 'less' : 'more'}</b><br>${Math.round(spendingScenarioProbability * 100)}% chance funded`,
+			text: movingToSaferPlan
+				? m.surface_ann_spend_less({ percent: Math.round(spendingScenarioProbability * 100) })
+				: m.surface_ann_spend_more({ percent: Math.round(spendingScenarioProbability * 100) }),
 			showarrow: false,
 			xanchor: 'left',
 			yanchor: 'middle',
@@ -295,7 +298,10 @@
 			scenarioAnnotations.push({
 				x: retirementAges[scenarioAgeIndex],
 				y: 0,
-				text: `<b>Retire ${actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1)} years ${movingToSaferPlan ? 'later' : 'earlier'}</b><br>${Math.round(ageScenarioProbability * 100)}% chance funded`,
+				text: (movingToSaferPlan ? m.surface_ann_retire_later : m.surface_ann_retire_earlier)({
+					years: actualAgeChange.toFixed(actualAgeChange % 1 === 0 ? 0 : 1),
+					percent: Math.round(ageScenarioProbability * 100)
+				}),
 				showarrow: false,
 				xanchor: 'center',
 				yanchor: 'bottom',
@@ -306,17 +312,21 @@
 			});
 		}
 		const layout = {
-			margin: { t: 24, l: 72, r: 74, b: 52 },
+			// Left and right hold rotated axis and colorbar titles, which run longer in
+			// translation than the English they were measured against.
+			margin: { t: 24, l: 84, r: 84, b: 52 },
 			paper_bgcolor: 'transparent',
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
 				title: {
-					text: spendingOnly ? 'Already retired' : 'Retirement age',
+					text: spendingOnly ? m.surface_axis_already_retired() : m.surface_axis_retirement_age(),
 					font: { size: 11, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
 				tickvals: retirementTicks,
-				ticktext: retirementTicks.map((age) => (spendingOnly ? `age ${age} (now)` : `${age}`)),
+				ticktext: retirementTicks.map((age) =>
+					spendingOnly ? m.surface_tick_age_now({ age }) : `${age}`
+				),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
 				ticks: 'outside',
 				tickcolor: '#475569',
@@ -325,13 +335,17 @@
 			},
 			yaxis: {
 				title: {
-					text: 'Change annual spending',
+					text: m.surface_axis_change_spending(),
 					font: { size: 11, color: '#334155', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickmode: 'array',
 				tickvals: spendingTicks,
 				ticktext: spendingTicks.map((change) =>
-					change === 0 ? 'Current' : change > 0 ? `${change}% more` : `${Math.abs(change)}% less`
+					change === 0
+						? m.surface_tick_current()
+						: change > 0
+							? m.surface_tick_more({ value: change })
+							: m.surface_tick_less({ value: Math.abs(change) })
 				),
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
 				ticks: 'outside',
@@ -409,14 +423,15 @@
 		if (!Plotly || !sequenceRiskEl || !stats?.sequenceRisk?.length) return;
 
 		const plainLanguageBuckets = [
-			'Worst early returns',
-			'Below-average early returns',
-			'Typical early returns',
-			'Above-average early returns',
-			'Best early returns'
+			m.sequence_bucket_worst(),
+			m.sequence_bucket_below(),
+			m.sequence_bucket_typical(),
+			m.sequence_bucket_above(),
+			m.sequence_bucket_best()
 		];
 		const buckets = stats.sequenceRisk.map(
-			(_row, index) => plainLanguageBuckets[index] ?? `Group ${index + 1}`
+			(_row, index) =>
+				plainLanguageBuckets[index] ?? m.sequence_bucket_generic({ index: index + 1 })
 		);
 		const ruinProbabilities = stats.sequenceRisk.map((row) => row.ruinProbability);
 		const endingMedians = stats.sequenceRisk.map((row) => row.endingMedian);
@@ -426,26 +441,26 @@
 				type: 'bar',
 				x: buckets,
 				y: ruinProbabilities,
-				name: 'Ruin probability',
+				name: m.sequence_trace_ruin(),
 				marker: {
 					color: ruinProbabilities.map((value) =>
 						value >= 0.35 ? '#dc2626' : value <= 0.15 ? '#16a34a' : '#f59e0b'
 					)
 				},
 				yaxis: 'y',
-				hovertemplate: 'Bucket %{x}<br>Ruin %{y:.0%}<extra></extra>'
+				hovertemplate: m.sequence_hover_ruin({ x: '%{x}', y: '%{y:.0%}' })
 			},
 			{
 				type: 'scatter',
 				mode: 'lines+markers',
 				x: buckets,
 				y: endingMedians,
-				name: 'Ending median',
+				name: m.sequence_trace_ending_median(),
 				yaxis: 'y2',
 				line: { color: '#2563eb', width: 2 },
 				marker: { size: 6, color: '#2563eb' },
 				customdata: endingMedians.map((value) => fmtHoverCompactCurrency(value)),
-				hovertemplate: 'Bucket %{x}<br>Ending median %{customdata}<extra></extra>'
+				hovertemplate: m.sequence_hover_ending({ x: '%{x}', v: '%{customdata}' })
 			}
 		];
 
@@ -466,7 +481,7 @@
 			},
 			yaxis: {
 				title: {
-					text: 'Ruin %',
+					text: m.sequence_axis_ruin(),
 					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				tickformat: '.0%',
@@ -478,7 +493,7 @@
 			},
 			yaxis2: {
 				title: {
-					text: `Ending median (${currencySymbol})`,
+					text: m.sequence_axis_ending_median({ symbol: currencySymbol }),
 					font: { size: 10, color: '#64748b', family: 'Inter, system-ui, sans-serif' }
 				},
 				overlaying: 'y',
@@ -514,34 +529,26 @@
 		<div class="chart-card-heading">
 			<h3 class="card-title">
 				{stats.ruinSurface.retirementAges.length === 1
-					? `How spending changes the chance of staying funded to age ${simulateUntilAge}`
-					: `How retirement timing and spending change the chance of staying funded to age ${simulateUntilAge}`}
+					? m.chart_surface_title_spending_only({ age: simulateUntilAge })
+					: m.chart_surface_title_full({ age: simulateUntilAge })}
 			</h3>
 		</div>
 		<div class="ruin-surface-chart" bind:this={ruinSurfaceEl}></div>
-		<p class="chart-explainer">
-			Arrows show tested changes from your plan. The dark-green line marks the 95% goal.
-		</p>
+		<p class="chart-explainer">{m.surface_explainer()}</p>
 		{#if surfaceSampleCount > 0}
-			<p
-				class="note"
-				title="Each cell replays the same stored set of simulated market paths against that cell's retirement age and spending level. Because every cell reuses the same paths, differences between neighbouring cells are more reliable than each cell's own margin suggests."
-			>
-				Each grid point replays {surfaceSampleCount.toLocaleString()} paths (up to ±{worstCellMarginPercent.toFixed(
-					1
-				)}% sampling noise). Read the pattern, not a single percentage.
+			<p class="note" title={m.surface_noise_title()}>
+				{m.surface_noise_note({
+					count: surfaceSampleCount.toLocaleString(),
+					margin: worstCellMarginPercent.toFixed(1)
+				})}
 			</p>
 		{/if}
 	</div>
 
 	{#if showSequenceRisk && stats.sequenceRisk?.length}
 		<details class="card chart-card" ontoggle={handleSequenceRiskToggle}>
-			<summary>How much does the timing of market gains and losses matter?</summary>
-			<p class="chart-explainer">
-				This groups simulations by returns during the first ten years after retirement. Early losses
-				can do more damage because withdrawals leave less invested for a recovery. This is often
-				called sequence risk.
-			</p>
+			<summary>{m.sequence_chart_summary()}</summary>
+			<p class="chart-explainer">{m.sequence_chart_explainer()}</p>
 			<div class="sequence-risk-chart" bind:this={sequenceRiskEl}></div>
 		</details>
 	{/if}

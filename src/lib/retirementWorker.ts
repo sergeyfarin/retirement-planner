@@ -5,6 +5,8 @@ import type {
 	LumpSumEvent
 } from './retirementEngine';
 import init, { run_monte_carlo } from 'rust-engine';
+import { m } from './paraglide/messages';
+import { assertIsLocale, overwriteGetLocale } from './paraglide/runtime';
 import { validateSimulationPayload } from './simulationValidation';
 
 export interface WorkerInputMessage {
@@ -17,6 +19,13 @@ export interface WorkerInputMessage {
 		lumpSumEvents: LumpSumEvent[];
 		months: number;
 		retireMonth: number;
+		/**
+		 * The page's locale, so a validation message raised in here comes back in the
+		 * language the user is reading. It also has to be passed rather than resolved:
+		 * paraglide's default strategies reach for `localStorage`, which does not exist
+		 * inside a worker.
+		 */
+		locale: string;
 	};
 }
 
@@ -48,6 +57,7 @@ self.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
 
 	if (type === 'RUN_SIMULATION') {
 		try {
+			overwriteGetLocale(() => assertIsLocale(payload.locale));
 			const validated = validateSimulationPayload(
 				payload.input,
 				payload.spendingPeriods,
@@ -56,7 +66,7 @@ self.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
 			);
 			if (validated.error) throw new Error(validated.error);
 			if (payload.months !== validated.months || payload.retireMonth !== validated.retireMonth) {
-				throw new Error('Simulation timeline does not match the validated calculator inputs.');
+				throw new Error(m.validation_timeline_mismatch());
 			}
 
 			// Initialize WASM module on first use

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { m } from '../paraglide/messages';
 	import { probabilityInterval } from '../resultPresentation';
 
 	let {
@@ -14,7 +15,7 @@
 
 	const targetPercent = $derived(Math.round(FI_TARGET_SUCCESS_PROBABILITY * 100));
 	const withdrawalRuleLabel = $derived(
-		`${Number((input.safeWithdrawalRate * 100).toFixed(2))}% rule target`
+		m.withdrawal_rule_label({ rate: Number((input.safeWithdrawalRate * 100).toFixed(2)) })
 	);
 	const successProbabilitySE = $derived(
 		simCount > 0 && stats
@@ -39,13 +40,24 @@
 	const strategyLabel = $derived.by(() => {
 		switch (input.withdrawalStrategy?.kind) {
 			case 'guardrails':
-				return 'Guardrails';
+				return m.strategy_label_guardrails();
 			case 'percentOfPortfolio':
-				return 'Percent of portfolio';
+				return m.strategy_label_percent();
 			default:
-				return 'Fixed real spending';
+				return m.strategy_label_fixed();
 		}
 	});
+
+	/**
+	 * Both engines label the sequence-risk quintiles in English (`stats.sequenceRisk`
+	 * crosses the WASM boundary), so the label is treated as an ordinal here and the
+	 * displayed text comes from the catalogue.
+	 */
+	function bucketLabel(index: number, total: number): string {
+		if (index === 0) return m.bucket_worst();
+		if (index === total - 1) return m.bucket_best();
+		return m.bucket_quintile({ index: index + 1 });
+	}
 
 	/** Column of the sensitivity surface that matches the planned retirement age. */
 	const baselineAgeIndex = $derived.by(() => {
@@ -108,25 +120,21 @@
 
 {#if stats}
 	<details class="card diagnostics-card">
-		<summary>Advanced statistics and model diagnostics</summary>
-		<p class="diagnostics-intro">
-			Spending capacity, sequence-risk exposure, sampling precision, and the return distribution
-			this run actually produced. Hidden by default because these figures support — not replace —
-			the assessment above.
-		</p>
+		<summary>{m.summary_diagnostics()}</summary>
+		<p class="diagnostics-intro">{m.diagnostics_intro()}</p>
 		<div class="diagnostics-grid">
 			<section>
-				<h4>Spending capacity at the {targetPercent}% goal</h4>
+				<h4>{m.diag_h_spending_capacity({ percent: targetPercent })}</h4>
 				{#if sustainableSpending != null}
 					<table class="stat-table stat-table-dense mono-value">
 						<tbody>
 							<tr
-								><th scope="row">Sustainable yearly spending</th><td>
+								><th scope="row">{m.diag_row_sustainable_spending()}</th><td>
 									{sustainableIsCapped ? '≥ ' : ''}{fmtCompactCurrency(sustainableSpending)}
 								</td></tr
 							>
 							<tr
-								><th scope="row">Versus planned spending</th><td>
+								><th scope="row">{m.diag_row_versus_planned()}</th><td>
 									{sustainableIsCapped ? '≥ ' : ''}{percentFormatter.format(sustainableMultiplier)}
 								</td></tr
 							>
@@ -134,24 +142,18 @@
 					</table>
 					<p>
 						{#if sustainableIsCapped}
-							The plan still clears the goal at the highest spending level this sweep tests, so its
-							real capacity at age {fmtNum(input.retirementAge)} is somewhere above this figure.
+							{m.diag_capacity_capped({ age: fmtNum(input.retirementAge) })}
 						{:else}
-							Highest tested spending level that still clears the goal at age {fmtNum(
-								input.retirementAge
-							)}. Resolution is limited to the tested levels listed below.
+							{m.diag_capacity_note({ age: fmtNum(input.retirementAge) })}
 						{/if}
 					</p>
 				{:else}
-					<p>
-						No tested spending level cleared the goal at age {fmtNum(input.retirementAge)}, so a
-						sustainable figure cannot be reported from this sweep.
-					</p>
+					<p>{m.diag_capacity_none({ age: fmtNum(input.retirementAge) })}</p>
 				{/if}
 			</section>
 
 			<section>
-				<h4>Rule-of-thumb comparison</h4>
+				<h4>{m.diag_h_rule_of_thumb()}</h4>
 				<table class="stat-table stat-table-dense mono-value">
 					<tbody>
 						<tr
@@ -171,115 +173,115 @@
 						>
 					</tbody>
 				</table>
-				<p>
-					The {withdrawalRuleLabel} divides spending by the selected withdrawal rate, net of other income.
-					It ignores sequence risk and your actual horizon, so where the two targets disagree, the simulated
-					one is the one the assessment uses.
-				</p>
+				<p>{m.diag_rule_note({ rule: withdrawalRuleLabel })}</p>
 			</section>
 
 			<section>
-				<h4>Sequence-of-returns exposure</h4>
+				<h4>{m.diag_h_sequence_exposure()}</h4>
 				{#if sequenceBuckets.length > 0}
 					<table class="stat-table stat-table-dense mono-value">
 						<tbody>
-							{#each sequenceBuckets as bucket (bucket.bucketLabel)}
+							{#each sequenceBuckets as bucket, index (bucket.bucketLabel)}
 								<tr
-									><th scope="row">{bucket.bucketLabel}</th><td
-										>{fmtWholePercent(bucket.ruinProbability)} ruin</td
+									><th scope="row">{bucketLabel(index, sequenceBuckets.length)}</th><td
+										>{m.diag_ruin_suffix({
+											percent: fmtWholePercent(bucket.ruinProbability)
+										})}</td
 									></tr
 								>
 							{/each}
 						</tbody>
 					</table>
-					<p>
-						Ruin probability spans {(sequenceSpread * 100).toFixed(0)} percentage points between the worst
-						and best early-return groups. A wide spread means early retirement returns materially affect
-						the result. Compare adaptive spending or a higher bank allocation in separate runs.
-					</p>
+					<p>{m.diag_sequence_note({ points: (sequenceSpread * 100).toFixed(0) })}</p>
 				{:else}
-					<p>Sequence-risk buckets are unavailable for this run.</p>
+					<p>{m.diag_sequence_unavailable()}</p>
 				{/if}
 			</section>
 
 			<section>
-				<h4>Sampling precision</h4>
+				<h4>{m.diag_h_sampling_precision()}</h4>
 				{#if simCount > 0}
 					<p class="mono-value">
-						Monte Carlo noise: ±{(successProbabilitySE * 1.96 * 100).toFixed(1)} percentage points (approximate
-						95% run-to-run range; {fmtNum(simCount)} paths).
+						{m.diag_sampling_noise({
+							value: (successProbabilitySE * 1.96 * 100).toFixed(1),
+							count: fmtNum(simCount)
+						})}
 					</p>
 				{/if}
 				<p class="mono-value">
-					Mode: {input.simulationMode === 'historical'
-						? 'Historical block bootstrap'
-						: 'Parametric regime model'} · withdrawals: {strategyLabel} · horizon: {fmtNum(
-						input.simulateUntilAge - input.currentAge
-					)} years.
+					{m.diag_mode_line({
+						mode:
+							input.simulationMode === 'historical'
+								? m.diag_mode_historical_bootstrap()
+								: m.diag_mode_parametric_regime(),
+						strategy: strategyLabel,
+						years: fmtNum(input.simulateUntilAge - input.currentAge)
+					})}
 				</p>
 				{#if input.simulationMode === 'historical' && historicalMonths > 0}
 					<p>
-						Historical robustness is not measured: this run uses one regional record with
-						{fmtNum(historicalMonths)} months, or about {fmtNum(historicalBlockChunks)} non-overlapping
-						{fmtNum(input.blockLength)}-month runs. Compare other regions, periods, and replay
-						lengths.
+						{m.diag_historical_robustness({
+							months: fmtNum(historicalMonths),
+							chunks: fmtNum(historicalBlockChunks),
+							blockLength: fmtNum(input.blockLength)
+						})}
 					</p>
 				{:else}
-					<p>
-						Model robustness is not measured. Vary return, inflation, and model assumptions before
-						relying on the headline probability.
-					</p>
+					<p>{m.diag_model_robustness()}</p>
 				{/if}
 			</section>
 
 			<section>
-				<h4>Return distribution</h4>
+				<h4>{m.diag_h_return_distribution()}</h4>
 				<p class="mono-value">
-					Requested: mean {percentFormatter.format(stats.requestedReturnMoments.arithmeticMean)} · volatility
-					{percentFormatter.format(stats.requestedReturnMoments.stdDev)}
-				</p>
-				<p class="mono-value">
-					Effective: mean {percentFormatter.format(stats.returnMoments.arithmeticMean)} · volatility
-					{percentFormatter.format(stats.returnMoments.stdDev)} · CAGR
-					{percentFormatter.format(stats.returnMoments.geometricMean)}
+					{m.diag_requested_line({
+						mean: percentFormatter.format(stats.requestedReturnMoments.arithmeticMean),
+						std: percentFormatter.format(stats.requestedReturnMoments.stdDev)
+					})}
 				</p>
 				<p class="mono-value">
-					Requested shape: skew {fmtNum(stats.requestedReturnMoments.skewness, 1)} · kurtosis
-					{fmtNum(stats.requestedReturnMoments.kurtosis, 1)}
+					{m.diag_effective_line({
+						mean: percentFormatter.format(stats.returnMoments.arithmeticMean),
+						std: percentFormatter.format(stats.returnMoments.stdDev),
+						cagr: percentFormatter.format(stats.returnMoments.geometricMean)
+					})}
 				</p>
 				<p class="mono-value">
-					Effective shape: skew {fmtNum(stats.returnMoments.skewness, 1)} · kurtosis
-					{fmtNum(stats.returnMoments.kurtosis, 1)}
+					{m.diag_requested_shape({
+						skew: fmtNum(stats.requestedReturnMoments.skewness, 1),
+						kurt: fmtNum(stats.requestedReturnMoments.kurtosis, 1)
+					})}
 				</p>
-				<p>
-					Only mean and volatility are matched to the inputs. Skew and kurtosis emerge from the
-					regime mixture and source data, so they need not match requested shape values.
+				<p class="mono-value">
+					{m.diag_effective_shape({
+						skew: fmtNum(stats.returnMoments.skewness, 1),
+						kurt: fmtNum(stats.returnMoments.kurtosis, 1)
+					})}
 				</p>
+				<p>{m.diag_distribution_note()}</p>
 			</section>
 
 			<section>
-				<h4>Sensitivity-test coverage</h4>
+				<h4>{m.diag_h_sensitivity_coverage()}</h4>
 				<p class="mono-value">
-					Retirement ages: {stats.ruinSurface.retirementAges
-						.map((age: number) => fmtNum(age))
-						.join(', ')}<br />
-					Spending levels: {stats.ruinSurface.spendingMultipliers
-						.map((value: number) => percentFormatter.format(value))
-						.join(', ')}
+					{m.diag_sensitivity_ages({
+						ages: stats.ruinSurface.retirementAges.map((age: number) => fmtNum(age)).join(', ')
+					})}<br />
+					{m.diag_sensitivity_levels({
+						levels: stats.ruinSurface.spendingMultipliers
+							.map((value: number) => percentFormatter.format(value))
+							.join(', ')
+					})}
 				</p>
 				{#if surfaceSampleCount > 0}
 					<p>
-						Each sensitivity cell replays {fmtNum(surfaceSampleCount)} paths and has up to ±{(
-							surfaceWorstMargin * 100
-						).toFixed(1)} percentage points of sampling noise. Cells share paths, so nearby differences
-						are steadier than their individual margins suggest.
+						{m.diag_sensitivity_noise({
+							count: fmtNum(surfaceSampleCount),
+							margin: (surfaceWorstMargin * 100).toFixed(1)
+						})}
 					</p>
 				{/if}
-				<p>
-					Recommendations are reported only from this tested range. The calculator does not
-					extrapolate a larger spending cut or later retirement age when the goal remains outside
-					it.
-				</p>
+				<p>{m.diag_sensitivity_scope()}</p>
 			</section>
 		</div>
 	</details>

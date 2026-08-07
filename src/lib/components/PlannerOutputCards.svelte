@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { m } from '../paraglide/messages';
 	import { lifetimeVerdict } from '../resultPresentation';
 
 	let {
@@ -24,6 +25,18 @@
 	const verdict = $derived(
 		lifetimeVerdict(lifetimeProbability, simCount, FI_TARGET_SUCCESS_PROBABILITY)
 	);
+	const verdictLabel = $derived.by(() => {
+		switch (verdict.key) {
+			case 'on-track':
+				return m.verdict_on_track();
+			case 'needs-adjustment':
+				return m.verdict_needs_adjustment();
+			case 'at-risk':
+				return m.verdict_at_risk();
+			default:
+				return m.verdict_unlikely_to_last();
+		}
+	});
 
 	/** Money-terms outcomes at the retirement date, used by the portfolio card. */
 	const capitalToday = $derived(alreadyRetired ? input.currentSavings : (stats?.retireMedian ?? 0));
@@ -52,10 +65,14 @@
 		if (!bestScenario) return [] as string[];
 		const changes: string[] = [];
 		if (bestScenario.spendingMultiplier < 0.999) {
-			changes.push(`${Math.round((1 - bestScenario.spendingMultiplier) * 100)}% lower spending`);
+			changes.push(
+				m.change_lower_spending({
+					percent: Math.round((1 - bestScenario.spendingMultiplier) * 100)
+				})
+			);
 		}
 		if (bestScenario.retirementAge > input.retirementAge) {
-			changes.push(`retirement at age ${fmtNum(bestScenario.retirementAge)}`);
+			changes.push(m.change_retirement_at_age({ age: fmtNum(bestScenario.retirementAge) }));
 		}
 		return changes;
 	});
@@ -67,15 +84,15 @@
 	 */
 	const retirementRows = $derived([
 		{
-			label: 'Difficult 1-in-10 outcome',
+			label: m.row_difficult_outcome(),
 			value: alreadyRetired ? null : (stats?.retireLow ?? 0)
 		},
 		{
-			label: alreadyRetired ? 'Portfolio today' : 'Typical outcome',
+			label: alreadyRetired ? m.row_portfolio_today() : m.row_typical_outcome(),
 			value: capitalToday
 		},
 		{
-			label: 'Strong 1-in-10 outcome',
+			label: m.row_strong_outcome(),
 			value: alreadyRetired ? null : (stats?.retireHigh ?? 0)
 		}
 	]);
@@ -88,16 +105,18 @@
 			aria-labelledby="verdict-title"
 		>
 			<h3 id="verdict-title" class="card-title">
-				Plan through age {fmtNum(input.simulateUntilAge)} · {verdict.label}
+				{m.verdict_card_title({
+					age: fmtNum(input.simulateUntilAge),
+					verdict: verdictLabel
+				})}
 			</h3>
 			<p class="stat-sentence">
-				<strong class="mono-value">{lifetimeScore}%</strong> estimated chance your plan stays funded
-				through age {fmtNum(input.simulateUntilAge)}
+				<strong class="mono-value">{lifetimeScore}%</strong>
+				{m.verdict_sentence_tail({ age: fmtNum(input.simulateUntilAge) })}
 			</p>
 			{#if verdict.nearBoundary != null}
 				<p class="card-note boundary-note">
-					Near the {Math.round(verdict.nearBoundary * 100)}% rating boundary; simulation noise could
-					place the estimate on either side.
+					{m.verdict_boundary_note({ percent: Math.round(verdict.nearBoundary * 100) })}
 				</p>
 			{/if}
 
@@ -106,17 +125,17 @@
 					<tbody>
 						{#if stats.failureMedianDepletionAge != null && stats.failureMedianShortfall != null}
 							<tr>
-								<th scope="row">If a simulation falls short, typical depletion age</th>
+								<th scope="row">{m.row_typical_depletion_age()}</th>
 								<td class="mono-value">{fmtNum(Math.floor(stats.failureMedianDepletionAge))}</td>
 							</tr>
 							<tr>
-								<th scope="row">Planned spending left unfunded in those cases</th>
+								<th scope="row">{m.row_unfunded_spending()}</th>
 								<td class="mono-value">{fmtCompactCurrency(stats.failureMedianShortfall)}</td>
 							</tr>
 						{:else}
 							<tr>
 								<th scope="row"
-									>Difficult 1-in-10 balance at age {fmtNum(input.simulateUntilAge)}</th
+									>{m.row_difficult_balance_at_age({ age: fmtNum(input.simulateUntilAge) })}</th
 								>
 								<td class="mono-value">{fmtCompactCurrency(stats.finalLow)}</td>
 							</tr>
@@ -129,7 +148,7 @@
 						<table class="stat-table stat-table-compact">
 							<tbody>
 								<tr>
-									<th scope="row">Chance funded with 10% higher spending</th>
+									<th scope="row">{m.row_chance_higher_spending()}</th>
 									<td class="mono-value">{Math.round(higherSpendingResult * 100)}%</td>
 								</tr>
 							</tbody>
@@ -137,38 +156,46 @@
 					{/if}
 				{:else if actionableRecommendations?.targetResult === 'single-lever'}
 					<table class="stat-table">
-						<caption>Tested adjustments likely to reach the {targetPercent}% region</caption>
+						<caption>{m.caption_tested_adjustments({ percent: targetPercent })}</caption>
 						<tbody>
 							{#if actionableRecommendations.spendingReductionPercent != null}<tr>
-									<th scope="row">Spend less from now</th><td class="mono-value"
-										>about {fmtNum(actionableRecommendations.spendingReductionPercent)}%</td
+									<th scope="row">{m.row_spend_less_from_now()}</th><td class="mono-value"
+										>{m.value_about_percent({
+											value: fmtNum(actionableRecommendations.spendingReductionPercent)
+										})}</td
 									>
 								</tr>{/if}
 							{#if actionableRecommendations.monthsLonger != null}<tr>
 									<th scope="row"
 										>{actionableRecommendations.spendingReductionPercent != null
-											? 'Or retire later by'
-											: 'Retire later by'}</th
+											? m.row_or_retire_later_by()
+											: m.row_retire_later_by()}</th
 									><td class="mono-value"
-										>about {fmtNum(Math.ceil(actionableRecommendations.monthsLonger / 6) * 6)} months</td
+										>{m.value_about_months({
+											value: fmtNum(Math.ceil(actionableRecommendations.monthsLonger / 6) * 6)
+										})}</td
 									>
 								</tr>{/if}
 						</tbody>
 					</table>
 				{:else if actionableRecommendations?.targetResult === 'combined' && actionableRecommendations.combinedScenario}
 					<p class="card-note">
-						<strong>A tested adjustment likely to reach the {targetPercent}% region:</strong> spend
-						{Math.round((1 - actionableRecommendations.combinedScenario.spendingMultiplier) * 100)}%
-						less and retire at age {fmtNum(
-							actionableRecommendations.combinedScenario.retirementAge
-						)}.
+						<strong>{m.combined_note_strong({ percent: targetPercent })}</strong>
+						{m.combined_note_rest({
+							reduction: Math.round(
+								(1 - actionableRecommendations.combinedScenario.spendingMultiplier) * 100
+							),
+							age: fmtNum(actionableRecommendations.combinedScenario.retirementAge)
+						})}
 					</p>
 				{:else if bestScenario}
 					<p class="card-note">
-						The strongest tested adjustment is estimated at
+						{m.best_scenario_lead()}
 						<strong>{Math.round(bestScenario.successProbability * 100)}%</strong
 						>{#if bestScenarioChanges.length > 0}
-							with {bestScenarioChanges.join(' and ')}{/if}.
+							{m.best_scenario_with({
+								changes: bestScenarioChanges.join(` ${m.join_and()} `)
+							})}{/if}.
 					</p>
 				{/if}
 			</div>
@@ -180,18 +207,21 @@
 		>
 			<h3 id="portfolio-title" class="card-title">
 				{alreadyRetired
-					? 'Capital needed today'
-					: `Capital needed at retirement age ${fmtNum(input.retirementAge)}`}
+					? m.card_title_capital_today()
+					: m.card_title_capital_at_retirement({ age: fmtNum(input.retirementAge) })}
 			</h3>
 			<p class="stat-sentence">
-				<strong class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</strong> estimated
-				capital needed {alreadyRetired ? 'today' : 'at retirement'} to stay funded in {targetPercent}%
-				of retirement-path replays.
+				<strong class="mono-value">{fmtCompactCurrency(stats.fiTargetP95)}</strong>
+				{alreadyRetired
+					? m.capital_sentence_today({ percent: targetPercent })
+					: m.capital_sentence_at_retirement({ percent: targetPercent })}
 			</p>
 
 			<table class="stat-table stat-table-compact">
 				<caption
-					>{alreadyRetired ? 'Portfolio comparison' : 'Projected balance at retirement'}</caption
+					>{alreadyRetired
+						? m.caption_portfolio_comparison()
+						: m.caption_projected_balance()}</caption
 				>
 				<tbody>
 					{#each retirementRows as row (row.label)}
@@ -204,11 +234,7 @@
 					{/each}
 				</tbody>
 			</table>
-			<p class="card-note">
-				The target starts every retirement replay with the same capital. Projected balances vary
-				with accumulation outcomes, so this comparison supports but does not determine the overall
-				success rate in the first card.
-			</p>
+			<p class="card-note">{m.capital_card_note()}</p>
 		</section>
 	</div>
 {/if}

@@ -157,6 +157,17 @@ describe('share payload validation', () => {
 		);
 	});
 
+	it('accepts only compiled locales, so a link cannot force an unknown one', () => {
+		// `assertIsLocale` in the layout throws on anything the catalogue does not carry, so
+		// an unreadable `l` has to arrive here as null rather than as a string to try.
+		expect(parseShareState(payload({ l: 'de' }), isKnownCurrency)?.locale).toBe('de');
+		expect(parseShareState(payload({ l: 'kl' }), isKnownCurrency)?.locale).toBeNull();
+		expect(parseShareState(payload({ l: 42 }), isKnownCurrency)?.locale).toBeNull();
+		// Links built before the language switch existed carry no `l` at all; those keep
+		// whatever locale the recipient already resolved.
+		expect(parseShareState(payload({}), isKnownCurrency)?.locale).toBeNull();
+	});
+
 	it('fills an unrecognized withdrawal strategy from the defaults', () => {
 		const restored = parseShareState(
 			payload({ ws: { kind: 'vibes', guardrailBand: 0.3, spendingFloor: 'low' } }),

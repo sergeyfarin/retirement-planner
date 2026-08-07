@@ -1,3 +1,4 @@
+import { m } from './paraglide/messages';
 import type {
 	IncomeSource,
 	LumpSumEvent,
@@ -22,36 +23,39 @@ function validateRange(
 	min: number,
 	max: number
 ): string | undefined {
-	if (!isFiniteNumber(value)) return `${label} must be a number.`;
-	if (value < min || value > max) return `${label} must be between ${min} and ${max}.`;
+	if (!isFiniteNumber(value)) return m.validation_field_must_be_number({ label });
+	if (value < min || value > max) return m.validation_field_between({ label, min, max });
 	return undefined;
 }
 
 function validateCashflowRows(
 	rows: Array<SpendingPeriod | IncomeSource>,
-	noun: string,
+	kind: 'expense' | 'income source',
 	currentAge: number,
 	simulateUntilAge: number
 ): string | undefined {
 	for (const row of rows) {
 		const label = typeof row.label === 'string' ? row.label.trim() : '';
-		const name = label ? `“${label}”` : `an unnamed ${noun}`;
+		const name = label
+			? `“${label}”`
+			: kind === 'expense'
+				? m.validation_unnamed_expense()
+				: m.validation_unnamed_income();
 		if (!isFiniteNumber(row.fromAge) || !isFiniteNumber(row.toAge)) {
-			return `The From and To ages for ${name} must both be numbers.`;
+			return m.validation_row_ages_numbers({ name });
 		}
 		const collapsedRetireeSalary =
-			noun === 'income source' && row.id === 'is-default' && row.toAge === row.fromAge;
-		if (row.toAge < row.fromAge)
-			return `${name} ends before it starts — check its From and To ages.`;
+			kind === 'income source' && row.id === 'is-default' && row.toAge === row.fromAge;
+		if (row.toAge < row.fromAge) return m.validation_row_ends_before_start({ name });
 		if (row.toAge === row.fromAge && !collapsedRetireeSalary) {
-			return `${name} must end after it starts — an empty period would have no effect.`;
+			return m.validation_row_empty_period({ name });
 		}
 		if (row.toAge <= currentAge || row.fromAge >= simulateUntilAge) {
-			return `${name} lies outside the planning horizon and would have no effect.`;
+			return m.validation_row_outside_horizon({ name });
 		}
-		if (!isFiniteNumber(row.yearlyAmount)) return `The yearly amount for ${name} must be a number.`;
+		if (!isFiniteNumber(row.yearlyAmount)) return m.validation_row_amount_number({ name });
 		if (row.yearlyAmount < 0) {
-			return `${name} has a negative yearly amount. Enter it as a positive number.`;
+			return m.validation_row_negative_amount({ name });
 		}
 	}
 	return undefined;
@@ -64,12 +68,12 @@ function validateLumpSums(
 ): string | undefined {
 	for (const event of events) {
 		const label = typeof event.label === 'string' ? event.label.trim() : '';
-		const name = label ? `“${label}”` : 'an unnamed one-time event';
-		if (!isFiniteNumber(event.age)) return `The age for ${name} must be a number.`;
+		const name = label ? `“${label}”` : m.validation_unnamed_event();
+		if (!isFiniteNumber(event.age)) return m.validation_event_age_number({ name });
 		if (event.age < currentAge || event.age >= simulateUntilAge) {
-			return `${name} lies outside the planning horizon and would have no effect.`;
+			return m.validation_row_outside_horizon({ name });
 		}
-		if (!isFiniteNumber(event.amount)) return `The amount for ${name} must be a number.`;
+		if (!isFiniteNumber(event.amount)) return m.validation_event_amount_number({ name });
 	}
 	return undefined;
 }
@@ -77,17 +81,17 @@ function validateLumpSums(
 function validateOptionalStrategy(strategy: WithdrawalStrategy | undefined): string | undefined {
 	if (!strategy) return undefined;
 	if (!['fixed', 'guardrails', 'percentOfPortfolio'].includes(strategy.kind)) {
-		return 'Withdrawal strategy is not recognized.';
+		return m.validation_strategy_unknown();
 	}
 	for (const [key, value] of Object.entries(strategy)) {
 		if (key === 'kind' || value === undefined) continue;
 		if (!isFiniteNumber(value) || value < 0)
-			return `Withdrawal setting ${key} must be a non-negative number.`;
+			return m.validation_strategy_setting_non_negative({ key });
 	}
-	if ((strategy.adjustment ?? 0) > 0.9) return 'Withdrawal adjustment must not exceed 0.9.';
-	if ((strategy.withdrawalPercent ?? 0) > 1) return 'Withdrawal percentage must not exceed 1.';
+	if ((strategy.adjustment ?? 0) > 0.9) return m.validation_strategy_adjustment();
+	if ((strategy.withdrawalPercent ?? 0) > 1) return m.validation_strategy_percent();
 	if ((strategy.spendingCeiling ?? Infinity) < (strategy.spendingFloor ?? 0)) {
-		return 'Withdrawal spending ceiling must not be below its floor.';
+		return m.validation_strategy_ceiling();
 	}
 	return undefined;
 }
@@ -97,110 +101,114 @@ function validateAssumptions(input: RetirementInput): string | undefined {
 		input.simulationMode !== undefined &&
 		!['historical', 'parametric'].includes(input.simulationMode)
 	) {
-		return 'Simulation mode is not recognized.';
+		return m.validation_mode_unknown();
 	}
 	if (!isFiniteNumber(input.currentSavings) || input.currentSavings < 0)
-		return 'Portfolio value must be a non-negative number.';
+		return m.validation_portfolio_non_negative();
 
 	for (const [value, label] of [
-		[input.meanReturn, 'Portfolio mean return'],
-		[input.returnSkewness, 'Return skewness'],
-		[input.inflationMean, 'Inflation mean'],
-		[input.inflationSkewness, 'Inflation skewness']
+		[input.meanReturn, m.validation_label_mean_return()],
+		[input.returnSkewness, m.validation_label_return_skewness()],
+		[input.inflationMean, m.validation_label_inflation_mean()],
+		[input.inflationSkewness, m.validation_label_inflation_skewness()]
 	] as const) {
-		if (!isFiniteNumber(value)) return `${label} must be a number.`;
+		if (!isFiniteNumber(value)) return m.validation_field_must_be_number({ label });
 	}
 	for (const [value, label, max] of [
-		[input.returnVariability, 'Return variability', 2],
-		[input.inflationVariability, 'Inflation variability', 0.5]
+		[input.returnVariability, m.validation_label_return_variability(), 2],
+		[input.inflationVariability, m.validation_label_inflation_variability(), 0.5]
 	] as const) {
 		if (!isFiniteNumber(value) || value < 0 || value > max)
-			return `${label} must be between 0 and ${max}.`;
+			return m.validation_field_between({ label, min: 0, max });
 	}
 	for (const [value, label] of [
-		[input.returnKurtosis, 'Return kurtosis'],
-		[input.inflationKurtosis, 'Inflation kurtosis']
+		[input.returnKurtosis, m.validation_label_return_kurtosis()],
+		[input.inflationKurtosis, m.validation_label_inflation_kurtosis()]
 	] as const) {
 		if (!isFiniteNumber(value) || value < 1 || value > 20)
-			return `${label} must be between 1 and 20.`;
+			return m.validation_field_between({ label, min: 1, max: 20 });
 	}
 
-	let error = validateRange(input.equityBondCorrelation, 'Equity-bond correlation', -1, 1);
+	let error = validateRange(
+		input.equityBondCorrelation,
+		m.validation_label_equity_bond_correlation(),
+		-1,
+		1
+	);
 	if (error) return error;
-	error = validateRange(input.annualFeePercent, 'Annual fee rate', 0, 1);
+	error = validateRange(input.annualFeePercent, m.validation_label_annual_fee(), 0, 1);
 	if (error) return error;
-	error = validateRange(input.taxOnGainsPercent, 'Tax-on-gains rate', 0, 1);
+	error = validateRange(input.taxOnGainsPercent, m.validation_label_tax_on_gains(), 0, 1);
 	if (error) return error;
-	error = validateRange(input.safeWithdrawalRate, 'Safe withdrawal rate', 0.01, 1);
+	error = validateRange(input.safeWithdrawalRate, m.validation_label_safe_withdrawal(), 0.01, 1);
 	if (error) return error;
 	if (
 		!isFiniteNumber(input.simulations) ||
 		input.simulations < 1 ||
 		input.simulations > 1_000_000
 	) {
-		return 'Simulation count must be between 1 and 1000000.';
+		return m.validation_simulation_count();
 	}
-	if (input.seed !== undefined && !isFiniteNumber(input.seed))
-		return 'Simulation seed must be a number.';
+	if (input.seed !== undefined && !isFiniteNumber(input.seed)) return m.validation_seed_number();
 	if (
 		input.blockLength !== undefined &&
 		(!isFiniteNumber(input.blockLength) || input.blockLength < 1)
 	) {
-		return 'Historical replay length must be at least 1 month.';
+		return m.validation_block_length();
 	}
 	if (
 		input.inflationCrisisSpread !== undefined &&
 		(!isFiniteNumber(input.inflationCrisisSpread) || input.inflationCrisisSpread < 0)
 	) {
-		return 'Crisis inflation spread must be a non-negative number.';
+		return m.validation_crisis_spread();
 	}
 
 	const regime = input.regimeModel;
-	if (!regime) return 'Regime assumptions are missing.';
+	if (!regime) return m.validation_regime_missing();
 	for (const [value, label] of [
-		[regime.stayGrowth, 'Growth stay probability'],
-		[regime.stayCrisis, 'Crisis stay probability']
+		[regime.stayGrowth, m.validation_label_stay_growth()],
+		[regime.stayCrisis, m.validation_label_stay_crisis()]
 	] as const) {
 		error = validateRange(value, label, 0, 1);
 		if (error) return error;
 	}
 	for (const [value, label] of [
-		[regime.growthMean, 'Growth-regime mean'],
-		[regime.crisisMean, 'Crisis-regime mean']
+		[regime.growthMean, m.validation_label_growth_mean()],
+		[regime.crisisMean, m.validation_label_crisis_mean()]
 	] as const) {
-		if (!isFiniteNumber(value)) return `${label} must be a number.`;
+		if (!isFiniteNumber(value)) return m.validation_field_must_be_number({ label });
 	}
 	for (const [value, label] of [
-		[regime.growthStd, 'Growth-regime variability'],
-		[regime.crisisStd, 'Crisis-regime variability']
+		[regime.growthStd, m.validation_label_growth_std()],
+		[regime.crisisStd, m.validation_label_crisis_std()]
 	] as const) {
-		if (!isFiniteNumber(value) || value < 0) return `${label} must be a non-negative number.`;
+		if (!isFiniteNumber(value) || value < 0) return m.validation_field_non_negative({ label });
 	}
 
 	for (const [series, label] of [
-		[input.historicalAnnualReturns, 'Historical annual returns'],
-		[input.historicalMonthlyReturns, 'Historical monthly returns'],
-		[input.historicalMonthlyInflation, 'Historical monthly inflation']
+		[input.historicalAnnualReturns, m.validation_label_historical_annual()],
+		[input.historicalMonthlyReturns, m.validation_label_historical_monthly()],
+		[input.historicalMonthlyInflation, m.validation_label_historical_monthly_inflation()]
 	] as const) {
 		if (
 			series !== undefined &&
 			(!Array.isArray(series) || series.some((value) => !isFiniteNumber(value)))
 		) {
-			return `${label} must contain only finite numbers.`;
+			return m.validation_field_finite_numbers({ label });
 		}
 	}
 	if (
 		input.historicalMonthlyInflation !== undefined &&
 		input.historicalMonthlyReturns === undefined
 	) {
-		return 'Historical monthly inflation requires a matching monthly return series.';
+		return m.validation_monthly_inflation_needs_returns();
 	}
 	if (
 		input.historicalMonthlyInflation !== undefined &&
 		input.historicalMonthlyReturns !== undefined &&
 		input.historicalMonthlyInflation.length !== input.historicalMonthlyReturns.length
 	) {
-		return 'Historical monthly returns and inflation must have matching lengths.';
+		return m.validation_monthly_lengths();
 	}
 
 	return validateOptionalStrategy(input.withdrawalStrategy);
@@ -217,14 +225,12 @@ export function validateSimulationPayload(
 		!isFiniteNumber(input.retirementAge) ||
 		!isFiniteNumber(input.simulateUntilAge)
 	) {
-		return invalid('Current age, retirement age and plan-until age must all be numbers.');
+		return invalid(m.validation_ages_numbers());
 	}
 	const months = Math.max(0, Math.round((input.simulateUntilAge - input.currentAge) * 12));
-	if (months <= 12)
-		return invalid('Simulation horizon must be at least 1 year beyond current age.');
-	if (input.retirementAge < input.currentAge)
-		return invalid('Target year to achieve FI cannot be before your current age.');
-	if (spendingPeriods.length === 0) return invalid('Add at least one spending period.');
+	if (months <= 12) return invalid(m.validation_horizon_min());
+	if (input.retirementAge < input.currentAge) return invalid(m.validation_fi_year_before_current());
+	if (spendingPeriods.length === 0) return invalid(m.validation_need_spending_period());
 
 	const assumptionError = validateAssumptions(input);
 	if (assumptionError) return invalid(assumptionError);
@@ -243,7 +249,6 @@ export function validateSimulationPayload(
 		months,
 		Math.max(0, Math.round((input.retirementAge - input.currentAge) * 12))
 	);
-	if (retireMonth > months - 12)
-		return invalid('Plan-until age must be at least 1 year after your retirement age.');
+	if (retireMonth > months - 12) return invalid(m.validation_plan_until_after_retirement());
 	return { months, retireMonth };
 }
