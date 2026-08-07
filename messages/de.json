@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Diesen Link kopieren:",
 	"historical_data_load_error": "Historischer Marktdatensatz konnte nicht geladen werden; es werden Ersatzannahmen verwendet.",
 
-	"field_current_age": "Aktuelles Alter",
-	"field_already_retired": "Bereits in Rente",
+	"field_current_age": "Aktuelles\nAlter",
+	"field_already_retired": "Bereits in\nRente",
 	"field_already_retired_title": "Nur Entnahme: Der Ruhestand beginnt heute, es gibt also keine Sparphase.",
-	"field_retire_at_age": "Rente mit Alter",
+	"field_retire_at_age": "Rente mit\nAlter",
 	"field_retire_disabled_title": "Bereits in Rente — der Ruhestand beginnt jetzt, in Ihrem aktuellen Alter.",
-	"field_plan_until_age": "Planen bis Alter",
+	"field_plan_until_age": "Planen bis\nAlter",
 	"field_plan_until_title": "Ein längerer Planungshorizont ergibt einen konservativeren Langlebigkeits-Stresstest.",
 
 	"th_income_sources": "Einnahmen",

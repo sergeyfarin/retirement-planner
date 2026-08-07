@@ -18,7 +18,6 @@
 .assumptions-table th,
 .assumptions-table td:first-child,
 .allocation-head > span,
-.form-grid > label > span:first-child,
 :where(.retirement-planner) button.btn-mode,
 .currency-btn,
 .stat-table caption,
@@ -28,15 +27,21 @@
 	white-space: normal;
 }
 
-/* ─── Field grid: two-line labels without the hard-coded <br> ─────── */
+/* ─── Field grid: two-line labels, broken by the translation ──────── */
 /*
- * The four top fields used literal `<br />` to force "Current / age" onto two lines.
- * Translations break in different places (and Chinese does not break at all), so the
- * height is reserved here and the browser chooses the break.
+ * The four top fields used a literal `<br />` to force "Current / age" onto two lines,
+ * which keeps the row compact — the columns can be half as wide as the label is long.
+ * Letting the browser choose instead gave one long line in every language, English
+ * included, and a wider grid with it.
+ *
+ * So the break is back, but in the message: each translation carries a newline where it
+ * reads best, and `pre-line` honours it while still wrapping if a line overruns anyway.
+ * Chinese has no newline — every one of those labels is four or five characters.
  */
 .form-grid > label > span:first-child {
 	display: block;
 	min-height: 2.3em;
+	white-space: pre-line;
 	letter-spacing: 0.03em;
 	line-height: 1.15;
 }

@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Copia este enlace:",
 	"historical_data_load_error": "No se pudo cargar el conjunto de datos históricos; se usan supuestos alternativos.",
 
-	"field_current_age": "Edad actual",
-	"field_already_retired": "Ya jubilado",
+	"field_current_age": "Edad\nactual",
+	"field_already_retired": "Ya\njubilado",
 	"field_already_retired_title": "Solo retirada: la jubilación empieza hoy, así que no hay fase de ahorro.",
-	"field_retire_at_age": "Jubilarse a los",
+	"field_retire_at_age": "Jubilarse\na los",
 	"field_retire_disabled_title": "Ya jubilado: la jubilación es ahora, a tu edad actual.",
-	"field_plan_until_age": "Planificar hasta",
+	"field_plan_until_age": "Planificar\nhasta",
 	"field_plan_until_title": "Un horizonte de planificación más largo da una prueba de longevidad más conservadora.",
 
 	"th_income_sources": "Ingresos",

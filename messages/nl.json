@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Kopieer deze link:",
 	"historical_data_load_error": "Historische marktdataset kon niet worden geladen; er worden vervangende aannames gebruikt.",
 
-	"field_current_age": "Huidige leeftijd",
-	"field_already_retired": "Al met pensioen",
+	"field_current_age": "Huidige\nleeftijd",
+	"field_already_retired": "Al met\npensioen",
 	"field_already_retired_title": "Alleen opname: het pensioen begint vandaag, dus er is geen spaarfase.",
-	"field_retire_at_age": "Pensioen op leeftijd",
+	"field_retire_at_age": "Pensioen op\nleeftijd",
 	"field_retire_disabled_title": "Al met pensioen — het pensioen begint nu, op je huidige leeftijd.",
-	"field_plan_until_age": "Plannen tot leeftijd",
+	"field_plan_until_age": "Plannen tot\nleeftijd",
 	"field_plan_until_title": "Een langere planningshorizon geeft een behoudender levensduurtest.",
 
 	"th_income_sources": "Inkomsten",

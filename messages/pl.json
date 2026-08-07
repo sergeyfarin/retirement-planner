@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Skopiuj ten link:",
 	"historical_data_load_error": "Nie udało się wczytać historycznego zbioru danych rynkowych; użyto założeń zastępczych.",
 
-	"field_current_age": "Obecny wiek",
-	"field_already_retired": "Już na emeryturze",
+	"field_current_age": "Obecny\nwiek",
+	"field_already_retired": "Już na\nemeryturze",
 	"field_already_retired_title": "Tylko wypłaty: emerytura zaczyna się dziś, więc nie ma fazy oszczędzania.",
-	"field_retire_at_age": "Emerytura w wieku",
+	"field_retire_at_age": "Emerytura\nw wieku",
 	"field_retire_disabled_title": "Już na emeryturze — emerytura zaczyna się teraz, w Twoim obecnym wieku.",
-	"field_plan_until_age": "Planuj do wieku",
+	"field_plan_until_age": "Planuj do\nwieku",
 	"field_plan_until_title": "Dłuższy horyzont planowania daje ostrożniejszy test długowieczności.",
 
 	"th_income_sources": "Dochody",

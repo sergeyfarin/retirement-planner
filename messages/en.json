@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Copy this link:",
 	"historical_data_load_error": "Historical market dataset could not be loaded; using fallback assumptions.",
 
-	"field_current_age": "Current age",
-	"field_already_retired": "Already retired",
+	"field_current_age": "Current\nage",
+	"field_already_retired": "Already\nretired",
 	"field_already_retired_title": "Drawdown only: retirement starts today, so there is no saving phase.",
-	"field_retire_at_age": "Retire at age",
+	"field_retire_at_age": "Retire at\nage",
 	"field_retire_disabled_title": "Already retired — retirement is now, at your current age.",
-	"field_plan_until_age": "Plan until age",
+	"field_plan_until_age": "Plan until\nage",
 	"field_plan_until_title": "A longer planning horizon provides a more conservative longevity stress test.",
 
 	"th_income_sources": "Income sources",

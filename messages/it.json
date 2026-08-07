@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Copia questo link:",
 	"historical_data_load_error": "Impossibile caricare il set di dati storici di mercato; si usano ipotesi di riserva.",
 
-	"field_current_age": "Età attuale",
-	"field_already_retired": "Già in pensione",
+	"field_current_age": "Età\nattuale",
+	"field_already_retired": "Già in\npensione",
 	"field_already_retired_title": "Solo decumulo: la pensione inizia oggi, quindi non c'è fase di risparmio.",
-	"field_retire_at_age": "Pensione a età",
+	"field_retire_at_age": "Pensione\na età",
 	"field_retire_disabled_title": "Già in pensione — la pensione è ora, alla tua età attuale.",
-	"field_plan_until_age": "Pianifica fino a",
+	"field_plan_until_age": "Pianifica\nfino a",
 	"field_plan_until_title": "Un orizzonte di pianificazione più lungo dà uno stress test di longevità più prudente.",
 
 	"th_income_sources": "Entrate",

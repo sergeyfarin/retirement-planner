@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Copiez ce lien :",
 	"historical_data_load_error": "Le jeu de données de marché historique n'a pas pu être chargé ; hypothèses de repli utilisées.",
 
-	"field_current_age": "Âge actuel",
-	"field_already_retired": "Déjà retraité",
+	"field_current_age": "Âge\nactuel",
+	"field_already_retired": "Déjà\nretraité",
 	"field_already_retired_title": "Décaissement seul : la retraite commence aujourd'hui, il n'y a donc pas de phase d'épargne.",
-	"field_retire_at_age": "Retraite à l'âge",
+	"field_retire_at_age": "Retraite à\nl'âge",
 	"field_retire_disabled_title": "Déjà retraité — la retraite commence maintenant, à votre âge actuel.",
-	"field_plan_until_age": "Planifier jusqu'à",
+	"field_plan_until_age": "Planifier\njusqu'à",
 	"field_plan_until_title": "Un horizon de planification plus long donne un test de longévité plus prudent.",
 
 	"th_income_sources": "Revenus",

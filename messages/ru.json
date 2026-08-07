@@ -54,12 +54,12 @@
 	"copy_link_prompt": "Скопируйте эту ссылку:",
 	"historical_data_load_error": "Не удалось загрузить набор исторических рыночных данных; используются запасные допущения.",
 
-	"field_current_age": "Текущий возраст",
-	"field_already_retired": "Уже на пенсии",
+	"field_current_age": "Текущий\nвозраст",
+	"field_already_retired": "Уже на\nпенсии",
 	"field_already_retired_title": "Только расходование: пенсия начинается сегодня, поэтому фазы накопления нет.",
-	"field_retire_at_age": "Пенсия в возрасте",
+	"field_retire_at_age": "Пенсия в\nвозрасте",
 	"field_retire_disabled_title": "Уже на пенсии — она начинается сейчас, в вашем текущем возрасте.",
-	"field_plan_until_age": "Планировать до",
+	"field_plan_until_age": "Планировать\nдо",
 	"field_plan_until_title": "Более длинный горизонт планирования даёт более консервативную проверку на долголетие.",
 
 	"th_income_sources": "Доходы",
