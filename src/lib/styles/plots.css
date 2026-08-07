@@ -67,11 +67,23 @@
 	min-width: 160px;
 }
 
-@media (max-width: 1280px) {
+/*
+ * Side by side only when the surface actually fits.
+ *
+ * The row splits 1.35fr / 1fr, so the surface gets a shade over 40% of the results column,
+ * and its own margins take a further 168px for the y-axis title, the tick labels and the
+ * colorbar. Below about 1680px that left the plot itself under 320px — narrower than the
+ * annotations drawn on it. Stacked, it gets the full column instead, which is the widest
+ * this chart can be.
+ */
+@media (max-width: 1680px) {
 	.chart-row {
 		grid-template-columns: 1fr;
 	}
+}
 
+/* Stacked and full width, it can afford its normal height until the viewport is a phone. */
+@media (max-width: 1024px) {
 	.ruin-surface-chart {
 		height: 300px;
 	}

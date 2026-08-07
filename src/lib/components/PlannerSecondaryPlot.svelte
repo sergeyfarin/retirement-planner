@@ -243,15 +243,27 @@
 		const actualAgeChange = Math.abs(retirementAges[scenarioAgeIndex] - retirementAge);
 		const arrowColor = '#172554';
 		const annotationBackground = 'rgba(255,255,255,0.78)';
+		/*
+		 * "Your plan" sits on the side the horizontal arrow does not point to.
+		 *
+		 * It used to be centred above the marker, and the "retire later/earlier" label is
+		 * centred above that arrow's head — both on the y = 0 row. On a wide plot the arrow
+		 * separated them; once the column narrowed, the two boxes were wider than the gap and
+		 * printed on top of each other. Placing this one beside the marker, vertically
+		 * centred, leaves the row above free for the label that belongs there.
+		 *
+		 * With no age axis there is no horizontal arrow to dodge, so it keeps its old spot.
+		 */
 		const scenarioAnnotations: Array<Record<string, unknown>> = [
 			{
 				x: retirementAge,
 				y: 0,
 				text: m.surface_ann_your_plan({ percent: Math.round(currentPlanProbability * 100) }),
 				showarrow: false,
-				xanchor: 'center',
-				yanchor: movingToSaferPlan ? 'bottom' : 'top',
-				yshift: movingToSaferPlan ? 12 : -12,
+				xanchor: spendingOnly ? 'center' : movingToSaferPlan ? 'right' : 'left',
+				xshift: spendingOnly ? 0 : movingToSaferPlan ? -12 : 12,
+				yanchor: spendingOnly ? (movingToSaferPlan ? 'bottom' : 'top') : 'middle',
+				yshift: spendingOnly ? (movingToSaferPlan ? 12 : -12) : 0,
 				bgcolor: annotationBackground,
 				borderpad: 3,
 				font: { size: 10, color: '#0f172a' }
@@ -336,6 +348,7 @@
 				ticks: 'outside',
 				tickcolor: '#475569',
 				showgrid: false,
+				zeroline: false,
 				fixedrange: true
 			},
 			yaxis: {
@@ -355,6 +368,12 @@
 				tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: '#334155' },
 				ticks: 'outside',
 				tickcolor: '#475569',
+				// Plotly draws a zeroline on a cartesian axis by default, and y = 0 is the
+				// "Current" row — so it put a hard rule straight through the marker and along
+				// the horizontal arrow, reading as a stray artifact. The tick label and the
+				// marker already say where current spending is. The other two charts in this
+				// app disable it too.
+				zeroline: false,
 				fixedrange: true
 			},
 			annotations: scenarioAnnotations,
