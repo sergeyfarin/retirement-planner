@@ -1,10 +1,28 @@
 <script lang="ts">
 	import { m } from '../paraglide/messages';
+	import { baseLocale } from '../paraglide/runtime';
 	import { currentLocale, LOCALE_NAMES, locales, type Locale } from '../i18n.svelte';
 
 	let { onSelect }: { onSelect: (locale: Locale) => void } = $props();
 
 	const current = $derived(currentLocale());
+
+	/**
+	 * "Language / 语言", not just "语言".
+	 *
+	 * The label is the one word on screen that has to be legible to someone who cannot read
+	 * the language the app is currently in — that is the whole situation it exists for. A
+	 * visitor who lands on a Chinese UI, or who switched by accident, needs to find their
+	 * way back out. Pairing the base locale's word with the active one keeps that door open
+	 * without giving up on translating it.
+	 *
+	 * Collapses to a single word when the two would repeat, which is the English case.
+	 */
+	const label = $derived.by(() => {
+		const inBaseLocale = m.language_label({}, { locale: baseLocale });
+		const inActiveLocale = m.language_label();
+		return inActiveLocale === inBaseLocale ? inBaseLocale : `${inBaseLocale} / ${inActiveLocale}`;
+	});
 </script>
 
 <!--
@@ -13,7 +31,7 @@
 	the same word again as its first child.
 -->
 <div class="language-switch" role="group" aria-labelledby="language-switch-label">
-	<span class="eyebrow language-switch-label" id="language-switch-label">{m.language_label()}</span>
+	<span class="eyebrow language-switch-label" id="language-switch-label">{label}</span>
 	{#each locales as code (code)}
 		<button
 			type="button"
