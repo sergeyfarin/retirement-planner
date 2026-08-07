@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import type { PlotlyApi } from './plotly';
 	import type { CurrencyOption } from './plannerTypes';
 	import { createSimulationWorker } from './workerHelper';
@@ -47,8 +47,7 @@
 	import { withLocalizedLabel } from './defaultRowLabels';
 	import LanguageSwitcher from './components/LanguageSwitcher.svelte';
 	import { m } from './paraglide/messages';
-	import { getLocale, setLocale } from './paraglide/runtime';
-	import type { Locale } from './i18n';
+	import { applyLocale, currentLocale, type Locale } from './i18n.svelte';
 	import './retirement.css';
 
 	// ─── Types ──────────────────────────────────────────────────────────────────
@@ -1555,6 +1554,10 @@
 		// linter. Kept outside the readiness guard so a change still registers before the
 		// chart element exists.
 		const chartInputs = [
+			// Locale included for the same reason as the rest: the chart's tick labels and
+			// hover template are handed to Plotly imperatively, so a switch has to re-run
+			// this effect to reach them.
+			currentLocale(),
 			realReturnPercentiles,
 			realReturnCdfXTicks,
 			realReturn68Low,
@@ -1593,7 +1596,7 @@
 		return {
 			v: 1,
 			c: selectedCurrencyCode,
-			l: getLocale(),
+			l: currentLocale(),
 			m: input.simulationMode,
 			t: input.historicalMomentTargeting ? 1 : 0,
 			ws: $state.snapshot(input.withdrawalStrategy) ?? { ...DEFAULT_WITHDRAWAL_STRATEGY },
@@ -1688,19 +1691,28 @@
 	}
 
 	/**
-	 * Changing language reloads the page, because the labels a completed run has already
-	 * handed to Plotly (legend entries, axis titles, hover templates) are baked into the
-	 * chart and would otherwise stay in the previous language. The current scenario is
-	 * written to the share hash first and restored on the way back in, so the reload
-	 * costs the user nothing but the re-run.
+	 * Changing language re-renders in place. `getLocale()` is backed by a rune (see
+	 * `i18n.svelte.ts`), so every `m.*()` in the markup re-evaluates and nothing unmounts:
+	 * the completed simulation, open disclosures, scroll position and chart zoom all
+	 * survive. This used to reload the page, which threw away results that cost seconds to
+	 * compute for a change that costs milliseconds to apply.
 	 */
 	function switchLocale(locale: Locale) {
-		// `l` is overridden rather than taken from `buildShareState`, which reports the
-		// locale being left behind — the layout reads this hash back on the reload below
-		// and would otherwise restore the old language.
-		const encoded = toBase64Url(JSON.stringify({ ...buildShareState(), l: locale }));
-		history.replaceState(null, '', `#s=${encoded}`);
-		void setLocale(locale);
+		applyLocale(locale);
+
+		// Row labels are plain text by the time they are stored, so the rune cannot reach
+		// them. Re-render the untouched ones; anything the user typed stays as written.
+		spendingPeriods = spendingPeriods.map(withLocalizedLabel);
+		incomeSources = incomeSources.map(withLocalizedLabel);
+		lumpSumEvents = lumpSumEvents.map(withLocalizedLabel);
+
+		// A share hash already in the address bar carries the language it was written with.
+		// Left stale, it would restore the old one on the next reload, silently overriding
+		// the choice just made. Absent, nothing is added — switching language is not an
+		// event worth putting a payload in someone's URL for.
+		if (decodeShareHash(window.location.hash)) {
+			history.replaceState(null, '', `#s=${toBase64Url(JSON.stringify(buildShareState()))}`);
+		}
 	}
 
 	function restoreFromShareHash() {
@@ -1806,7 +1818,11 @@
 					lumpSumEvents,
 					months: validated.months,
 					retireMonth: validated.retireMonth,
-					locale: getLocale()
+					// Untracked deliberately. This payload is built synchronously, and one caller
+					// of `runSimulation` is the auto-run effect — reading the locale rune in that
+					// scope would make the effect depend on it, wiring a language switch to the
+					// one thing this change exists to stop triggering.
+					locale: untrack(() => currentLocale())
 				});
 
 				const msg: WorkerInputMessage = {

@@ -2,6 +2,7 @@
 	import type { PlotlyAnnotation, PlotlyApi, PlotlyHTMLElement, PlotlyShape } from '../plotly';
 	import { onDestroy, untrack } from 'svelte';
 	import { m } from '../paraglide/messages';
+	import { currentLocale } from '../i18n.svelte';
 	import { percentile as calcPercentile } from '../calculations';
 	import type {
 		LumpSumEvent,
@@ -60,7 +61,10 @@
 	$effect(() => {
 		const result = simulation;
 		const resultStats = stats;
-		if (plotReady && Plotly && chartEl && result && resultStats) {
+		// Every label on this chart is handed to Plotly inside `untrack` below, out of reach
+		// of the locale rune. Reading it here is what redraws the chart on a language switch.
+		const locale = currentLocale();
+		if (locale && plotReady && Plotly && chartEl && result && resultStats) {
 			// Result charts describe the last completed run. Read presentation props without
 			// subscribing to live inputs, otherwise changing currency or another input redraws
 			// stale Plotly charts before a new simulation has completed.

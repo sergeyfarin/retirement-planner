@@ -1,13 +1,10 @@
 <script lang="ts">
 	import { m } from '../paraglide/messages';
-	import { getLocale } from '../paraglide/runtime';
-	import { LOCALE_NAMES, locales, type Locale } from '../i18n';
+	import { currentLocale, LOCALE_NAMES, locales, type Locale } from '../i18n.svelte';
 
 	let { onSelect }: { onSelect: (locale: Locale) => void } = $props();
 
-	// Read once: choosing a locale reloads the page (see `switchLocale` in
-	// RetirementPlanner), so this never needs to change within a session.
-	const current = getLocale();
+	const current = $derived(currentLocale());
 </script>
 
 <div class="language-switch" role="group" aria-label={m.language_switch_aria()}>

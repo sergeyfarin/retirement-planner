@@ -987,11 +987,17 @@ Notes for anyone touching this:
 
 - **Locale resolution is `localStorage → browser language → English`.** There is no `url`
   strategy: the app is a static single-route SPA, so a locale path segment would mean
-  prerendering the same page nine times. The switcher in the page header writes
-  `localStorage` and reloads, first serialising the current scenario into the `#s=` share
-  hash so the reload restores it. The reload is deliberate — a completed run has already
-  handed its legend entries, axis titles and hover templates to Plotly, and those do not
-  re-render on their own.
+  prerendering the same page nine times.
+- **`getLocale()` is backed by a rune** (`i18n.svelte.ts`). Paraglide resolves the locale
+  inside every `m.*()` call, which normally makes messages invisible to Svelte — nothing
+  in the template reads a reactive source. Reading `$state` there means Svelte tracks the
+  signal at any call depth, so a switch re-renders every label in place, in about 200 ms,
+  with no remount: the completed simulation, open disclosures, expanded "more info" text
+  and scroll position all survive. Charts are the exception — they are drawn imperatively
+  inside `untrack`, so their effects read `currentLocale()` to force a redraw, which does
+  reset a zoomed axis. Anything reachable from the auto-run effect must read the locale
+  under `untrack` (see the worker payload in `runSimulation`), or a language switch would
+  re-trigger the simulation.
 - **The strategy list is written twice**, in `vite.config.ts` and in the `i18n:compile`
   script. Both must match: the CLI's own default (`cookie`/`globalVariable`/`baseLocale`)
   will otherwise overwrite the generated runtime whenever `check` or `prepare` runs.

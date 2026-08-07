@@ -2,6 +2,7 @@
 	import type { PlotlyApi } from '../plotly';
 	import { onDestroy, untrack } from 'svelte';
 	import { m } from '../paraglide/messages';
+	import { currentLocale } from '../i18n.svelte';
 	import type { SimulationResult, SummaryStats } from '../retirementEngine';
 
 	let {
@@ -51,14 +52,18 @@
 
 	$effect(() => {
 		const ruinSurface = stats?.ruinSurface;
-		if (plotReady && Plotly && ruinSurfaceEl && ruinSurface) {
+		// See PlannerTimelinePlot: the axis titles, colorbar and annotations are drawn under
+		// `untrack`, so the locale has to be read here for a switch to reach them.
+		const locale = currentLocale();
+		if (locale && plotReady && Plotly && ruinSurfaceEl && ruinSurface) {
 			untrack(drawRuinSurfaceChart);
 		}
 	});
 
 	$effect(() => {
 		const sequenceRisk = stats?.sequenceRisk;
-		if (plotReady && Plotly && sequenceRiskEl && sequenceRisk?.length) {
+		const locale = currentLocale();
+		if (locale && plotReady && Plotly && sequenceRiskEl && sequenceRisk?.length) {
 			untrack(drawSequenceRiskChart);
 		}
 	});
