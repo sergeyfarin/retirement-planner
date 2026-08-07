@@ -7,7 +7,8 @@
 	"link_homepage": "Mon site",
 	"project_note": "Ce planificateur est open source :",
 	"language_label": "Langue",
-	"disclaimer_top": "À des fins pédagogiques et d'exploration uniquement — il ne s'agit pas de conseils financiers, fiscaux ou de retraite. Les projections ne sont pas des garanties et les données de marché passées ne prédisent pas les rendements futurs.",
+	"disclaimer_scope": "À des fins pédagogiques et d'exploration uniquement — il ne s'agit pas de conseils financiers, fiscaux ou de retraite.",
+	"disclaimer_projections": "Les projections ne sont pas des garanties et les données de marché passées ne prédisent pas les rendements futurs.",
 
 	"currency_switch_aria": "Choix de la devise",
 	"currency_world": "Monde ($)",

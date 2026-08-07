@@ -7,7 +7,8 @@
 	"link_homepage": "My home page",
 	"project_note": "This planner is open source:",
 	"language_label": "Language",
-	"disclaimer_top": "For education and planning exploration only—not financial, tax, or retirement advice. Projections are not guarantees, and historical market data does not predict future returns.",
+	"disclaimer_scope": "For education and planning exploration only—not financial, tax, or retirement advice.",
+	"disclaimer_projections": "Projections are not guarantees, and historical market data does not predict future returns.",
 
 	"currency_switch_aria": "Currency selection",
 	"currency_world": "World ($)",

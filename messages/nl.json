@@ -7,7 +7,8 @@
 	"link_homepage": "Mijn website",
 	"project_note": "Deze planner is open source:",
 	"language_label": "Taal",
-	"disclaimer_top": "Alleen voor educatie en het verkennen van scenario's — geen financieel, fiscaal of pensioenadvies. Prognoses zijn geen garanties en historische marktdata voorspellen geen toekomstige rendementen.",
+	"disclaimer_scope": "Alleen voor educatie en het verkennen van scenario's — geen financieel, fiscaal of pensioenadvies.",
+	"disclaimer_projections": "Prognoses zijn geen garanties en historische marktdata voorspellen geen toekomstige rendementen.",
 
 	"currency_switch_aria": "Valutakeuze",
 	"currency_world": "Wereld ($)",

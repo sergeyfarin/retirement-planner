@@ -7,7 +7,8 @@
 	"link_homepage": "Moja strona",
 	"project_note": "Ten planer jest open source:",
 	"language_label": "Język",
-	"disclaimer_top": "Wyłącznie do celów edukacyjnych i analizy scenariuszy — to nie jest doradztwo finansowe, podatkowe ani emerytalne. Prognozy nie są gwarancją, a historyczne dane rynkowe nie przewidują przyszłych stóp zwrotu.",
+	"disclaimer_scope": "Wyłącznie do celów edukacyjnych i analizy scenariuszy — to nie jest doradztwo finansowe, podatkowe ani emerytalne.",
+	"disclaimer_projections": "Prognozy nie są gwarancją, a historyczne dane rynkowe nie przewidują przyszłych stóp zwrotu.",
 
 	"currency_switch_aria": "Wybór waluty",
 	"currency_world": "Świat ($)",

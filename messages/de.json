@@ -7,7 +7,8 @@
 	"link_homepage": "Meine Homepage",
 	"project_note": "Dieser Planer ist Open Source:",
 	"language_label": "Sprache",
-	"disclaimer_top": "Nur zu Bildungs- und Planungszwecken – keine Finanz-, Steuer- oder Ruhestandsberatung. Projektionen sind keine Garantien, und historische Marktdaten sagen künftige Renditen nicht voraus.",
+	"disclaimer_scope": "Nur zu Bildungs- und Planungszwecken – keine Finanz-, Steuer- oder Ruhestandsberatung.",
+	"disclaimer_projections": "Projektionen sind keine Garantien, und historische Marktdaten sagen künftige Renditen nicht voraus.",
 
 	"currency_switch_aria": "Währungsauswahl",
 	"currency_world": "Welt ($)",

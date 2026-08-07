@@ -2051,7 +2051,15 @@
 		<h2>{m.app_title()}</h2>
 		<LanguageSwitcher onSelect={switchLocale} />
 	</div>
-	<p class="disclaimer-top">{m.disclaimer_top()}</p>
+	<!--
+		One sentence per line, rather than one paragraph left to wrap where it lands: at the
+		widths this page is read at, the second sentence spilled a single word onto a line of
+		its own in several languages.
+	-->
+	<p class="disclaimer-top">
+		<span>{m.disclaimer_scope()}</span>
+		<span>{m.disclaimer_projections()}</span>
+	</p>
 	<!--
 		Provenance sits with the disclaimer rather than in the corner: both answer "what am I
 		looking at and can I trust it", and the repository is the honest answer to the second.
@@ -2266,6 +2274,15 @@
 		font-size: var(--text-note);
 		line-height: 1.4;
 		color: var(--ink-soft);
+	}
+
+	/*
+	 * A line each. `text-wrap: pretty` is the fallback for a translation long enough to wrap
+	 * anyway — it keeps a lone word off the last line, which is the thing being fixed here.
+	 */
+	.disclaimer-top span {
+		display: block;
+		text-wrap: pretty;
 	}
 
 	@media (min-width: 1025px) {
