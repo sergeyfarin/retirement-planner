@@ -31,6 +31,26 @@
 	the same word again as its first child.
 -->
 <div class="language-switch" role="group" aria-labelledby="language-switch-label">
+	<!--
+		Decorative, hence `aria-hidden`: the label beside it already names the group, and a
+		globe adds nothing for a screen reader. Inline SVG rather than the 🌐 emoji, which
+		renders at a different size and in full colour on every platform, and rather than an
+		asset, which would be a network request for 300 bytes.
+	-->
+	<svg
+		class="language-switch-icon"
+		viewBox="0 0 16 16"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.25"
+		stroke-linecap="round"
+		aria-hidden="true"
+		focusable="false"
+	>
+		<circle cx="8" cy="8" r="6.35" />
+		<path d="M1.65 8h12.7" />
+		<path d="M8 1.65a8.4 8.4 0 0 1 0 12.7a8.4 8.4 0 0 1 0-12.7" />
+	</svg>
 	<span class="eyebrow language-switch-label" id="language-switch-label">{label}</span>
 	{#each locales as code (code)}
 		<button
@@ -66,10 +86,18 @@
 		background: var(--surface-card);
 	}
 
+	/* Sized in rem, not em: the label sits at 0.64rem, where 1em would be a smudge. */
+	.language-switch-icon {
+		flex: 0 0 auto;
+		width: 0.85rem;
+		height: 0.85rem;
+		margin-left: 0.1rem;
+		color: var(--ink-faint);
+	}
+
 	/* `.eyebrow` carries the size, weight and casing; only the spacing is local. */
 	.language-switch-label {
 		margin-right: 0.1rem;
-		padding-left: 0.12rem;
 		white-space: nowrap;
 	}
 
