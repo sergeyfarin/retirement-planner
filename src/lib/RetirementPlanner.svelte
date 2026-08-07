@@ -1693,8 +1693,9 @@
 	/**
 	 * Changing language re-renders in place. `getLocale()` is backed by a rune (see
 	 * `i18n.svelte.ts`), so every `m.*()` in the markup re-evaluates and nothing unmounts:
-	 * the completed simulation, open disclosures, scroll position and chart zoom all
-	 * survive. This used to reload the page, which threw away results that cost seconds to
+	 * the completed simulation, open disclosures and scroll position all survive. Charts
+	 * redraw to translate their labels, so a zoomed chart returns to its default axes. This
+	 * used to reload the page, which threw away results that cost seconds to
 	 * compute for a change that costs milliseconds to apply.
 	 */
 	function switchLocale(locale: Locale) {

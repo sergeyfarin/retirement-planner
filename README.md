@@ -22,7 +22,7 @@ Charts use a **custom Plotly bundle** (`src/lib/plotly.ts`), not a prebuilt dist
 contour. Everything else Plotly can render is never imported, and so is never in the output.
 That excludes the geo, mapbox and gl modules, which is where the full build's map-tile hosts
 (mapbox, OpenStreetMap, carto, openmaptiles) live — removed from the shipped output rather
-than relying on them never being reached. The bundle is 1.12 MB (370 KB gzipped), against
+than relying on them never being reached. The bundle is about 1.12 MB (384 KB gzipped), against
 4.7 MB for the full distribution and 1.42 MB for the prebuilt cartesian one this replaced.
 What remains in it is one inert schema default (`topojsonURL`, consumable only by geo traces
 that are not in the bundle) plus licence and XML-namespace strings. The other external URLs in
@@ -991,7 +991,7 @@ Notes for anyone touching this:
 - **`getLocale()` is backed by a rune** (`i18n.svelte.ts`). Paraglide resolves the locale
   inside every `m.*()` call, which normally makes messages invisible to Svelte — nothing
   in the template reads a reactive source. Reading `$state` there means Svelte tracks the
-  signal at any call depth, so a switch re-renders every label in place, in about 200 ms,
+  signal at any call depth, so a switch re-renders every label in place,
   with no remount: the completed simulation, open disclosures, expanded "more info" text
   and scroll position all survive. Charts are the exception — they are drawn imperatively
   inside `untrack`, so their effects read `currentLocale()` to force a redraw, which does
@@ -1020,7 +1020,7 @@ Notes for anyone touching this:
   and lasso select go with them; drag-to-zoom, double-click-to-reset and Reset axes are
   drag and event behaviour and still work.
 - **The share link carries its language** (`l` in the `#s=` payload), applied in
-  `src/routes/+layout.ts` before the first render via `overwriteGetLocale`, not
+  `src/routes/+layout.ts` before the first render via `applyLocale(..., { persist: false })`, not
   `setLocale`. A link opens in the language its author saw it in without repointing the
   recipient's own stored preference. This is the one benefit of URL-path locales that
   applies to a single-route SPA whose deployed HTML is an empty shell; the rest — no

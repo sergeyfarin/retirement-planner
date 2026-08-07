@@ -15,8 +15,8 @@ export default defineConfig({
 		 *
 		 * No `url` strategy: the app ships as a static SPA under a fixed base path, so a
 		 * locale segment would need prerendered routes per language for a page that has
-		 * exactly one route. The switcher writes localStorage and reloads instead, and
-		 * first-time visitors get their browser's language.
+		 * exactly one route. The switcher writes localStorage and updates the reactive locale
+		 * in place; first-time visitors get their browser's language.
 		 *
 		 * The `i18n:compile` script must pass the same `--strategy` list: `check` and
 		 * `prepare` run the CLI without going through this plugin, and the CLI's own
