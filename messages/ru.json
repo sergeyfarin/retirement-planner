@@ -306,7 +306,7 @@
 	"surface_tick_current": "Текущие",
 	"surface_tick_more": "+{value} %",
 	"surface_tick_less": "−{value} %",
-	"surface_ann_your_plan": "<b>Ваш план: {percent} %</b><br>шанс финансирования",
+	"surface_ann_your_plan": "<b>Ваш план: {percent} %</b>",
 	"surface_ann_spend_less": "<b>Тратить на 10 % меньше</b><br>{percent} % шанс финансирования",
 	"surface_ann_spend_more": "<b>Тратить на 10 % больше</b><br>{percent} % шанс финансирования",
 	"surface_ann_retire_later": "<b>Пенсия на {years} года позже</b><br>{percent} % шанс финансирования",

@@ -168,7 +168,6 @@
 		const goalColor = '#166534';
 		const colorbarLength = 0.9;
 		const colorbarY = 0.5;
-		const goalLegendY = colorbarY - colorbarLength / 2 + colorbarLength * warpProbability(0.95);
 		const contourTrace = {
 			type: spendingOnly ? 'heatmap' : 'contour',
 			x: retirementAges,
@@ -249,8 +248,14 @@
 		 * It used to be centred above the marker, and the "retire later/earlier" label is
 		 * centred above that arrow's head — both on the y = 0 row. On a wide plot the arrow
 		 * separated them; once the column narrowed, the two boxes were wider than the gap and
-		 * printed on top of each other. Placing this one beside the marker, vertically
-		 * centred, leaves the row above free for the label that belongs there.
+		 * printed on top of each other.
+		 *
+		 * It now sits below the row, on the side the horizontal arrow does not point to.
+		 * Below is the free band whichever way the arrows go: the "retire later/earlier"
+		 * label hangs above the arrow it belongs to, and the "spend" label sits out at the
+		 * end of the vertical one. Beside-and-level was not enough — that label is centred
+		 * on the arrow head and, at 260px of plot, is wider than the arrow is long, so it
+		 * reached back over the marker regardless.
 		 *
 		 * With no age axis there is no horizontal arrow to dodge, so it keeps its old spot.
 		 */
@@ -261,9 +266,9 @@
 				text: m.surface_ann_your_plan({ percent: Math.round(currentPlanProbability * 100) }),
 				showarrow: false,
 				xanchor: spendingOnly ? 'center' : movingToSaferPlan ? 'right' : 'left',
-				xshift: spendingOnly ? 0 : movingToSaferPlan ? -12 : 12,
-				yanchor: spendingOnly ? (movingToSaferPlan ? 'bottom' : 'top') : 'middle',
-				yshift: spendingOnly ? (movingToSaferPlan ? 12 : -12) : 0,
+				xshift: spendingOnly ? 0 : movingToSaferPlan ? -10 : 10,
+				yanchor: spendingOnly && !movingToSaferPlan ? 'bottom' : 'top',
+				yshift: spendingOnly && !movingToSaferPlan ? 12 : -6,
 				bgcolor: annotationBackground,
 				borderpad: 3,
 				font: { size: 10, color: '#0f172a' }
@@ -331,7 +336,13 @@
 		const layout = {
 			// Left and right hold rotated axis and colorbar titles, which run longer in
 			// translation than the English they were measured against.
-			margin: { t: 24, l: 84, r: 84, b: 52 },
+			/*
+			 * Trimmed from 84/84. The left band holds the rotated axis title and tick labels,
+			 * now "+20%" rather than "20% more"; the right holds a colorbar thinned from 18px
+			 * to 12 and pulled in against the plot. Every pixel here is one the plot does not
+			 * get, and this chart draws three annotations inside its own plot area.
+			 */
+			margin: { t: 24, l: 58, r: 62, b: 52 },
 			paper_bgcolor: 'transparent',
 			plot_bgcolor: 'rgba(255,255,255,0.5)',
 			xaxis: {
@@ -377,19 +388,12 @@
 				fixedrange: true
 			},
 			annotations: scenarioAnnotations,
-			shapes: [
-				{
-					type: 'line',
-					xref: 'paper',
-					yref: 'paper',
-					x0: 1.043,
-					x1: 1.075,
-					y0: goalLegendY,
-					y1: goalLegendY,
-					line: { color: goalColor, width: 3 },
-					layer: 'above'
-				}
-			],
+			// No `shapes`. There used to be a dark-green dash here, drawn in paper coordinates
+			// beside the colorbar to key the 95% contour to its "95% goal" tick. Its position
+			// was derived from the colorbar's own geometry rather than read from it, so it
+			// never landed on the tick, and at the widths this chart is drawn at it sat behind
+			// the bar as often as beside it. The contour on the plot and the labelled tick
+			// each say it already.
 			font: { family: 'Inter, system-ui, sans-serif', color: '#475569', size: 10 },
 			hoverlabel: { font: { family: 'Inter, system-ui, sans-serif', size: 10 } }
 		};

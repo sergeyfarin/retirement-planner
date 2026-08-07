@@ -24,7 +24,12 @@
 
 .chart-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+	/*
+	 * 1.2 : 1 rather than 1.35 : 1. The surface is the width-starved chart of the two — it
+	 * carries a colorbar and three annotations inside its plot area, where the timeline
+	 * only has to be long — so the ratio leans back towards it.
+	 */
+	grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
 	gap: 0.5rem;
 	align-items: start;
 	margin-top: 0.65rem;
@@ -67,23 +72,11 @@
 	min-width: 160px;
 }
 
-/*
- * Side by side only when the surface actually fits.
- *
- * The row splits 1.35fr / 1fr, so the surface gets a shade over 40% of the results column,
- * and its own margins take a further 168px for the y-axis title, the tick labels and the
- * colorbar. Below about 1680px that left the plot itself under 320px — narrower than the
- * annotations drawn on it. Stacked, it gets the full column instead, which is the widest
- * this chart can be.
- */
-@media (max-width: 1680px) {
+@media (max-width: 1280px) {
 	.chart-row {
 		grid-template-columns: 1fr;
 	}
-}
 
-/* Stacked and full width, it can afford its normal height until the viewport is a phone. */
-@media (max-width: 1024px) {
 	.ruin-surface-chart {
 		height: 300px;
 	}
