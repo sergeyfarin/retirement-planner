@@ -2272,7 +2272,7 @@
 		.retirement-planner {
 			display: flex;
 			flex-direction: column;
-			height: calc(100dvh - 2.25rem);
+			height: calc(100dvh - 1.5rem);
 		}
 
 		:global(.workspace) {
