@@ -2048,22 +2048,26 @@
 
 <div class="retirement-planner">
 	<div class="page-header">
-		<div>
-			<h2>{m.app_title()}</h2>
-		</div>
-		<div class="header-controls">
-			<LanguageSwitcher onSelect={switchLocale} />
-			<nav class="header-links" aria-label={m.header_links_aria()}>
-				<a
-					href="https://github.com/sergeyfarin/retirement-planner"
-					target="_blank"
-					rel="noopener noreferrer">{m.link_github()}</a
-				>
-				<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">{m.link_homepage()}</a>
-			</nav>
-		</div>
+		<h2>{m.app_title()}</h2>
+		<LanguageSwitcher onSelect={switchLocale} />
 	</div>
 	<p class="disclaimer-top">{m.disclaimer_top()}</p>
+	<!--
+		Provenance sits with the disclaimer rather than in the corner: both answer "what am I
+		looking at and can I trust it", and the repository is the honest answer to the second.
+		A `<nav>` cannot live inside a `<p>`, hence the wrapper.
+	-->
+	<div class="project-note">
+		<span>{m.project_note()}</span>
+		<nav class="project-links" aria-label={m.header_links_aria()}>
+			<a
+				href="https://github.com/sergeyfarin/retirement-planner"
+				target="_blank"
+				rel="noopener noreferrer">{m.link_github()}</a
+			>
+			<a href="https://farin.nl" target="_blank" rel="noopener noreferrer">{m.link_homepage()}</a>
+		</nav>
+	</div>
 
 	<div class="workspace">
 		<PlannerInputPanel

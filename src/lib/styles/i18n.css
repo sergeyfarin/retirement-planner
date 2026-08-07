@@ -147,19 +147,12 @@
 }
 
 /* ─── Page header ────────────────────────────────────────────────── */
-.header-controls {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 0.35rem;
-}
-
+/*
+ * `.page-header` stacks below 600px, where the switcher gets a full-width row of its own
+ * and should read left-to-right like everything else rather than hugging the right edge.
+ */
 @media (max-width: 600px) {
-	.header-controls {
-		align-items: flex-start;
-	}
-
-	.header-controls .language-switch {
+	.page-header .language-switch {
 		justify-content: flex-start;
 	}
 }
