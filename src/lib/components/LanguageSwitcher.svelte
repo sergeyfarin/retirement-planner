@@ -7,7 +7,13 @@
 	const current = $derived(currentLocale());
 </script>
 
-<div class="language-switch" role="group" aria-label={m.language_switch_aria()}>
+<!--
+	The label is visible rather than an `aria-label`, so `aria-labelledby` points at it:
+	naming the group twice would have a screen reader announce "Language" and then read
+	the same word again as its first child.
+-->
+<div class="language-switch" role="group" aria-labelledby="language-switch-label">
+	<span class="eyebrow language-switch-label" id="language-switch-label">{m.language_label()}</span>
 	{#each locales as code (code)}
 		<button
 			type="button"
@@ -25,20 +31,37 @@
 </div>
 
 <style>
+	/*
+	 * One bordered control rather than a loose row of chips. The border is what separates
+	 * the switcher from the project links beneath it, which are plain text — the corner
+	 * previously held two rows of equally weighted buttons and read as a toolbar.
+	 */
 	.language-switch {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 0.2rem;
+		padding: 0.22rem 0.3rem;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-md);
+		background: var(--surface-card);
+	}
+
+	/* `.eyebrow` carries the size, weight and casing; only the spacing is local. */
+	.language-switch-label {
+		margin-right: 0.1rem;
+		padding-left: 0.12rem;
+		white-space: nowrap;
 	}
 
 	:global(.retirement-planner) .language-switch .lang-btn {
 		min-width: 1.9rem;
 		margin: 0;
 		padding: 0.16rem 0.3rem;
-		border: 1px solid var(--line-strong);
+		border: 1px solid var(--line);
 		border-radius: var(--radius-xs);
-		background: var(--surface-card);
+		background: var(--surface-sunken);
 		box-shadow: none;
 		font-family: var(--font-mono);
 		font-size: var(--text-micro);
