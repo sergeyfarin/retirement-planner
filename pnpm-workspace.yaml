@@ -24,3 +24,4 @@ minimumReleaseAgeExclude:
   - playwright@1.62.0
   - svelte@5.56.8
   - publint@0.3.23
+  - vite@8.2.1
