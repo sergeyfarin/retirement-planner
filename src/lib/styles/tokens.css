@@ -69,7 +69,7 @@
 	--text-note: 0.74rem; /* prose notes, explainers */
 	--text-body: 0.78rem; /* inputs, table values, buttons */
 	--text-title: 0.92rem; /* card titles and disclosure summaries */
-	--text-page: 1.45rem; /* the page heading */
+	--text-page: 1.85rem; /* the page heading */
 
 	/* ─── Shape and elevation ───────────────────────────────────────── */
 	--radius-xs: 4px;
