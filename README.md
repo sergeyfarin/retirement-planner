@@ -1020,10 +1020,12 @@ Notes for anyone touching this:
   applies to a single-route SPA whose deployed HTML is an empty shell; the rest — no
   flash of the base language, no hydration mismatch, indexability — is either already
   true or would need real prerendered content first.
-- **User-editable defaults are seeded once.** The starting row labels ("Salary", "Living
-  expenses") are translated when the app first mounts, but a scenario restored from a
-  share link keeps whatever labels it carries — those are user data by then, and
-  re-translating them would overwrite edits.
+- **Seeded row labels follow the language; edited ones do not.** The starting labels
+  ("Salary", "Living expenses", …) are ordinary editable text once seeded, so a restored
+  scenario used to come back in the language it was created in — routine, since the
+  language switch round-trips through the share payload. `defaultRowLabels.ts` recognises
+  the seeded strings in every shipped language and re-renders those; anything else is the
+  user's words and survives verbatim.
 
 ---
 

@@ -44,6 +44,7 @@
 	import { buildActionableRecommendations } from './actionableHeadline';
 	import { additionalIncomeDefaults } from './incomeDefaults';
 	import { SHARE_INPUT_SCALARS, decodeShareHash, parseShareState, toBase64Url } from './shareState';
+	import { withLocalizedLabel } from './defaultRowLabels';
 	import LanguageSwitcher from './components/LanguageSwitcher.svelte';
 	import { m } from './paraglide/messages';
 	import { getLocale, setLocale } from './paraglide/runtime';
@@ -1647,9 +1648,13 @@
 		// not be able to seat the app in a state the UI could not have produced.
 		Object.assign(input, restored.scalars);
 
-		if (restored.spendingPeriods) spendingPeriods = restored.spendingPeriods;
-		if (restored.incomeSources) incomeSources = restored.incomeSources;
-		if (restored.lumpSumEvents) lumpSumEvents = restored.lumpSumEvents;
+		// Seeded labels follow the language; anything the user typed is theirs and survives
+		// verbatim. Without this a scenario would come back in the language it was created
+		// in, which the language switch makes routine — it round-trips through this payload.
+		if (restored.spendingPeriods)
+			spendingPeriods = restored.spendingPeriods.map(withLocalizedLabel);
+		if (restored.incomeSources) incomeSources = restored.incomeSources.map(withLocalizedLabel);
+		if (restored.lumpSumEvents) lumpSumEvents = restored.lumpSumEvents.map(withLocalizedLabel);
 
 		// Rebuild effective moments, regime model and historical series for the
 		// restored currency/allocation/mode.
