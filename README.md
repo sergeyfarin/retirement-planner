@@ -6,7 +6,6 @@ http://farin.nl/retirement
 
 <img width="2975" height="1899" alt="image" src="https://github.com/user-attachments/assets/f5347f9d-c8da-47de-bd47-328e6b8c7ccb" />
 
-
 ---
 
 ## 1. Overview
