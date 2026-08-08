@@ -9,6 +9,10 @@ describe('seeded row labels', () => {
 	it('re-renders a seeded label from any shipped language', () => {
 		expect(localizeSeededLabel('Gehalt')).toBe('Salary');
 		expect(localizeSeededLabel('Пенсия / соцвыплаты')).toBe('Pension / Social security');
+		expect(localizeSeededLabel('Pensioen / sociale uitkering')).toBe('Pension / Social security');
+		expect(localizeSeededLabel('Emerytura / świadczenia społeczne')).toBe(
+			'Pension / Social security'
+		);
 		expect(localizeSeededLabel('生活开支')).toBe('Living expenses');
 		expect(localizeSeededLabel('Praca na część etatu')).toBe('Part-time work');
 		expect(localizeSeededLabel('Spesa aggiuntiva')).toBe('Extra spending');
