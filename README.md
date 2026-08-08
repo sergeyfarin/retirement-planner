@@ -4,7 +4,8 @@ A high-performance, browser-based retirement forecasting engine built with **Sve
 
 http://farin.nl/retirement
 
-<img width="2455" height="1467" alt="image" src="https://github.com/user-attachments/assets/c11014ab-2394-4cd4-bc70-065bef8ef19e" />
+<img width="2975" height="1899" alt="image" src="https://github.com/user-attachments/assets/f5347f9d-c8da-47de-bd47-328e6b8c7ccb" />
+
 
 ---
 
