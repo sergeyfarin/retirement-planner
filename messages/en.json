@@ -51,6 +51,7 @@
 	"run_status_initializing": "Initializing Rust engine…",
 	"run_status_completed": "{count} Monte Carlo simulations completed.",
 	"worker_failed": "Worker failed: {message}",
+	"calculation_failed_generic": "Calculation failed. Please try again.",
 	"copy_link_prompt": "Copy this link:",
 	"historical_data_load_error": "Historical market dataset could not be loaded; using fallback assumptions.",
 
@@ -160,6 +161,7 @@
 	"th_kurt": "Kurt",
 	"th_reset": "Reset",
 	"btn_reset": "Reset",
+	"placeholder_auto": "auto",
 	"variance_drag_title": "Variance Drag ≈ {value}",
 	"row_stocks": "Stocks",
 	"row_bonds": "Bonds",

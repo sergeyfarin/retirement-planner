@@ -101,6 +101,9 @@
 		kurtosis: number;
 	};
 
+	type RunStatusPhase =
+		'idle' | 'running' | 'initializing' | 'progress' | 'almost-done' | 'completed';
+
 	type HistoricalAnnualSeriesRow = {
 		year: number;
 		equity: number;
@@ -511,10 +514,32 @@
 
 	let simulation: SimulationResult | null = $state<SimulationResult | null>(null);
 	let stats: SummaryStats | null = $state<SummaryStats | null>(null);
-	let errorMessage = $state('');
+	let validationErrorVisible = $state(false);
+	let runtimeErrorMessage = $state('');
+	let runtimeErrorLocale: Locale | null = $state<Locale | null>(null);
 	let running = $state(false);
 	let runningProgress = $state(0);
-	let runStatusMessage = $state('');
+	let runStatusPhase: RunStatusPhase = $state('idle');
+	let runningRequestedCount = $state(0);
+	const runStatusMessage = $derived.by(() => {
+		switch (runStatusPhase) {
+			case 'running':
+				return m.run_status_running({ count: runningRequestedCount });
+			case 'initializing':
+				return m.run_status_initializing();
+			case 'progress':
+				return m.run_status_progress({
+					count: runningRequestedCount,
+					percent: Math.round(runningProgress * 100)
+				});
+			case 'almost-done':
+				return m.run_status_almost_done();
+			case 'completed':
+				return m.run_status_completed({ count: fmtNum(lastSimulatedCount) });
+			default:
+				return '';
+		}
+	});
 	let resultStage: string = $state('none');
 	let lastSimulatedFingerprint = $state('');
 	let lastSimulatedCount = $state(0);
@@ -549,7 +574,10 @@
 	let historicalMarketData: HistoricalMarketDataset | null = $state<HistoricalMarketDataset | null>(
 		null
 	);
-	let historicalDataLoadError = $state('');
+	let historicalDataLoadFailed = $state(false);
+	const historicalDataLoadError = $derived(
+		historicalDataLoadFailed ? m.historical_data_load_error() : ''
+	);
 	let showHistoricalMethodologyInfo = $state(false);
 
 	// ─── Core inputs ─────────────────────────────────────────────────────────────
@@ -1258,6 +1286,25 @@
 		lumpSumEvents = lumpSumEvents.filter((e) => e.id !== id);
 	}
 
+	/**
+	 * Validation errors are recalculated rather than stored as translated text, so changing
+	 * language updates an error that is already visible. Unexpected worker errors retain their
+	 * detail in the language of that run; after a locale change a localized generic message is
+	 * safer than mixing languages or pretending the detail itself can be translated.
+	 */
+	const errorMessage = $derived.by(() => {
+		if (validationErrorVisible) {
+			return (
+				validateSimulationInputs(input, spendingPeriods, effectiveIncomeSources, lumpSumEvents)
+					.error ?? ''
+			);
+		}
+		if (!runtimeErrorMessage) return '';
+		return runtimeErrorLocale === currentLocale()
+			? runtimeErrorMessage
+			: m.calculation_failed_generic();
+	});
+
 	// ─── Derived ──────────────────────────────────────────────────────────────────
 
 	const FI_TARGET_SUCCESS_PROBABILITY = 0.95;
@@ -1737,10 +1784,10 @@
 				lastAppliedReferenceCurrency = '';
 				applyReferenceDefaults(selectedCurrencyCode);
 			} else {
-				historicalDataLoadError = m.historical_data_load_error();
+				historicalDataLoadFailed = true;
 			}
 		} catch {
-			historicalDataLoadError = m.historical_data_load_error();
+			historicalDataLoadFailed = true;
 		}
 
 		restoreFromShareHash();
@@ -1770,7 +1817,9 @@
 	let runningId: string | null = null;
 
 	async function runSimulation(simCountOverride: number | undefined = undefined) {
-		errorMessage = '';
+		validationErrorVisible = false;
+		runtimeErrorMessage = '';
+		runtimeErrorLocale = null;
 		const validated = validateSimulationInputs(
 			input,
 			spendingPeriods,
@@ -1778,7 +1827,7 @@
 			lumpSumEvents
 		);
 		if (validated.error) {
-			errorMessage = validated.error;
+			validationErrorVisible = true;
 			return;
 		}
 
@@ -1794,7 +1843,8 @@
 
 		running = true;
 		runningProgress = 0;
-		runStatusMessage = m.run_status_running({ count: requestedSimulations });
+		runningRequestedCount = requestedSimulations;
+		runStatusPhase = 'running';
 
 		// Terminate any existing worker immediately
 		if (activeWorker) {
@@ -1805,6 +1855,7 @@
 		runningId = randomId();
 
 		const seedForThisRun = input.seed ?? Math.floor(Math.random() * 1000000);
+		const localeForThisRun = untrack(() => currentLocale());
 
 		try {
 			const workerResult = await new Promise<WorkerResultMessage['payload']>((resolve, reject) => {
@@ -1823,7 +1874,7 @@
 					// of `runSimulation` is the auto-run effect — reading the locale rune in that
 					// scope would make the effect depend on it, wiring a language switch to the
 					// one thing this change exists to stop triggering.
-					locale: untrack(() => currentLocale())
+					locale: localeForThisRun
 				});
 
 				const msg: WorkerInputMessage = {
@@ -1843,21 +1894,20 @@
 						} else if (e.data.type === 'SIMULATION_PROGRESS') {
 							runningProgress = e.data.payload.progress;
 							if (runningProgress >= 0.9) {
-								runStatusMessage = m.run_status_almost_done();
+								runStatusPhase = 'almost-done';
 							} else if (runningProgress <= 0) {
-								runStatusMessage = m.run_status_initializing();
+								runStatusPhase = 'initializing';
 							} else {
-								runStatusMessage = m.run_status_progress({
-									count: requestedSimulations,
-									percent: Math.round(runningProgress * 100)
-								});
+								runStatusPhase = 'progress';
 							}
 						}
 					}
 				};
 
 				activeWorker!.onerror = (err) => {
-					reject(new Error(m.worker_failed({ message: err.message })));
+					reject(
+						new Error(m.worker_failed({ message: err.message }, { locale: localeForThisRun }))
+					);
 				};
 
 				activeWorker!.postMessage(msg);
@@ -1869,10 +1919,11 @@
 			lastSimulatedFingerprint = fingerprintForThisRun;
 			lastSimulatedCount = workerResult.simCount;
 			lastSimulatedSeed = seedForThisRun;
-			runStatusMessage = m.run_status_completed({ count: fmtNum(workerResult.simCount) });
+			runStatusPhase = 'completed';
 		} catch (err: unknown) {
-			errorMessage = err instanceof Error ? err.message : String(err);
-			runStatusMessage = '';
+			runtimeErrorMessage = err instanceof Error ? err.message : String(err);
+			runtimeErrorLocale = localeForThisRun;
+			runStatusPhase = 'idle';
 		} finally {
 			running = false;
 			if (activeWorker) {

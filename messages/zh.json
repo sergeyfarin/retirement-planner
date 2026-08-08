@@ -51,6 +51,7 @@
 	"run_status_initializing": "正在初始化 Rust 引擎…",
 	"run_status_completed": "已完成 {count} 次蒙特卡洛模拟。",
 	"worker_failed": "计算失败：{message}",
+	"calculation_failed_generic": "计算失败，请重试。",
 	"copy_link_prompt": "复制此链接：",
 	"historical_data_load_error": "无法加载历史市场数据集，将使用备用假设。",
 
@@ -160,6 +161,7 @@
 	"th_kurt": "峰度",
 	"th_reset": "重置",
 	"btn_reset": "重置",
+	"placeholder_auto": "自动",
 	"variance_drag_title": "方差拖累 ≈ {value}",
 	"row_stocks": "股票",
 	"row_bonds": "债券",

@@ -162,12 +162,12 @@
 							></tr
 						>
 						<tr
-							><th scope="row">Estimated chance of reaching it</th><td
+							><th scope="row">{m.diag_row_chance_of_reaching()}</th><td
 								>{fmtWholePercent(stats.fiProbabilitySWR)}</td
 							></tr
 						>
 						<tr
-							><th scope="row">Simulation-based target</th><td
+							><th scope="row">{m.diag_row_simulation_target()}</th><td
 								>{fmtCompactCurrency(stats.fiTargetP95)}</td
 							></tr
 						>

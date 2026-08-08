@@ -137,6 +137,7 @@ describe('RetirementPlanner share-link restoration', () => {
 describe('RetirementPlanner currency switching', () => {
 	it('retranslates currency-region buttons when the language changes', async () => {
 		const { container } = await render(RetirementPlanner);
+		expect(fieldById(container, 'adv-seed').placeholder).toBe('auto');
 		const russian = container.querySelector<HTMLButtonElement>('button[aria-label="Русский"]');
 		if (!russian) throw new Error('no Russian language button');
 		russian.click();
@@ -146,12 +147,46 @@ describe('RetirementPlanner currency switching', () => {
 			expect(currencyButton(container, 'США ($)')).not.toBeNull();
 			expect(currencyButton(container, 'Великобр. (£)')).not.toBeNull();
 			expect(currencyButton(container, 'Европа (€)')).not.toBeNull();
+			expect(fieldById(container, 'adv-seed').placeholder).toBe('автоматически');
 		});
 
 		const english = container.querySelector<HTMLButtonElement>('button[aria-label="English"]');
 		if (!english) throw new Error('no English language button');
 		english.click();
 		await vi.waitFor(() => expect(currencyButton(container, 'World ($)')).not.toBeNull());
+		expect(fieldById(container, 'adv-seed').placeholder).toBe('auto');
+	});
+
+	it('retranslates a validation error that is already visible', async () => {
+		seatShareLink({
+			v: 1,
+			c: 'EUR',
+			m: 'historical',
+			t: 0,
+			i: { currentAge: 95, retirementAge: 95, simulateUntilAge: 90 }
+		});
+		const { container } = await render(RetirementPlanner);
+
+		await vi.waitFor(
+			() =>
+				expect(squashed(container.querySelector('.error'))).toBe(
+					'Simulation horizon must be at least 1 year beyond current age.'
+				),
+			{ timeout: 20_000 }
+		);
+
+		const russian = container.querySelector<HTMLButtonElement>('button[aria-label="Русский"]');
+		if (!russian) throw new Error('no Russian language button');
+		russian.click();
+		await vi.waitFor(() =>
+			expect(squashed(container.querySelector('.error'))).toBe(
+				'План должен охватывать как минимум один год после текущего возраста.'
+			)
+		);
+
+		const english = container.querySelector<HTMLButtonElement>('button[aria-label="English"]');
+		if (!english) throw new Error('no English language button');
+		english.click();
 	});
 
 	it('stays responsive after completed-result charts mount', async () => {
@@ -230,6 +265,19 @@ describe('RetirementPlanner result communication', () => {
 		expect(diagnostics?.open).toBe(false);
 		expect(diagnostics?.textContent).toContain('Sequence-of-returns exposure');
 		expect(diagnostics?.textContent).toContain('Sensitivity-test coverage');
+
+		const russian = container.querySelector<HTMLButtonElement>('button[aria-label="Русский"]');
+		if (!russian) throw new Error('no Russian language button');
+		russian.click();
+		await vi.waitFor(() => {
+			expect(diagnostics?.textContent).toContain('Вероятность достичь цели');
+			expect(diagnostics?.textContent).toContain('Расчётная цель');
+			expect(diagnostics?.textContent).not.toContain('Estimated chance of reaching it');
+		});
+		const english = container.querySelector<HTMLButtonElement>('button[aria-label="English"]');
+		if (!english) throw new Error('no English language button');
+		english.click();
+
 		// Advanced statistics must precede the charts, not trail them.
 		const firstChart = container.querySelector('.chart-row');
 		expect(diagnostics?.compareDocumentPosition(firstChart!)).toBe(

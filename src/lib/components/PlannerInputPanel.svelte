@@ -1219,7 +1219,7 @@
 						id="adv-seed"
 						type="number"
 						step="1"
-						placeholder="auto"
+						placeholder={m.placeholder_auto()}
 						value={input.seed ?? ''}
 						oninput={(e) => {
 							const raw = (e.target as HTMLInputElement).value;
