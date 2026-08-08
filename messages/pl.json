@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "Planer emerytalny FIRE Monte Carlo",
+	"app_title": "Test odporności planu emerytalnego FIRE",
 	"header_links_aria": "Linki projektu",
 	"link_github": "GitHub",
 	"link_homepage": "Moja strona",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "szacowanego kapitału potrzebnego na emeryturze, aby pozostać sfinansowanym w {percent}% powtórzeń ścieżek emerytalnych.",
 	"caption_portfolio_comparison": "Porównanie portfela",
 	"caption_projected_balance": "Prognozowane saldo na emeryturze",
-	"row_difficult_outcome": "Niekorzystny wynik 1 na 10",
+	"row_difficult_outcome": "Niskie saldo w 1 na 10 przypadków",
 	"row_portfolio_today": "Portfel dziś",
-	"row_typical_outcome": "Typowy wynik",
-	"row_strong_outcome": "Korzystny wynik 1 na 10",
+	"row_typical_outcome": "Mediana salda",
+	"row_strong_outcome": "Wysokie saldo w 1 na 10 przypadków",
 	"capital_card_note": "Cel rozpoczyna każde powtórzenie emerytury z tym samym kapitałem. Prognozowane salda zależą od wyników fazy akumulacji, więc to porównanie wspiera, ale nie przesądza ogólnego wskaźnika sukcesu z pierwszej karty.",
 
 	"summary_diagnostics": "Statystyki zaawansowane i diagnostyka modelu",
@@ -275,9 +275,9 @@
 
 	"chart_timeline_title": "Prognoza portfela — skorygowana o inflację ({symbol})",
 	"chart_timeline_note": "Wachlarz pokazuje środkowe 50% i 80% wyników; cienka czerwona linia P5 wyznacza poziom, poniżej którego w danym wieku spada tylko 5% sald. Kropkowana pionowa = emerytura; czerwona przerywana = cel symulacji; pomarańczowa kropkowana = {rule}. Percentyle to podsumowania miesiąc po miesiącu, a nie pojedyncze ścieżki.",
-	"trace_median_outcome": "Wynik medianowy",
-	"trace_80_percent": "80% wyników",
-	"trace_50_percent": "50% wyników",
+	"trace_median_outcome": "Mediana salda",
+	"trace_80_percent": "Środkowy zakres 80%",
+	"trace_50_percent": "Środkowy zakres 50%",
 	"trace_p75_boundary": "Granica P75",
 	"trace_p25_boundary": "Granica P25",
 	"trace_p10_boundary": "Granica P10",

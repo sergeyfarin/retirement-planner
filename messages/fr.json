@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "Planificateur retraite FIRE Monte-Carlo",
+	"app_title": "Test de résistance du plan de retraite FIRE",
 	"header_links_aria": "Liens du projet",
 	"link_github": "GitHub",
 	"link_homepage": "Mon site",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "de capital estimé nécessaire à la retraite pour rester financé dans {percent} % des rejeux de retraite.",
 	"caption_portfolio_comparison": "Comparaison du portefeuille",
 	"caption_projected_balance": "Solde projeté à la retraite",
-	"row_difficult_outcome": "Résultat défavorable 1 sur 10",
+	"row_difficult_outcome": "Solde bas dans 1 cas sur 10",
 	"row_portfolio_today": "Portefeuille aujourd'hui",
-	"row_typical_outcome": "Résultat typique",
-	"row_strong_outcome": "Résultat favorable 1 sur 10",
+	"row_typical_outcome": "Solde médian",
+	"row_strong_outcome": "Solde élevé dans 1 cas sur 10",
 	"capital_card_note": "La cible démarre chaque rejeu de retraite avec le même capital. Les soldes projetés varient selon les résultats d'accumulation : cette comparaison appuie donc, sans le déterminer, le taux de réussite global de la première carte.",
 
 	"summary_diagnostics": "Statistiques avancées et diagnostics du modèle",
@@ -275,9 +275,9 @@
 
 	"chart_timeline_title": "Projection du portefeuille — corrigée de l'inflation ({symbol})",
 	"chart_timeline_note": "L'éventail montre les 50 % et 80 % centraux des résultats ; la fine ligne rouge P5 marque le niveau sous lequel seuls 5 % des soldes tombent à chaque âge. Verticale pointillée = retraite ; rouge tiretée = cible de simulation ; orange pointillée = {rule}. Les percentiles sont des synthèses mois par mois, pas des trajectoires individuelles.",
-	"trace_median_outcome": "Résultat médian",
-	"trace_80_percent": "80 % des résultats",
-	"trace_50_percent": "50 % des résultats",
+	"trace_median_outcome": "Solde médian",
+	"trace_80_percent": "Intervalle central de 80 %",
+	"trace_50_percent": "Intervalle central de 50 %",
 	"trace_p75_boundary": "Limite P75",
 	"trace_p25_boundary": "Limite P25",
 	"trace_p10_boundary": "Limite P10",

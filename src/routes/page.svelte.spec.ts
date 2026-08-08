@@ -9,7 +9,7 @@ describe('/+page.svelte', () => {
 
 		const heading = page.getByRole('heading', {
 			level: 2,
-			name: 'FIRE Retirement Monte Carlo Planner'
+			name: 'FIRE Retirement Plan Stress Test'
 		});
 		await expect.element(heading).toBeInTheDocument();
 	});

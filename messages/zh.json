@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "FIRE 退休蒙特卡洛规划器",
+	"app_title": "FIRE 退休计划压力测试",
 	"header_links_aria": "项目链接",
 	"link_github": "GitHub",
 	"link_homepage": "我的主页",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "为在 {percent}% 的退休路径回放中保持资金充足，退休时估计需要的资本。",
 	"caption_portfolio_comparison": "组合对比",
 	"caption_projected_balance": "退休时的预计余额",
-	"row_difficult_outcome": "十分之一的不利结果",
+	"row_difficult_outcome": "十分之一的低余额",
 	"row_portfolio_today": "今天的组合",
-	"row_typical_outcome": "典型结果",
-	"row_strong_outcome": "十分之一的有利结果",
+	"row_typical_outcome": "余额中位数",
+	"row_strong_outcome": "十分之一的高余额",
 	"capital_card_note": "该目标让每次退休回放都从相同的资本开始。预计余额随积累阶段的结果而变化，因此这一对比支持但并不决定第一张卡片中的总体成功率。",
 
 	"summary_diagnostics": "高级统计与模型诊断",
@@ -275,9 +275,9 @@
 
 	"chart_timeline_title": "组合预测 — 按通胀调整 ({symbol})",
 	"chart_timeline_note": "扇形显示中间 50% 和 80% 的结果；细红色 P5 线标出每个年龄仅有 5% 余额低于的下行水平。竖点线＝退休；红色虚线＝模拟目标；橙色点线＝{rule}。分位数是逐月汇总，而非单条路径。",
-	"trace_median_outcome": "中位结果",
-	"trace_80_percent": "80% 的结果",
-	"trace_50_percent": "50% 的结果",
+	"trace_median_outcome": "余额中位数",
+	"trace_80_percent": "中间 80% 区间",
+	"trace_50_percent": "中间 50% 区间",
 	"trace_p75_boundary": "P75 边界",
 	"trace_p25_boundary": "P25 边界",
 	"trace_p10_boundary": "P10 边界",

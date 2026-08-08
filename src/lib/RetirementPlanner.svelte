@@ -166,7 +166,7 @@
 
 	// ─── Currency options ───────────────────────────────────────────────────────
 
-	const CURRENCIES: CurrencyOption[] = [
+	const CURRENCIES: CurrencyOption[] = $derived.by(() => [
 		{
 			code: 'WORLD',
 			locale: 'en-US',
@@ -195,7 +195,7 @@
 			buttonLabel: m.currency_eu(),
 			flagAsset: asset('/assets/flags/eu.svg')
 		}
-	];
+	]);
 
 	const ASSUMPTION_REFERENCES: Record<CurrencyCode, AssumptionReference> = {
 		WORLD: {

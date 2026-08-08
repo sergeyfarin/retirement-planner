@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "FIRE Monte Carlo-pensioenplanner",
+	"app_title": "Stresstest voor je FIRE-pensioenplan",
 	"header_links_aria": "Projectlinks",
 	"link_github": "GitHub",
 	"link_homepage": "Mijn website",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "geschat kapitaal dat bij pensionering nodig is om in {percent}% van de pensioenherhalingen gefinancierd te blijven.",
 	"caption_portfolio_comparison": "Portefeuillevergelijking",
 	"caption_projected_balance": "Verwacht saldo bij pensionering",
-	"row_difficult_outcome": "Ongunstige 1-op-10-uitkomst",
+	"row_difficult_outcome": "Laag saldo in 1 op 10 gevallen",
 	"row_portfolio_today": "Portefeuille vandaag",
-	"row_typical_outcome": "Typische uitkomst",
-	"row_strong_outcome": "Gunstige 1-op-10-uitkomst",
+	"row_typical_outcome": "Mediaan saldo",
+	"row_strong_outcome": "Hoog saldo in 1 op 10 gevallen",
 	"capital_card_note": "Het doel start elke pensioenherhaling met hetzelfde kapitaal. Verwachte saldi variëren met de opbouwuitkomsten, dus deze vergelijking ondersteunt het totale slagingspercentage van de eerste kaart, maar bepaalt het niet.",
 
 	"summary_diagnostics": "Geavanceerde statistiek en modeldiagnostiek",
@@ -275,9 +275,9 @@
 
 	"chart_timeline_title": "Portefeuilleprojectie — inflatiegecorrigeerd ({symbol})",
 	"chart_timeline_note": "De waaier toont de middelste 50% en 80% van de uitkomsten; de dunne rode P5-lijn markeert het niveau waar per leeftijd slechts 5% van de saldi onder valt. Gestippelde verticaal = pensioen; rood gestreept = simulatiedoel; oranje gestippeld = {rule}. Percentielen zijn samenvattingen per maand, geen afzonderlijke paden.",
-	"trace_median_outcome": "Mediane uitkomst",
-	"trace_80_percent": "80% van de uitkomsten",
-	"trace_50_percent": "50% van de uitkomsten",
+	"trace_median_outcome": "Mediaan saldo",
+	"trace_80_percent": "Middelste 80%-bereik",
+	"trace_50_percent": "Middelste 50%-bereik",
 	"trace_p75_boundary": "P75-grens",
 	"trace_p25_boundary": "P25-grens",
 	"trace_p10_boundary": "P10-grens",

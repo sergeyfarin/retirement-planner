@@ -135,6 +135,25 @@ describe('RetirementPlanner share-link restoration', () => {
 });
 
 describe('RetirementPlanner currency switching', () => {
+	it('retranslates currency-region buttons when the language changes', async () => {
+		const { container } = await render(RetirementPlanner);
+		const russian = container.querySelector<HTMLButtonElement>('button[aria-label="Русский"]');
+		if (!russian) throw new Error('no Russian language button');
+		russian.click();
+
+		await vi.waitFor(() => {
+			expect(currencyButton(container, 'Мир ($)')).not.toBeNull();
+			expect(currencyButton(container, 'США ($)')).not.toBeNull();
+			expect(currencyButton(container, 'Великобр. (£)')).not.toBeNull();
+			expect(currencyButton(container, 'Европа (€)')).not.toBeNull();
+		});
+
+		const english = container.querySelector<HTMLButtonElement>('button[aria-label="English"]');
+		if (!english) throw new Error('no English language button');
+		english.click();
+		await vi.waitFor(() => expect(currencyButton(container, 'World ($)')).not.toBeNull());
+	});
+
 	it('stays responsive after completed-result charts mount', async () => {
 		const { container } = await render(RetirementPlanner);
 
@@ -181,7 +200,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(squashed(retirement)).toContain('Capital needed at retirement age');
 		expect(squashed(retirement)).toContain('retirement-path replays');
 		expect(squashed(retirement)).toContain('Projected balance at retirement');
-		expect(squashed(retirement)).toContain('Typical outcome');
+		expect(squashed(retirement)).toContain('Median balance');
 		expect(squashed(retirement)).not.toContain('middle 80%');
 		expect(squashed(retirement)).not.toContain('Chance of hitting it');
 		expect(container.querySelector('.downside-card')).toBeNull();

@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "Planificador FIRE de jubilación Monte Carlo",
+	"app_title": "Prueba de resistencia del plan de jubilación FIRE",
 	"header_links_aria": "Enlaces del proyecto",
 	"link_github": "GitHub",
 	"link_homepage": "Mi página web",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "de capital estimado necesario al jubilarse para seguir financiado en el {percent} % de las repeticiones de jubilación.",
 	"caption_portfolio_comparison": "Comparación de cartera",
 	"caption_projected_balance": "Saldo proyectado a la jubilación",
-	"row_difficult_outcome": "Resultado desfavorable 1 de 10",
+	"row_difficult_outcome": "Saldo bajo en 1 de cada 10 casos",
 	"row_portfolio_today": "Cartera hoy",
-	"row_typical_outcome": "Resultado típico",
-	"row_strong_outcome": "Resultado favorable 1 de 10",
+	"row_typical_outcome": "Saldo mediano",
+	"row_strong_outcome": "Saldo alto en 1 de cada 10 casos",
 	"capital_card_note": "El objetivo arranca cada repetición de jubilación con el mismo capital. Los saldos proyectados varían con el resultado de la acumulación, así que esta comparación apoya —pero no determina— la tasa de éxito global de la primera tarjeta.",
 
 	"summary_diagnostics": "Estadísticas avanzadas y diagnóstico del modelo",
@@ -275,9 +275,9 @@
 
 	"chart_timeline_title": "Proyección de la cartera — ajustada por inflación ({symbol})",
 	"chart_timeline_note": "El abanico muestra el 50 % y el 80 % centrales de los resultados; la fina línea roja P5 marca el nivel por debajo del cual queda solo el 5 % de los saldos a cada edad. Vertical punteada = jubilación; roja discontinua = objetivo de simulación; naranja punteada = {rule}. Los percentiles son resúmenes mes a mes, no trayectorias individuales.",
-	"trace_median_outcome": "Resultado mediano",
-	"trace_80_percent": "80 % de los resultados",
-	"trace_50_percent": "50 % de los resultados",
+	"trace_median_outcome": "Saldo mediano",
+	"trace_80_percent": "Intervalo central del 80 %",
+	"trace_50_percent": "Intervalo central del 50 %",
 	"trace_p75_boundary": "Límite P75",
 	"trace_p25_boundary": "Límite P25",
 	"trace_p10_boundary": "Límite P10",

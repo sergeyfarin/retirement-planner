@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_title": "FIRE Retirement Monte Carlo Planner",
+	"app_title": "FIRE Retirement Plan Stress Test",
 	"header_links_aria": "Project links",
 	"link_github": "GitHub",
 	"link_homepage": "My home page",
@@ -225,10 +225,10 @@
 	"capital_sentence_at_retirement": "estimated capital needed at retirement to stay funded in {percent}% of retirement-path replays.",
 	"caption_portfolio_comparison": "Portfolio comparison",
 	"caption_projected_balance": "Projected balance at retirement",
-	"row_difficult_outcome": "Difficult 1-in-10 outcome",
+	"row_difficult_outcome": "Low 1-in-10 balance",
 	"row_portfolio_today": "Portfolio today",
-	"row_typical_outcome": "Typical outcome",
-	"row_strong_outcome": "Strong 1-in-10 outcome",
+	"row_typical_outcome": "Median balance",
+	"row_strong_outcome": "High 1-in-10 balance",
 	"capital_card_note": "The target starts every retirement replay with the same capital. Projected balances vary with accumulation outcomes, so this comparison supports but does not determine the overall success rate in the first card.",
 
 	"summary_diagnostics": "Advanced statistics and model diagnostics",
@@ -274,10 +274,10 @@
 	"diag_sensitivity_scope": "Recommendations are reported only from this tested range. The calculator does not extrapolate a larger spending cut or later retirement age when the goal remains outside it.",
 
 	"chart_timeline_title": "Portfolio projection — inflation-adjusted ({symbol})",
-	"chart_timeline_note": "Fan shows the middle 50% and 80% of outcomes; the thin red P5 line marks the downside level only 5% of balances fall below at each age. Dotted vertical = retirement; red dashed = simulation target; orange dotted = {rule}. Percentiles are month-by-month summaries, not individual paths.",
-	"trace_median_outcome": "Median outcome",
-	"trace_80_percent": "80% of outcomes",
-	"trace_50_percent": "50% of outcomes",
+	"chart_timeline_note": "The fan shows the middle 50% and 80% ranges; the thin red P5 line marks the balance that only 5% of scenarios fall below at each age. Dotted vertical = retirement; red dashed = simulation target; orange dotted = {rule}. Percentiles are month-by-month summaries, not individual paths.",
+	"trace_median_outcome": "Median balance",
+	"trace_80_percent": "Middle 80% range",
+	"trace_50_percent": "Middle 50% range",
 	"trace_p75_boundary": "P75 boundary",
 	"trace_p25_boundary": "P25 boundary",
 	"trace_p10_boundary": "P10 boundary",
