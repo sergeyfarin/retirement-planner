@@ -2,6 +2,10 @@
 
 A high-performance, browser-based retirement forecasting engine built with **Svelte 5** and powered by **Markov regime-switching Monte Carlo simulation** with historical bootstrap resampling. All computation runs in a custom-built **Rust WebAssembly (Wasm)** engine mounted in a **Web Worker** to keep the UI perfectly responsive during 100,000+ simulation runs.
 
+http://farin.nl/retirement
+
+<img width="2455" height="1467" alt="image" src="https://github.com/user-attachments/assets/c11014ab-2394-4cd4-bc70-065bef8ef19e" />
+
 ---
 
 ## 1. Overview
