@@ -170,7 +170,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
 
 		expect(squashed(verdict?.querySelector('.stat-sentence'))).toMatch(
-			/^\d+% estimated chance your plan stays funded through age \d+$/
+			/^\d+% — estimated probability that your money lasts through age \d+$/
 		);
 		expect(squashed(verdict)).not.toContain('simulated market paths');
 		expect(squashed(verdict)).not.toContain('meets the 95%');
