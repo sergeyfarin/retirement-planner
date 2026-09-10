@@ -21,7 +21,7 @@
 		"webassembly"
 	],
 	"private": true,
-	"packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
+	"packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457",
 	"scripts": {
 		"build:wasm": "cd rust-engine && wasm-pack build --target web",
 		"dev": "pnpm run build:wasm && vite dev",
@@ -61,39 +61,39 @@
 		}
 	},
 	"devDependencies": {
-		"@eslint/compat": "2.1.0",
+		"@eslint/compat": "2.1.1",
 		"@eslint/js": "10.0.1",
-		"@inlang/paraglide-js": "^2.23.1",
+		"@inlang/paraglide-js": "^2.25.1",
 		"@sveltejs/adapter-static": "3.0.10",
-		"@sveltejs/kit": "2.70.2",
+		"@sveltejs/kit": "2.70.3",
 		"@sveltejs/package": "2.5.8",
-		"@sveltejs/vite-plugin-svelte": "7.2.0",
+		"@sveltejs/vite-plugin-svelte": "7.3.0",
 		"@tailwindcss/postcss": "4.3.3",
-		"@types/node": "26.1.2",
-		"@vitest/browser-playwright": "4.1.10",
-		"esbuild": "0.28.1",
-		"eslint": "10.8.0",
+		"@types/node": "26.5.1",
+		"@vitest/browser-playwright": "5.0.0",
+		"esbuild": "0.28.2",
+		"eslint": "10.10.0",
 		"eslint-config-prettier": "10.1.8",
-		"eslint-plugin-svelte": "3.22.0",
-		"globals": "17.9.0",
-		"playwright": "1.62.1",
+		"eslint-plugin-svelte": "3.23.0",
+		"globals": "17.12.0",
+		"playwright": "1.63.0",
 		"prettier": "3.9.6",
 		"prettier-plugin-svelte": "4.1.1",
-		"publint": "0.3.23",
-		"rollup": "4.62.4",
+		"publint": "0.3.24",
+		"rollup": "4.63.1",
 		"rust-engine": "file:rust-engine/pkg",
-		"svelte": "5.56.8",
-		"svelte-check": "4.7.4",
+		"svelte": "5.57.0",
+		"svelte-check": "4.7.6",
 		"tailwindcss": "4.3.3",
 		"typescript": "6.0.3",
-		"typescript-eslint": "8.66.0",
-		"vite": "8.2.1",
+		"typescript-eslint": "8.70.0",
+		"vite": "8.3.0",
 		"vite-plugin-top-level-await": "1.6.0",
 		"vite-plugin-wasm": "3.6.0",
-		"vitest": "4.1.10",
-		"vitest-browser-svelte": "3.0.0"
+		"vitest": "5.0.0",
+		"vitest-browser-svelte": "3.1.0"
 	},
 	"dependencies": {
-		"plotly.js": "3.7.0"
+		"plotly.js": "4.1.0"
 	}
 }
