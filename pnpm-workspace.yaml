@@ -10,6 +10,11 @@ overrides:
   uuid: 11.1.1
   maplibre-gl: 6.4.1
   # postcss: 8.5.23
+  # @swc/core 1.16.x serialises an AST that vite-plugin-top-level-await's `printSync`
+  # rejects with `missing field \`type\``, breaking `vite build`. Pin to the last 1.15
+  # release until the plugin catches up.
+  '@swc/core': 1.15.47
+  '@swc/wasm': 1.15.47
 minimumReleaseAgeExclude:
   - '@sveltejs/vite-plugin-svelte@7.2.0'
   - svelte-check@4.7.2
