@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { lifetimeVerdict, probabilityInterval } from './resultPresentation';
+import {
+	formatSuccessProbability,
+	lifetimeVerdict,
+	probabilityInterval
+} from './resultPresentation';
 
 describe('lifetime verdict presentation', () => {
 	it('keeps decisive results in their normal rating tones', () => {
@@ -30,5 +34,11 @@ describe('lifetime verdict presentation', () => {
 	it('returns a bounded interval at the extremes', () => {
 		expect(probabilityInterval(0, 1_000)[0]).toBe(0);
 		expect(probabilityInterval(1, 1_000)[1]).toBe(1);
+	});
+
+	it('does not round sampled failures up to certainty', () => {
+		expect(formatSuccessProbability(1)).toBe('100%');
+		expect(formatSuccessProbability(0.999)).toBe('>99%');
+		expect(formatSuccessProbability(0.994)).toBe('99%');
 	});
 });

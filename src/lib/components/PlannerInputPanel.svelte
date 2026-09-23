@@ -165,6 +165,20 @@
 		}
 	});
 
+	const currentAnnualNetCashflow = $derived.by(() => {
+		const activeIncome = incomeSources
+			.filter((source) => source.fromAge <= input.currentAge && source.toAge > input.currentAge)
+			.reduce((sum, source) => sum + source.yearlyAmount, 0);
+		const activeSpending = spendingPeriods
+			.filter((period) => period.fromAge <= input.currentAge && period.toAge > input.currentAge)
+			.reduce((sum, period) => sum + period.yearlyAmount, 0);
+		return activeIncome - activeSpending;
+	});
+
+	const currentAnnualNetCashflowLabel = $derived(
+		`${selectedCurrency.symbol}\u00a0${fmtNum(currentAnnualNetCashflow)}`
+	);
+
 	function setWithdrawalKind(kind: 'fixed' | 'guardrails' | 'percentOfPortfolio') {
 		input.withdrawalStrategy = {
 			...DEFAULT_WITHDRAWAL_STRATEGY,
@@ -372,6 +386,7 @@
 				</div>
 				<button class="btn-add" onclick={addSpendingPeriod}>{m.btn_add_period()}</button>
 				<p class="note">{m.note_surplus_invested()}</p>
+				<p class="note">{m.note_current_net_cashflow({ amount: currentAnnualNetCashflowLabel })}</p>
 			</div>
 
 			<div class="section-split">

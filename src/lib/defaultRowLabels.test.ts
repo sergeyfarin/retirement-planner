@@ -7,7 +7,7 @@ import { localizeSeededLabel, withLocalizedLabel } from './defaultRowLabels';
  */
 describe('seeded row labels', () => {
 	it('re-renders a seeded label from any shipped language', () => {
-		expect(localizeSeededLabel('Gehalt')).toBe('Salary');
+		expect(localizeSeededLabel('Gehalt')).toBe('After-tax income');
 		expect(localizeSeededLabel('Пенсия / соцвыплаты')).toBe('Pension / Social security');
 		expect(localizeSeededLabel('Pensioen / sociale uitkering')).toBe('Pension / Social security');
 		expect(localizeSeededLabel('Emerytura / świadczenia społeczne')).toBe(
@@ -32,6 +32,6 @@ describe('seeded row labels', () => {
 		expect(withLocalizedLabel(untouched)).toBe(untouched);
 
 		const seeded = { id: 'is-default', label: 'Gehalt', yearlyAmount: 65_000 };
-		expect(withLocalizedLabel(seeded)).toEqual({ ...seeded, label: 'Salary' });
+		expect(withLocalizedLabel(seeded)).toEqual({ ...seeded, label: 'After-tax income' });
 	});
 });

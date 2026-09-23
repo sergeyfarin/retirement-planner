@@ -338,6 +338,27 @@ describe('annual net-gain taxation', () => {
 		expect(effectiveAnnualDrag).toBeGreaterThan(0.008);
 		expect(effectiveAnnualDrag).toBeLessThan(0.025);
 	});
+
+	it('still applies the configured drag when nominal return only matches inflation', () => {
+		const result = evaluatePath(
+			{ assetReturns: new Float64Array([0.1]), inflationRates: new Float64Array([0.1]) },
+			{
+				monthlyRealIncomeFlow: new Float64Array(1),
+				monthlyNominalIncomeFlow: new Float64Array(1),
+				monthlyRealSpendingFlow: new Float64Array(1),
+				monthlyNominalSpendingFlow: new Float64Array(1),
+				lumpSumByMonth: new Float64Array(1)
+			},
+			1_000,
+			1,
+			{ kind: 'fixed' },
+			0,
+			0,
+			0.15
+		);
+
+		expect(result.finalBalance).toBeCloseTo(1_000 - (1_000 * 0.1 * 0.15) / 1.1, 12);
+	});
 });
 
 describe('regime bootstrap is mean-preserving', () => {

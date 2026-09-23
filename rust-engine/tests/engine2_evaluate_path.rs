@@ -374,7 +374,7 @@ fn absurd_fee_rates_are_clamped_rather_than_making_the_balance_negative() {
 }
 
 #[test]
-fn gains_tax_is_settled_once_a_year_on_real_mark_to_market_pnl() {
+fn gains_tax_is_settled_once_a_year_on_mark_to_market_pnl() {
     let months = 12;
     let untaxed = evaluate_path(
         &flat_tape(months, 0.01, 0.0),
@@ -411,6 +411,26 @@ fn gains_tax_is_settled_once_a_year_on_real_mark_to_market_pnl() {
         untaxed.final_balance - gain * 0.25,
         1e-9,
     );
+}
+
+#[test]
+fn configured_tax_drag_applies_when_nominal_return_matches_inflation() {
+    let result = evaluate_path(
+        &flat_tape(1, 0.10, 0.10),
+        &empty_cashflows(1),
+        1_000.0,
+        1,
+        &fixed_strategy(),
+        0,
+        0.0,
+        0.15,
+        None,
+        true,
+    );
+
+    // Growth is measured before inflation, then represented in today's purchasing power.
+    // Consequently this configurable drag is not a tax solely on gains above inflation.
+    assert_close(result.final_balance, 1_000.0 - (1_000.0 * 0.10 * 0.15) / 1.10, 1e-9);
 }
 
 #[test]

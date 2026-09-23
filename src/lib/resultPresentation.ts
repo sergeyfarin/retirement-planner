@@ -12,6 +12,17 @@ export type LifetimeVerdict = {
 	nearBoundary: number | null;
 };
 
+/**
+ * Keep a non-zero sampled failure rate visible. A whole-number percentage makes 99.5%+
+ * look like a certainty even when the accompanying failure metrics show otherwise.
+ */
+export function formatSuccessProbability(probability: number): string {
+	const bounded = Math.min(1, Math.max(0, probability));
+	if (bounded === 1) return '100%';
+	if (bounded >= 0.995) return '>99%';
+	return `${Math.round(bounded * 100)}%`;
+}
+
 const LIFETIME_BOUNDARIES = [0.5, 0.75] as const;
 
 /** 95% Wilson score interval for a simulated success proportion. */

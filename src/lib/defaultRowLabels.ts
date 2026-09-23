@@ -29,6 +29,20 @@ const SEEDED_LABEL_MESSAGES = [
 	m.row_default_one_time_event
 ] as const;
 
+// Keep older shared scenarios localizable after the default income row was clarified to
+// “After-tax income”. These were every shipped rendering of the former “Salary” label.
+const LEGACY_SALARY_LABELS = [
+	'Salary',
+	'Gehalt',
+	'Salario',
+	'Salaire',
+	'Stipendio',
+	'Salaris',
+	'Wynagrodzenie',
+	'Зарплата',
+	'工资'
+] as const;
+
 type SeededLabelMessage = (typeof SEEDED_LABEL_MESSAGES)[number];
 
 /**
@@ -41,6 +55,7 @@ const SEEDED_LABELS: ReadonlyMap<string, SeededLabelMessage> = (() => {
 	for (const message of SEEDED_LABEL_MESSAGES) {
 		for (const locale of locales) index.set(message({}, { locale }), message);
 	}
+	for (const label of LEGACY_SALARY_LABELS) index.set(label, m.row_default_salary);
 	return index;
 })();
 

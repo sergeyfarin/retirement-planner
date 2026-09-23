@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { m } from '../paraglide/messages';
-	import { lifetimeVerdict } from '../resultPresentation';
+	import { formatSuccessProbability, lifetimeVerdict } from '../resultPresentation';
 
 	let {
 		stats,
@@ -21,7 +21,7 @@
 	 * downside sizes — supports that answer and lives in the cards below.
 	 */
 	const lifetimeProbability = $derived(stats?.successProbability ?? 0);
-	const lifetimeScore = $derived(Math.round(lifetimeProbability * 100));
+	const lifetimeScore = $derived(formatSuccessProbability(lifetimeProbability));
 	const verdict = $derived(
 		lifetimeVerdict(lifetimeProbability, simCount, FI_TARGET_SUCCESS_PROBABILITY)
 	);
@@ -111,7 +111,7 @@
 				})}
 			</h3>
 			<p class="stat-sentence">
-				<strong class="mono-value">{lifetimeScore}%</strong>
+				<strong class="mono-value">{lifetimeScore}</strong>
 				{m.verdict_sentence_tail({ age: fmtNum(input.simulateUntilAge) })}
 			</p>
 			{#if verdict.nearBoundary != null}
