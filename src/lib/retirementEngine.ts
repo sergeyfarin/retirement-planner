@@ -123,10 +123,14 @@ class WithdrawalRunner {
 				} else if (currentRate < this.initialRate * (1 - this.guardrailBand)) {
 					this.multiplier *= 1 + this.adjustment;
 				}
-				this.multiplier = Math.min(
-					this.spendingCeiling,
-					Math.max(this.spendingFloor, this.multiplier)
+				// The band describes total spending. Convert it to bounds on the
+				// portfolio-funded portion so fixed income does not narrow the band.
+				const minMultiplier = Math.max(0, (monthlyFloor - income) / portfolioBase);
+				const maxMultiplier = Math.max(
+					minMultiplier,
+					Math.max(0, (monthlyCeiling - income) / portfolioBase)
 				);
+				this.multiplier = Math.min(maxMultiplier, Math.max(minMultiplier, this.multiplier));
 			}
 			const adjustedSpending = portfolioBase > 0 ? income + portfolioBase * this.multiplier : base;
 			const clamped = Math.min(monthlyCeiling, Math.max(monthlyFloor, adjustedSpending));
@@ -1740,8 +1744,13 @@ export function runMonteCarloSimulation(
 		allBalances[sim] = evaluation.balances;
 		if (sim < replaySampleCount) pathTapes.push(tape);
 
-		const retireIndex = Math.max(0, Math.min(retireMonth - 1, months - 1));
-		retireBalances.push(evaluation.balances[retireIndex]);
+		// At retirement today the first evaluated balance is already after one
+		// simulated month, so the portfolio-at-retirement value is today's capital.
+		retireBalances.push(
+			retireMonth === 0
+				? input.currentSavings
+				: evaluation.balances[Math.max(0, Math.min(retireMonth - 1, months - 1))]
+		);
 		finalBalances.push(evaluation.finalBalance);
 		shortfallTotals.push(evaluation.cumulativeShortfall);
 		depletedYearsSeries.push(evaluation.depletedMonths / 12);

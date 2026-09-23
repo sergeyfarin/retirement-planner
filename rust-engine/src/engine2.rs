@@ -110,8 +110,13 @@ impl WithdrawalRunner {
                 } else if current_rate < self.initial_rate * (1.0 - self.guardrail_band) {
                     self.multiplier *= 1.0 + self.adjustment;
                 }
-                let min_mult = self.spending_floor;
-                let max_mult = self.spending_ceiling;
+                // The configured band applies to total spending, while the multiplier only
+                // acts on portfolio-funded spending. Convert the total-spending bounds so
+                // pensions and other income do not unintentionally narrow the lifestyle band.
+                let min_mult = ((monthly_floor - income) / portfolio_base).max(0.0);
+                let max_mult = ((monthly_ceiling - income) / portfolio_base)
+                    .max(0.0)
+                    .max(min_mult);
                 self.multiplier = self.multiplier.clamp(min_mult, max_mult);
             }
             let adjusted_spending = if portfolio_base > 0.0 {

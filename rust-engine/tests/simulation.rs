@@ -547,6 +547,9 @@ fn an_already_retired_plan_reports_a_required_capital_instead_of_a_coast_age() {
     };
     assert_eq!(result.stats.fi_probability_p95, expected);
     assert!(result.stats.fi_probability_swr == 0.0 || result.stats.fi_probability_swr == 1.0);
+    assert_close(result.stats.retire_low, input.current_savings, 1e-9);
+    assert_close(result.stats.retire_median, input.current_savings, 1e-9);
+    assert_close(result.stats.retire_high, input.current_savings, 1e-9);
 }
 
 #[test]

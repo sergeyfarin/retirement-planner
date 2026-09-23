@@ -48,6 +48,7 @@
 	import LanguageSwitcher from './components/LanguageSwitcher.svelte';
 	import { m } from './paraglide/messages';
 	import { applyLocale, currentLocale, type Locale } from './i18n.svelte';
+	import { parseLocalizedNumber } from './numberInput';
 	import './retirement.css';
 
 	// ─── Types ──────────────────────────────────────────────────────────────────
@@ -739,20 +740,20 @@
 		(n: number) => `${selectedCurrency.symbol}\u00A0${fmtHoverCompactValue(n)}`
 	);
 
-	function parseNum(s: string): number {
-		const cleaned = String(s)
-			.replace(/'/g, '')
-			.replace(/[^\d.-]/g, '');
-		const n = Number(cleaned);
-		return isNaN(n) ? 0 : n;
+	function numFromEvent(e: Event, fallback: number): number {
+		const element = e.target as HTMLInputElement;
+		const value = parseLocalizedNumber(element.value);
+		if (value !== null) {
+			element.setCustomValidity('');
+			return value;
+		}
+		element.setCustomValidity('Enter a valid number.');
+		element.reportValidity();
+		return fallback;
 	}
 
-	function numFromEvent(e: Event): number {
-		return parseNum((e.target as HTMLInputElement).value);
-	}
-
-	function decimalFromPercentEvent(e: Event): number {
-		return numFromEvent(e) / 100;
+	function decimalFromPercentEvent(e: Event, fallback: number): number {
+		return numFromEvent(e, fallback * 100) / 100;
 	}
 
 	function fmtPercentInput(decimal: number, decimals = 2): string {
@@ -2225,7 +2226,7 @@
 								inputmode="numeric"
 								value={fmtNum(input.simulations)}
 								onchange={(e) => {
-									input.simulations = numFromEvent(e);
+									input.simulations = numFromEvent(e, input.simulations);
 									onSimulationSettingsChange();
 								}}
 							/>

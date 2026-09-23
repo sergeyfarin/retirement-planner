@@ -1939,6 +1939,25 @@ describe('already-retired mode', () => {
 		}
 	});
 
+	it('reports today’s capital as the portfolio at retirement', () => {
+		const input = retiredInput();
+		const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);
+		const { stats } = runMonteCarloSimulation(
+			input,
+			retiredSpending,
+			retiredIncome,
+			[],
+			months,
+			retireMonth
+		);
+
+		expect([stats.retireLow, stats.retireMedian, stats.retireHigh]).toEqual([
+			input.currentSavings,
+			input.currentSavings,
+			input.currentSavings
+		]);
+	});
+
 	it('reports a required starting capital instead of a degenerate P95 balance target', () => {
 		const input = retiredInput();
 		const { months, retireMonth } = validateSimulationInputs(input, retiredSpending);

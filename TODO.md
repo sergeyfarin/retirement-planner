@@ -1,8 +1,7 @@
 # Project Roadmap & Backlog
 
-**Updated:** 2026-08-06 (calculator review: 0.23–0.28 logged; 0.28 fixed, the ruin-surface
-spending axis confirmed as intended in 0.26, and the full-run probability now replaces the
-sampled baseline in the surface and its recommendations). Mortality-weighted ruin remains
+**Updated:** 2026-09-23. The actionable release backlog is now mirrored in GitHub Issues;
+fixed review items remain below as technical decision history. Mortality-weighted ruin remains
 declined as a product decision — see 2.2.
 
 ## Active backlog — ordered by priority
@@ -12,39 +11,20 @@ completed decision history remain below for context.
 
 ### Priority 0 — correctness and unsafe inputs
 
-1. ✅ **Validate the normalized calculator payload at the UI and worker/Wasm boundaries.**
-   Closed by 0.19, 0.21 and 0.22. The shared TypeScript validator now covers all core
-   assumptions, recurring cashflows, signed one-time events, operative age ranges and
-   timeline derivation; the worker repeats it and rejects forged month counts; the Wasm
-   export independently mirrors the safety invariants for direct callers. Share-link
-   parametric moments are allowlisted and bounded before entering application state.
-
-   Edit-time field feedback remains a UX improvement rather than a correctness gap: invalid
-   text can temporarily sit in local state, but no simulation can execute it.
-
-2. **Move parametric inflation to a log-domain model and report clipping.** The
+1. **Move parametric inflation to a log-domain model and report clipping** ([#11](https://github.com/sergeyfarin/retirement-planner/issues/11)). The
    release-blocking part of this is fixed — see 0.20 — but the fix is a clamp, not a model.
    A log-domain draw would keep the price level positive by construction instead of by
    truncation, and the UI still says nothing when a draw is clipped.
-3. **Resolve the remaining Mode A model choices:** whether the regime layer adds enough to
-   justify its complexity (0.12), calibrate block length for retirement outcomes rather
-   than relying only on the PWSD diagnostic (0.13), and close the residual annual-moment
-   targeting limitation (second 0.15 entry).
-4. **Close the calculator-review correctness gaps:** return today's capital for the
-   already-retired retirement snapshot (0.24), decide how seeded TS/Rust parity should work
-   above Rust's reservoir threshold (0.25), and make guardrail floor/ceiling semantics match
-   their total-spending labels (0.27).
+2. **Calibrate and document bootstrap block length** ([#15](https://github.com/sergeyfarin/retirement-planner/issues/15)), including the decision whether Mode A's regime layer earns its complexity.
+3. **Preserve seeded engine parity above the reservoir threshold** ([#13](https://github.com/sergeyfarin/retirement-planner/issues/13)).
 
 ### Priority 1 — interpretation and decision safety
 
-1. **Make automatic contributions explicit.** The engine invests every `income − spending`
-   surplus. Show the derived first-year contribution or add a separate contribution input
-   so users do not accidentally model their entire unentered household budget as savings.
-2. **Disclose the allocation/rebalancing convention and add glide paths.** The fixed blended
+1. **Disclose the allocation/rebalancing convention and add glide paths.** The fixed blended
    series approximates regular rebalancing and holds one allocation through accumulation
    and drawdown. Document that next to the control, then implement configurable rebalancing
    and accumulation/retirement allocations (2.5).
-3. **Surface uncertainty near decision thresholds.** Show simulation count and binomial
+2. **Surface uncertainty near decision thresholds** ([#16](https://github.com/sergeyfarin/retirement-planner/issues/16)). Show simulation count and binomial
    sampling intervals, including the replay sample size used by P95/ruin cells. Avoid a hard
    “On track” status change at a rounded 95% when the estimate straddles the threshold.
 
@@ -177,15 +157,15 @@ together. A zero-return regression verifies that a 40k pension against 30k plann
 spending adds the 10k surplus to the portfolio, and the cross-engine suite covers the same
 surplus-income branch. The calibrated `guardrails ≥ fixed` scenario still passes.
 
-### 0.27 Guardrail multiplier bounds bind tighter than the documented floor/ceiling (S) — found 2026-08-06
+### ✅ 0.27 Guardrail bounds now match the documented total-spending band (S) — fixed 2026-09-23
 
 Same function: `multiplier.clamp(spending_floor, spending_ceiling)` applies the
 [0.6, 1.4] ratios — documented in README §5.1.1 as bounds on _total_ spending — to the
 _portfolio-funded portion_ alone. With 40k planned and 15k income, the multiplier bound
 caps total spending at [0.75, 1.25]× planned, so the outer total clamp can never bind and
-the stated 0.6 floor is unreachable. Conservative in both directions, but it is not what
-the docs describe. Either give the multiplier its own bounds or derive them from the
-floor/ceiling and the current income share.
+the stated 0.6 floor is unreachable. The engines now derive multiplier bounds from the
+current income share, preserving the stated [0.6, 1.4] total-spending band wherever a
+portfolio withdrawal is needed. A Rust regression covers both boundaries with pension income.
 
 ### ✅ 0.26 Ruin-surface spending multiplier scales the whole plan (S) — clarified 2026-08-06
 
@@ -221,13 +201,12 @@ nothing catches it. Either make the reservoir draw from a separate RNG instance,
 in TS, or state in `1.3` that parity is only claimed below the reservoir threshold and
 assert that bound in the test.
 
-### 0.24 `retireBalances` is one month late for already-retired plans (S) — found 2026-08-06
+### ✅ 0.24 Already-retired portfolio snapshot starts today (S) — fixed 2026-09-23
 
 `retire_index = retire_month.saturating_sub(1)` gives index 0 when `retire_month == 0`,
 which is the balance _after_ month 0's cashflows, growth, fees and deflation — not the
-capital held today. The FI probabilities correctly compare against `current_savings`
-instead, so only the displayed "portfolio at retirement" percentiles are affected, but
-they should read `current_savings` in that branch.
+capital held today. Both engines now use `current_savings` when retirement is today; Rust
+and TypeScript regressions assert all three displayed percentiles equal that amount.
 
 ### 0.23 Coast FIRE scans every month for adaptive strategies (S) — found 2026-08-06
 

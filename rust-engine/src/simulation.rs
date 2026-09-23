@@ -511,10 +511,17 @@ pub fn run_monte_carlo_simulation(
             true,
         );
 
-        let retire_index = (retire_month as usize)
-            .saturating_sub(1)
-            .min((months as usize).saturating_sub(1));
-        retire_balances.push(evaluation.balances[retire_index]);
+        // At retirement today, the first evaluated balance is after one simulated month;
+        // the portfolio-at-retirement statistic must instead report today's capital.
+        let retire_balance = if retire_month_usize == 0 {
+            input.current_savings
+        } else {
+            let retire_index = retire_month_usize
+                .saturating_sub(1)
+                .min((months as usize).saturating_sub(1));
+            evaluation.balances[retire_index]
+        };
+        retire_balances.push(retire_balance);
         final_balances.push(evaluation.final_balance);
         shortfall_totals.push(evaluation.cumulative_shortfall);
         depleted_years_series.push((evaluation.depleted_months as f64) / 12.0);

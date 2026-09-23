@@ -104,8 +104,8 @@
 		realReturnCdfEl?: HTMLDivElement | null;
 
 		fmtNum: (value: number, decimals?: number) => string;
-		numFromEvent: (e: Event) => number;
-		decimalFromPercentEvent: (e: Event) => number;
+		numFromEvent: (e: Event, fallback: number) => number;
+		decimalFromPercentEvent: (e: Event, fallback: number) => number;
 		fmtPercentInputSig3: (value: number) => string;
 		fmtPercentDisplay: (value: number, decimals?: number) => string;
 		clamp: (value: number, min: number, max: number) => number;
@@ -247,7 +247,7 @@
 					title={alreadyRetired ? m.field_retire_disabled_title() : ''}
 					value={input.retirementAge}
 					onchange={(e) => {
-						input.retirementAge = numFromEvent(e);
+						input.retirementAge = numFromEvent(e, input.retirementAge);
 					}}
 				/>
 			</label>
@@ -298,7 +298,7 @@
 								inputmode="numeric"
 								value={fmtNum(src.yearlyAmount)}
 								onchange={(e) => {
-									src.yearlyAmount = numFromEvent(e);
+									src.yearlyAmount = numFromEvent(e, src.yearlyAmount);
 									onSimulationSettingsChange();
 								}}
 							/>
@@ -362,7 +362,7 @@
 								inputmode="numeric"
 								value={fmtNum(period.yearlyAmount)}
 								onchange={(e) => {
-									period.yearlyAmount = numFromEvent(e);
+									period.yearlyAmount = numFromEvent(e, period.yearlyAmount);
 									onSimulationSettingsChange();
 								}}
 							/>
@@ -407,7 +407,7 @@
 									inputmode="numeric"
 									value={fmtNum(evt.amount)}
 									onchange={(e) => {
-										evt.amount = numFromEvent(e);
+										evt.amount = numFromEvent(e, evt.amount);
 										onSimulationSettingsChange();
 									}}
 								/>
@@ -468,7 +468,11 @@
 							type="text"
 							inputmode="decimal"
 							value={fmtPercentInputSig3(input.withdrawalStrategy.guardrailBand ?? 0.2)}
-							onchange={(e) => updateWithdrawalParam('guardrailBand', decimalFromPercentEvent(e))}
+							onchange={(e) =>
+								updateWithdrawalParam(
+									'guardrailBand',
+									decimalFromPercentEvent(e, input.withdrawalStrategy?.guardrailBand ?? 0.2)
+								)}
 						/>
 					</label>
 					<label>
@@ -477,7 +481,11 @@
 							type="text"
 							inputmode="decimal"
 							value={fmtPercentInputSig3(input.withdrawalStrategy.adjustment ?? 0.1)}
-							onchange={(e) => updateWithdrawalParam('adjustment', decimalFromPercentEvent(e))}
+							onchange={(e) =>
+								updateWithdrawalParam(
+									'adjustment',
+									decimalFromPercentEvent(e, input.withdrawalStrategy?.adjustment ?? 0.1)
+								)}
 						/>
 					</label>
 				</div>
@@ -496,7 +504,10 @@
 							inputmode="decimal"
 							value={fmtPercentInputSig3(input.withdrawalStrategy.withdrawalPercent ?? 0.04)}
 							onchange={(e) =>
-								updateWithdrawalParam('withdrawalPercent', decimalFromPercentEvent(e))}
+								updateWithdrawalParam(
+									'withdrawalPercent',
+									decimalFromPercentEvent(e, input.withdrawalStrategy?.withdrawalPercent ?? 0.04)
+								)}
 						/>
 					</label>
 				</div>
@@ -519,7 +530,7 @@
 					inputmode="numeric"
 					value={fmtNum(input.currentSavings)}
 					onchange={(e) => {
-						input.currentSavings = numFromEvent(e);
+						input.currentSavings = numFromEvent(e, input.currentSavings);
 						onSimulationSettingsChange();
 					}}
 				/>
@@ -748,7 +759,10 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.stockMean)}
 								onchange={(e) => {
-									parametricMetrics.stockMean = decimalFromPercentEvent(e);
+									parametricMetrics.stockMean = decimalFromPercentEvent(
+										e,
+										parametricMetrics.stockMean
+									);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -760,7 +774,10 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.stockStd)}
 								onchange={(e) => {
-									parametricMetrics.stockStd = decimalFromPercentEvent(e);
+									parametricMetrics.stockStd = decimalFromPercentEvent(
+										e,
+										parametricMetrics.stockStd
+									);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -785,7 +802,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.stockSkew, 2)}
 								onchange={(e) => {
-									parametricMetrics.stockSkew = numFromEvent(e);
+									parametricMetrics.stockSkew = numFromEvent(e, parametricMetrics.stockSkew);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -797,7 +814,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.stockKurt, 2)}
 								onchange={(e) => {
-									parametricMetrics.stockKurt = numFromEvent(e);
+									parametricMetrics.stockKurt = numFromEvent(e, parametricMetrics.stockKurt);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -822,7 +839,10 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.bondMean)}
 								onchange={(e) => {
-									parametricMetrics.bondMean = decimalFromPercentEvent(e);
+									parametricMetrics.bondMean = decimalFromPercentEvent(
+										e,
+										parametricMetrics.bondMean
+									);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -834,7 +854,7 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.bondStd)}
 								onchange={(e) => {
-									parametricMetrics.bondStd = decimalFromPercentEvent(e);
+									parametricMetrics.bondStd = decimalFromPercentEvent(e, parametricMetrics.bondStd);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -859,7 +879,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.bondSkew, 2)}
 								onchange={(e) => {
-									parametricMetrics.bondSkew = numFromEvent(e);
+									parametricMetrics.bondSkew = numFromEvent(e, parametricMetrics.bondSkew);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -871,7 +891,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.bondKurt, 2)}
 								onchange={(e) => {
-									parametricMetrics.bondKurt = numFromEvent(e);
+									parametricMetrics.bondKurt = numFromEvent(e, parametricMetrics.bondKurt);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -896,7 +916,10 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.bankMean)}
 								onchange={(e) => {
-									parametricMetrics.bankMean = decimalFromPercentEvent(e);
+									parametricMetrics.bankMean = decimalFromPercentEvent(
+										e,
+										parametricMetrics.bankMean
+									);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -908,7 +931,7 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(investmentMetrics.bankStd)}
 								onchange={(e) => {
-									parametricMetrics.bankStd = decimalFromPercentEvent(e);
+									parametricMetrics.bankStd = decimalFromPercentEvent(e, parametricMetrics.bankStd);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -933,7 +956,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.bankSkew, 2)}
 								onchange={(e) => {
-									parametricMetrics.bankSkew = numFromEvent(e);
+									parametricMetrics.bankSkew = numFromEvent(e, parametricMetrics.bankSkew);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -945,7 +968,7 @@
 								inputmode="decimal"
 								value={fmtNum(investmentMetrics.bankKurt, 2)}
 								onchange={(e) => {
-									parametricMetrics.bankKurt = numFromEvent(e);
+									parametricMetrics.bankKurt = numFromEvent(e, parametricMetrics.bankKurt);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -969,7 +992,11 @@
 								inputmode="decimal"
 								value={fmtNum(input.equityBondCorrelation, 2)}
 								onchange={(e) => {
-									input.equityBondCorrelation = clamp(numFromEvent(e), -1, 1);
+									input.equityBondCorrelation = clamp(
+										numFromEvent(e, input.equityBondCorrelation),
+										-1,
+										1
+									);
 									onInvestmentMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -1014,7 +1041,7 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(input.inflationMean)}
 								onchange={(e) => {
-									parametricInflationMean = decimalFromPercentEvent(e);
+									parametricInflationMean = decimalFromPercentEvent(e, parametricInflationMean);
 									onInflationMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -1026,7 +1053,10 @@
 								inputmode="decimal"
 								value={fmtPercentInputSig3(input.inflationVariability)}
 								onchange={(e) => {
-									parametricInflationVariability = decimalFromPercentEvent(e);
+									parametricInflationVariability = decimalFromPercentEvent(
+										e,
+										parametricInflationVariability
+									);
 									onInflationMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -1050,7 +1080,7 @@
 								inputmode="decimal"
 								value={fmtNum(input.inflationSkewness, 2)}
 								onchange={(e) => {
-									parametricInflationSkewness = numFromEvent(e);
+									parametricInflationSkewness = numFromEvent(e, parametricInflationSkewness);
 									onInflationMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -1062,7 +1092,10 @@
 								inputmode="decimal"
 								value={fmtNum(input.inflationKurtosis, 2)}
 								onchange={(e) => {
-									parametricInflationKurtosis = Math.max(1, numFromEvent(e));
+									parametricInflationKurtosis = Math.max(
+										1,
+										numFromEvent(e, parametricInflationKurtosis)
+									);
 									onInflationMetricChange();
 								}}
 								disabled={input.simulationMode === 'historical' && !input.historicalMomentTargeting}
@@ -1087,7 +1120,11 @@
 								inputmode="decimal"
 								value={fmtPercentDisplay(input.annualFeePercent, 2)}
 								onchange={(e) => {
-									input.annualFeePercent = clamp(decimalFromPercentEvent(e), 0, 1);
+									input.annualFeePercent = clamp(
+										decimalFromPercentEvent(e, input.annualFeePercent),
+										0,
+										1
+									);
 									onSimulationSettingsChange();
 								}}
 							/></td
@@ -1111,7 +1148,11 @@
 								inputmode="decimal"
 								value={fmtPercentDisplay(input.taxOnGainsPercent, 2)}
 								onchange={(e) => {
-									input.taxOnGainsPercent = clamp(decimalFromPercentEvent(e), 0, 1);
+									input.taxOnGainsPercent = clamp(
+										decimalFromPercentEvent(e, input.taxOnGainsPercent),
+										0,
+										1
+									);
 									onSimulationSettingsChange();
 								}}
 							/></td
@@ -1210,7 +1251,10 @@
 						inputmode="decimal"
 						value={fmtPercentInputSig3(input.inflationCrisisSpread ?? 0.015)}
 						onchange={(e) => {
-							input.inflationCrisisSpread = Math.max(0, decimalFromPercentEvent(e));
+							input.inflationCrisisSpread = Math.max(
+								0,
+								decimalFromPercentEvent(e, input.inflationCrisisSpread ?? 0.015)
+							);
 							onSimulationSettingsChange();
 						}}
 						class="expert-tuning-input"

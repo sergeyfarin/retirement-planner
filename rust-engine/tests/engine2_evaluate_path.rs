@@ -107,6 +107,27 @@ fn guardrail_multiplier_is_clamped_to_the_floor_and_ceiling() {
 }
 
 #[test]
+fn guardrail_band_applies_to_total_spending_when_income_is_present() {
+    // Planned spending is 3,000/month, including a 1,000/month pension. The 60–140%
+    // total-spending band therefore permits a portfolio multiplier from 0.4 to 1.6.
+    let mut down = WithdrawalRunner::new(&strategy("guardrails"), 0);
+    down.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 1_000.0);
+    let mut low = 3_000.0;
+    for year in 1..40 {
+        low = down.monthly_spending_with_income(year * 12, 10_000.0, 3_000.0, 1_000.0);
+    }
+    assert_close(low, 1_800.0, 1e-9);
+
+    let mut up = WithdrawalRunner::new(&strategy("guardrails"), 0);
+    up.monthly_spending_with_income(0, 1_000_000.0, 3_000.0, 1_000.0);
+    let mut high = 3_000.0;
+    for year in 1..40 {
+        high = up.monthly_spending_with_income(year * 12, 1e12, 3_000.0, 1_000.0);
+    }
+    assert_close(high, 4_200.0, 1e-9);
+}
+
+#[test]
 fn guardrails_are_dormant_when_the_portfolio_is_already_empty_at_retirement() {
     // With no balance the initial rate is undefined; spending must not be adjusted on the
     // basis of a zero anchor.
