@@ -69,6 +69,15 @@ jobs:
       - name: Run engine tests
         run: pnpm run test:engines
 
+      # Native Rust tests for the engine internals (stats, cashflows, path evaluation). The
+      # parity suite above only sees what the wasm boundary exposes; these cover the rest.
+      - name: Run Rust tests
+        run: cargo test --locked
+        working-directory: rust-engine
+
+      - name: Run block-length analysis tests
+        run: pnpm run test:blocklength
+
       - name: Build dist
         run: pnpm run build
 
