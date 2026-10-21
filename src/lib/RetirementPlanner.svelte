@@ -176,28 +176,28 @@
 			locale: 'en-US',
 			symbol: '$',
 			buttonLabel: m.currency_world(),
-			flagAsset: asset('/assets/flags/world.svg')
+			flagAsset: asset('assets/flags/world.svg')
 		},
 		{
 			code: 'USD',
 			locale: 'en-US',
 			symbol: '$',
 			buttonLabel: m.currency_us(),
-			flagAsset: asset('/assets/flags/us.svg')
+			flagAsset: asset('assets/flags/us.svg')
 		},
 		{
 			code: 'GBP',
 			locale: 'en-GB',
 			symbol: '£',
 			buttonLabel: m.currency_uk(),
-			flagAsset: asset('/assets/flags/uk.svg')
+			flagAsset: asset('assets/flags/uk.svg')
 		},
 		{
 			code: 'EUR',
 			locale: 'de-DE',
 			symbol: '€',
 			buttonLabel: m.currency_eu(),
-			flagAsset: asset('/assets/flags/eu.svg')
+			flagAsset: asset('assets/flags/eu.svg')
 		}
 	]);
 
@@ -1776,7 +1776,7 @@
 		Plotly = module.default ?? module;
 
 		try {
-			const response = await fetch(asset('/assets/historical-market-data.json'), {
+			const response = await fetch(asset('assets/historical-market-data.json'), {
 				cache: 'no-store'
 			});
 			if (response.ok) {

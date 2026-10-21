@@ -1,15 +1,28 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { resolve } from 'path';
 
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
+const base = process.env.VITEST === 'true' ? '' : '/retirement';
+
 export default defineConfig({
 	plugins: [
-		sveltekit(),
+		sveltekit({
+			preprocess: vitePreprocess(),
+			// Use the static adapter for a single-page frontend-only app.
+			// Provide a fallback to support client-side routing in SPA mode.
+			adapter: adapter({ fallback: 'index.html' }),
+			paths: {
+				base,
+				relative: false
+			}
+		}),
 		/**
 		 * Compiles `messages/*.json` into `src/lib/paraglide` on dev and build.
 		 *

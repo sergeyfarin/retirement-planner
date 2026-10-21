@@ -1,7 +1,7 @@
-import { browser } from '$app/environment';
-import { decodeShareHash, parseShareState } from '$lib/shareState';
-import { assertIsLocale } from '$lib/paraglide/runtime';
-import { applyLocale } from '$lib/i18n.svelte';
+import { browser } from '$app/env';
+import { decodeShareHash, parseShareState } from '#lib/shareState.js';
+import { assertIsLocale } from '#lib/paraglide/runtime.js';
+import { applyLocale } from '#lib/i18n.svelte.js';
 
 export const prerender = true;
 

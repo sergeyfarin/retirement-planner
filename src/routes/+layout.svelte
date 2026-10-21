@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import type { Snippet } from 'svelte';
-	import { currentLocale } from '$lib/i18n.svelte';
+	import { currentLocale } from '#lib/i18n.svelte.js';
 
 	let { children }: { children: Snippet } = $props();
 

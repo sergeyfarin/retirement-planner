@@ -81,7 +81,9 @@ describe('RetirementPlanner share-link restoration', () => {
 			timeout: 20_000
 		});
 		expect(fieldById(container, 'adv-block-length').value).toBe('9');
-		expect(numericValue(fieldInRowLabelled(container, 'Tax drag on real gains'))).toBe(22);
+		expect(
+			numericValue(fieldInRowLabelled(container, 'Annual tax drag on investment growth'))
+		).toBe(22);
 		// The savings field is labelled "Portfolio (<currency symbol>)".
 		expect(numericValue(fieldInLabel(container, 'Portfolio'))).toBe(815_000);
 	});
@@ -114,7 +116,9 @@ describe('RetirementPlanner share-link restoration', () => {
 		await vi.waitFor(() => expect(fieldById(container, 'adv-seed').value).toBe('77'), {
 			timeout: 20_000
 		});
-		expect(numericValue(fieldInRowLabelled(container, 'Tax drag on real gains'))).toBe(100);
+		expect(
+			numericValue(fieldInRowLabelled(container, 'Annual tax drag on investment growth'))
+		).toBe(100);
 		expect(numericValue(fieldInRowLabelled(container, 'Annual fees'))).toBe(0);
 		// Uncapped, this link would have frozen the recipient's tab on the first run.
 		expect(numericValue(fieldInLabel(container, 'Simulations'))).toBe(MAX_SHARED_SIMULATIONS);
@@ -224,7 +228,7 @@ describe('RetirementPlanner result communication', () => {
 		expect(verdict?.querySelector('.verdict-next')).not.toBeNull();
 
 		expect(squashed(verdict?.querySelector('.stat-sentence'))).toMatch(
-			/^\d+% — estimated probability that your money lasts through age \d+$/
+			/^>?\d+% — estimated probability that your money lasts through age \d+$/
 		);
 		expect(squashed(verdict)).not.toContain('simulated market paths');
 		expect(squashed(verdict)).not.toContain('meets the 95%');

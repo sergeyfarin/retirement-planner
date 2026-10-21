@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RetirementPlanner from '$lib/RetirementPlanner.svelte';
+	import RetirementPlanner from '#lib/RetirementPlanner.svelte';
 </script>
 
 <main class="retirement-page-shell">
