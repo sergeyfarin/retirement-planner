@@ -15,7 +15,6 @@ use crate::stats::{
     find_required_capital_at_month, is_already_retired,
 };
 use crate::structs::{IncomeSource, LumpSumEvent, RetirementInput, SpendingPeriod};
-use std::f64;
 
 /// Capital implied by the future portfolio-funded spending schedule at the selected SWR.
 /// The final simulated month's gap is treated as the continuing terminal pattern, preserving

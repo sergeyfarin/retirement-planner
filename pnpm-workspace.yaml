@@ -1,4 +1,5 @@
 allowBuilds:
+  # Postinstall verifies the native platform binary loads, falling back to `@swc/wasm`.
   '@swc/core': true
   # Reached only through plotly.js's gl traces (gl-text, regl-line2d), which the custom
   # bundle in src/lib/plotly.ts never imports. Its postinstall is a funding notice wrapped
@@ -6,31 +7,15 @@ allowBuilds:
   es5-ext: false
   esbuild: true
 overrides:
-  uuid: 11.1.1
-  maplibre-gl: 6.4.1
-  # postcss: 8.5.23
+  # vite-plugin-top-level-await is CommonJS and `require`s uuid, but its pinned 10.0.0 is
+  # deprecated and uuid 12+ dropped the CJS entry point. 11.x is the newest release that
+  # still ships one; scope the override to that dependency so @inlang/sdk keeps uuid 14.
+  'vite-plugin-top-level-await>uuid': 11.1.1
   # @swc/core 1.16.x serialises an AST that vite-plugin-top-level-await's `printSync`
-  # rejects with `missing field \`type\``, breaking `vite build`. Pin to the last 1.15
-  # release until the plugin catches up.
+  # rejects with `missing field \`type\``, breaking `vite build` (reproduced on 1.16.20).
+  # Pin to the last 1.15 release until the plugin catches up.
   '@swc/core': 1.15.47
   '@swc/wasm': 1.15.47
-minimumReleaseAgeExclude:
-  - '@sveltejs/vite-plugin-svelte@7.2.0'
-  - svelte-check@4.7.2
-  - '@typescript-eslint/eslint-plugin@8.65.0'
-  - '@typescript-eslint/parser@8.65.0'
-  - '@typescript-eslint/project-service@8.65.0'
-  - '@typescript-eslint/scope-manager@8.65.0'
-  - '@typescript-eslint/tsconfig-utils@8.65.0'
-  - '@typescript-eslint/type-utils@8.65.0'
-  - '@typescript-eslint/types@8.65.0'
-  - '@typescript-eslint/typescript-estree@8.65.0'
-  - '@typescript-eslint/utils@8.65.0'
-  - '@typescript-eslint/visitor-keys@8.65.0'
-  - prettier@3.9.6
-  - typescript-eslint@8.65.0
-  - playwright-core@1.62.0
-  - playwright@1.62.0
-  - svelte@5.56.8
-  - publint@0.3.23
-  - vite@8.2.1 || 8.3.0
+# pnpm 12 quarantines releases younger than 24h (minimumReleaseAge). Add an exact
+# `name@version` under `minimumReleaseAgeExclude` only while intentionally adopting a
+# release inside that window.

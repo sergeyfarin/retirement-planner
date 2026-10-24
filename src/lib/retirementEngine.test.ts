@@ -33,7 +33,7 @@ async function ensureWasm() {
 		const wasmBuffer = readFileSync(
 			join(process.cwd(), 'rust-engine', 'pkg', 'rust_engine_bg.wasm')
 		);
-		await init(wasmBuffer);
+		await init({ module_or_path: wasmBuffer });
 		wasmReady = true;
 	}
 }

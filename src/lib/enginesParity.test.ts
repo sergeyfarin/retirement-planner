@@ -38,7 +38,9 @@ import { join } from 'path';
 const RELATIVE_TOLERANCE = 1e-9;
 
 beforeAll(async () => {
-	await init(readFileSync(join(process.cwd(), 'rust-engine', 'pkg', 'rust_engine_bg.wasm')));
+	await init({
+		module_or_path: readFileSync(join(process.cwd(), 'rust-engine', 'pkg', 'rust_engine_bg.wasm'))
+	});
 });
 
 /** Scale-aware comparison: relative for large magnitudes, absolute near zero. */
