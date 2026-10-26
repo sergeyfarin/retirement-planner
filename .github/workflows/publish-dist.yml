@@ -131,5 +131,3 @@ jobs:
           generate_release_notes: false
           make_latest: true
           overwrite_files: true
-
-  
