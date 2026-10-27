@@ -56,7 +56,7 @@ jobs:
       - run: pnpm run build:root
       - name: Configure custom domain in artifact
         run: printf '%s\n' 'retirement.rekenraam.com' > build/CNAME
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build
 
@@ -87,4 +87,4 @@ jobs:
       - name: Recheck CI and current main before deploying
         run: TARGET_SHA=$(git rev-parse HEAD) bash scripts/check-pages-deployment.sh
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
