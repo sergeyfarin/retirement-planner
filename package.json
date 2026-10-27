@@ -26,6 +26,7 @@
 		"build:wasm": "cd rust-engine && wasm-pack build --target web",
 		"dev": "pnpm run build:wasm && vite dev",
 		"build": "pnpm run build:wasm && vite build && pnpm run prepack",
+		"build:root": "RETIREMENT_HOSTING=root pnpm run build",
 		"preview": "vite preview",
 		"i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy localStorage preferredLanguage baseLocale",
 		"prepare": "pnpm run i18n:compile && svelte-kit sync || echo ''",
