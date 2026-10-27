@@ -8,6 +8,27 @@ http://farin.nl/retirement
 
 ---
 
+## Hosting and deployment
+
+`pnpm run build` retains the `/retirement` base and produces the existing `build/`
+release artifact for farin.nl. `pnpm run build:root` builds the same app for `/`,
+intended for `https://retirement.rekenraam.com/`. Both commands replace `build/`;
+run the desired build last. `RETIREMENT_HOSTING` accepts only `subpath` (default)
+or `root`. Language selection remains in localStorage and share links retain the
+current origin and path.
+
+The separate Pages workflow is dormant by default: it requires the repository variable
+`RETIREMENT_PAGES_ENABLED` to be exactly `true`, a manual dispatch from `main`, and
+its `deploy` input to be checked. It builds a root artifact with a `CNAME` for the
+subdomain and deploys through the `github-pages` environment. Before enabling it,
+configure Pages to use GitHub Actions, protect that environment as appropriate, verify
+the custom domain and DNS, and verify the existing CI gates have passed for the commit.
+The workflow also requires a successful Publish Dist push run for the exact main commit
+before building.
+Neither this preparation nor a normal build changes Pages settings or DNS. The existing
+Publish Dist workflow's manual dispatch publishes a release and must not be used as a
+branch test.
+
 ## 1. Overview
 
 The calculator projects portfolio balances from a starting age through a configurable end-of-life horizon using **monthly time steps**, resolving all outputs into **real (inflation-adjusted) terms**. It generates probability-weighted outcome bands (P10–P90), estimates ruin probability, computes Financial Independence (FI) targets, and visualizes sequence-of-returns risk.

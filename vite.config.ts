@@ -9,7 +9,11 @@ import { resolve } from 'path';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
-const base = process.env.VITEST === 'true' ? '' : '/retirement';
+const hosting = process.env.RETIREMENT_HOSTING ?? 'subpath';
+if (hosting !== 'subpath' && hosting !== 'root') {
+	throw new Error('RETIREMENT_HOSTING must be subpath or root');
+}
+const base = process.env.VITEST === 'true' || hosting === 'root' ? '' : '/retirement';
 
 export default defineConfig({
 	plugins: [
