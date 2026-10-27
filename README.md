@@ -18,9 +18,9 @@ or `root`. Language selection remains in localStorage and share links retain the
 current origin and path.
 
 When `RETIREMENT_PAGES_ENABLED` is exactly `true`, Deploy Pages runs after a
-successful **main push** Publish Dist workflow. It checks that a completed successful
-push run exists for the exact commit, builds that commit for `/`, and deploys the Pages
-artifact with the subdomain's `CNAME`. A manual Deploy Pages dispatch from `main` with
+successful **main push** Publish Dist workflow. It checks out trusted `main`, requires its
+SHA to match the trigger, and checks for a completed successful push run for that commit.
+It builds the app for `/` and deploys the Pages artifact with the subdomain's `CNAME`. A manual Deploy Pages dispatch from `main` with
 `deploy` checked remains available and requires the same successful push run. Pull
 requests, manual Publish Dist runs, failures, and other branches cannot trigger deployment.
 Publish Dist retains its validation gates and legacy `/retirement` release artifact.

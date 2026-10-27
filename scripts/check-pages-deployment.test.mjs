@@ -15,7 +15,7 @@ const passing = {
 	conclusion: 'success'
 };
 
-function gate(runs, main = sha, failApi = false) {
+function gate(runs, main = sha, failApi = false, trigger = sha) {
 	const dir = mkdtempSync(join(tmpdir(), 'pages-gate-'));
 	try {
 		writeFileSync(
@@ -42,6 +42,7 @@ fi
 				PATH: `${dir}:${process.env.PATH}`,
 				GH_REPO: 'example/repo',
 				TARGET_SHA: sha,
+				TRIGGER_SHA: trigger,
 				RUNS: JSON.stringify({ workflow_runs: runs }),
 				MAIN: JSON.stringify({ object: { sha: main } }),
 				FAIL_API: failApi ? 'yes' : 'no'
@@ -75,4 +76,10 @@ test('rejects a once-passing commit after main advances', () => {
 
 test('fails closed when the API is unavailable', () => {
 	assert.notEqual(gate([passing], sha, true).status, 0);
+});
+
+test('rejects a trigger for a different commit before consulting the API', () => {
+	const result = gate([passing], sha, true, 'b'.repeat(40));
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr, /does not match the triggering commit/);
 });

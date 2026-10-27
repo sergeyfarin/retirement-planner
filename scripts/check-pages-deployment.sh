@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Fail closed unless this exact commit passed the main push workflow and is still main.
 set -euo pipefail
-: "${GH_REPO:?}" "${TARGET_SHA:?}"
+: "${GH_REPO:?}" "${TARGET_SHA:?}" "${TRIGGER_SHA:?}"
+if [[ "$TARGET_SHA" != "$TRIGGER_SHA" ]]; then
+  echo 'Checked-out main does not match the triggering commit' >&2
+  exit 1
+fi
 
 passing_runs=$(gh api --paginate "repos/$GH_REPO/actions/workflows/publish-dist.yml/runs?event=push&branch=main&head_sha=$TARGET_SHA&per_page=100" \
   --jq '.workflow_runs[] | select(.event == "push" and .head_branch == "main" and .head_sha == "'"$TARGET_SHA"'" and .status == "completed" and .conclusion == "success") | .id')
