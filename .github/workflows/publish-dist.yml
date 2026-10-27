@@ -75,6 +75,9 @@ jobs:
         run: cargo test --locked
         working-directory: rust-engine
 
+      - name: Test Pages deployment gate
+        run: node --test scripts/check-pages-deployment.test.mjs
+
       - name: Run block-length analysis tests
         run: pnpm run test:blocklength
 

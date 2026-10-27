@@ -17,14 +17,24 @@ run the desired build last. `RETIREMENT_HOSTING` accepts only `subpath` (default
 or `root`. Language selection remains in localStorage and share links retain the
 current origin and path.
 
-The separate Pages workflow is dormant by default: it requires the repository variable
-`RETIREMENT_PAGES_ENABLED` to be exactly `true`, a manual dispatch from `main`, and
-its `deploy` input to be checked. It builds a root artifact with a `CNAME` for the
-subdomain and deploys through the `github-pages` environment. Before enabling it,
-configure Pages to use GitHub Actions, protect that environment as appropriate, verify
-the custom domain and DNS, and verify the existing CI gates have passed for the commit.
-The workflow also requires a successful Publish Dist push run for the exact main commit
-before building.
+When `RETIREMENT_PAGES_ENABLED` is exactly `true`, Deploy Pages runs after a
+successful **main push** Publish Dist workflow. It checks that a completed successful
+push run exists for the exact commit, builds that commit for `/`, and deploys the Pages
+artifact with the subdomain's `CNAME`. A manual Deploy Pages dispatch from `main` with
+`deploy` checked remains available and requires the same successful push run. Pull
+requests, manual Publish Dist runs, failures, and other branches cannot trigger deployment.
+Publish Dist retains its validation gates and legacy `/retirement` release artifact.
+
+Deployments are serialized, and the workflow checks that the commit is still the head of
+`main` both before building and immediately before deploying, after any environment
+approval. A delayed older run therefore cannot replace a newer deployment. GitHub may
+replace a pending run in the concurrency group; if the latest deployment is displaced,
+rerun or manually dispatch Deploy Pages for the current main commit after CI succeeds.
+
+Before enabling the variable, configure Pages to use GitHub Actions, protect the
+`github-pages` environment as appropriate, and verify the custom domain and DNS. Live
+verification remains: observe a successful main push deployment, confirm the deployed SHA
+and root asset paths, domain and HTTPS, no cookies, and that a delayed older run is rejected.
 Neither this preparation nor a normal build changes Pages settings or DNS. The existing
 Publish Dist workflow's manual dispatch publishes a release and must not be used as a
 branch test.
