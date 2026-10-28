@@ -3,6 +3,34 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!--
+			Static on purpose: link previews (Reddit, Slack, chat apps) read the served HTML
+			without running JavaScript, so these cannot come from the Svelte app. The canonical
+			and image URLs are absolute because crawlers require it; both builds point at the
+			root deployment.
+		-->
+		<title>FIRE Retirement Plan Stress Test</title>
+		<meta
+			name="description"
+			content="Free, open-source FIRE calculator. Stress-test your retirement plan with Monte Carlo simulation on historical market data. Runs entirely in your browser: no sign-up, no tracking."
+		/>
+		<link rel="canonical" href="https://retirement.rekenraam.com/" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Retirement Planner" />
+		<meta property="og:title" content="FIRE Retirement Plan Stress Test" />
+		<meta
+			property="og:description"
+			content="Monte Carlo stress test for early retirement plans, built on historical market data. Open source, runs entirely in your browser, nothing leaves your device."
+		/>
+		<meta property="og:url" content="https://retirement.rekenraam.com/" />
+		<meta property="og:image" content="https://retirement.rekenraam.com/og-image.png" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta
+			property="og:image:alt"
+			content="Retirement planner showing a percentile fan chart of simulated portfolio balances"
+		/>
+		<meta name="twitter:card" content="summary_large_image" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		<link
 			rel="preload"
